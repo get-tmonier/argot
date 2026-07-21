@@ -42,7 +42,7 @@ export const GET: APIRoute = async () => {
     '',
     '## What it catches',
     '',
-    'Five detectors, all learned from the repo\'s own git history. Every finding ' +
+    'Six detectors, all learned from the repo\'s own git history. Every finding ' +
       'belongs to a named rule with a configurable severity (`error` fails the check, ' +
       '`warn` reports without failing, `off` disables) — set in `argot.toml [rules]` ' +
       'or per run with `--rule <name|group>=<severity>`; `argot rules` lists them.',
@@ -55,20 +55,29 @@ export const GET: APIRoute = async () => {
       'benchmark numbers gate on. Rules (group `voice`): `foreign-import`, ' +
       '`rare-tokens`, `unfamiliar-callee`, `convention`.',
     '',
-    '**2 · Redundant — the semantic layer:** a new function that reinvents ' +
+    '**2 · Superseded — the migration miner (group `voice`):** new code written the ' +
+      'way the repo is migrating away from. At fit, argot replays up to 1,000 accepted ' +
+      'commits and mines replacement pairs (an import or callee systematically removed ' +
+      'while its replacement is added); the replacement stops reading as foreign, and ' +
+      'new code on the old pattern raises `superseded` (ships `warn`) citing the ' +
+      'migrating commits. Migrations can also be declared in `argot.toml` ' +
+      '(`[[migration]]` — from/to/reason, effective without a refit), and ' +
+      '`argot conventions` lists each migration\'s remaining files.',
+    '',
+    '**3 · Redundant — the semantic layer:** a new function that reinvents ' +
       'one the repo already has. A per-repo code-embedding index finds the nearest ' +
       'existing function and shows where it lives. Rule: `redundant` (group `semantic`).',
     '',
-    '**3 · Misplaced — the semantic layer:** the right code filed in the ' +
+    '**4 · Misplaced — the semantic layer:** the right code filed in the ' +
       'wrong package — its nearest semantic neighbours concentrate somewhere else. ' +
       'Rule: `misplaced` (group `semantic`).',
     '',
-    '**4 · Layering — the architecture graph:** an internal import that reverses the ' +
+    '**5 · Layering — the architecture graph:** an internal import that reverses the ' +
       'repo\'s established layer direction or crosses a boundary it never crosses. ' +
       '96.8% of planted violations caught at 0% false positives on control edits. ' +
       'Rule: `layering` (group `architecture`).',
     '',
-    '**5 · Test integrity — the test-inventory diff:** a test weakened, disabled, or ' +
+    '**6 · Test integrity — the test-inventory diff:** a test weakened, disabled, or ' +
       'deleted alongside the production change it covers — the shape of an agent ' +
       'gaming a failing suite. 94% of authored gaming edits caught across 23 corpora / ' +
       '12 languages, 1.13% of real accepted test-touching commits flagged at gating ' +
@@ -82,7 +91,7 @@ export const GET: APIRoute = async () => {
       'Offline, the semantic rules skip with a clear note and the rest still runs ' +
       '(`argot model fetch` pre-downloads; `ARGOT_OFFLINE=1` never touches the network).',
     '',
-    '**Beyond the learned five — your own rules.** A repo can drop scripted rules under ' +
+    '**Beyond the learned six — your own rules.** A repo can drop scripted rules under ' +
       '`.argot/rules/<name>/` (a TOML manifest + a sandboxed Rhai script, group `custom`): ' +
       'repo-specific conventions no generic linter ships, run on every diff across all 11 ' +
       'languages — and, via path globs, on files argot doesn\'t even score (`.env`, CI ' +
@@ -90,7 +99,7 @@ export const GET: APIRoute = async () => {
       'committed `argot.toml`): its severity freezes and every suppression surface is refused, ' +
       'so an agent can\'t mute or downgrade a check it can\'t satisfy. Weakening a lock — or ' +
       'editing a locked rule\'s script — is itself reported by `rule-tampered` (group ' +
-      '`governance`, pinned `error`, unsuppressable). Eleven built-in rules in five groups ' +
+      '`governance`, pinned `error`, unsuppressable). Twelve built-in rules in five groups ' +
       '(`voice`, `semantic`, `architecture`, `integrity`, `governance`) plus the dynamic ' +
       '`custom` group; `argot rules` lists them all.',
     '',

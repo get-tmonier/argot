@@ -1,6 +1,6 @@
 ---
 name: argot-write-rule
-description: Codify a repo convention argot's built-ins don't cover into a scripted custom rule — a `.argot/rules/<name>/rule.toml` manifest plus a sandboxed Rhai script that fires exactly like a built-in, gated on a green fixture suite before it ever sees a real diff. Use when the user asks to "write an argot rule for X", "codify this convention", "ban <pattern> with argot", or wants a repo-specific check beyond the eleven built-ins. Distinct from argot-check (running the existing rules) and argot-setup (fitting the voice model).
+description: Codify a repo convention argot's built-ins don't cover into a scripted custom rule — a `.argot/rules/<name>/rule.toml` manifest plus a sandboxed Rhai script that fires exactly like a built-in, gated on a green fixture suite before it ever sees a real diff. Use when the user asks to "write an argot rule for X", "codify this convention", "ban <pattern> with argot", or wants a repo-specific check beyond the twelve built-ins. Distinct from argot-check (running the existing rules) and argot-setup (fitting the voice model).
 ---
 
 # argot-write-rule

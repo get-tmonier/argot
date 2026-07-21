@@ -90,9 +90,24 @@ suppressing it).
    directory patterns. If the repo uses a code generator whose banner isn't in
    the default `[detect].generated-markers` (e.g. a bespoke in-house codegen),
    add that phrase there too. If the user wants to soften or disable a rule
-   (all default to `error` except `test-weakened`, which ships `warn`), the surface is the `[rules]` table in the
-   same file — e.g. `misplaced = "warn"` or `semantic = "off"`; `argot rules`
-   lists the registry with effective severities. Re-run `argot init`.
+   (all default to `error` except `test-weakened` and `superseded`, which ship
+   `warn`), the surface is the `[rules]` table in the same file — e.g.
+   `misplaced = "warn"` or `semantic = "off"`; `argot rules` lists the
+   registry with effective severities. If the repo is mid-migration (an old
+   dependency or call being retired for a new one) and the user wants to
+   declare it before history shows enough signal, add a `[[migration]]`
+   entry — two lines, effective immediately, no refit needed:
+
+   ```toml
+   [[migration]]
+   from = "moment"
+   to = "date-fns"
+   reason = "Q2 date-handling refactor"
+   ```
+
+   The `to` side stops reading as foreign; the `from` side raises
+   `superseded` in new code. Re-run `argot init` after the exclude/rule edits
+   above — the migration declaration itself doesn't need it.
 
 7. **Verify the catch works** — the important check. In a real primary-source
    file, add a throwaway import of a package the repo never uses (e.g.

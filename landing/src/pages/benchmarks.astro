@@ -284,9 +284,10 @@ const fireCell = (fires: number | null, hunks: number | null, pct: number | null
       </a>
     </div>
     <p class="mt-5 text-sm leading-relaxed text-ink-dim">
-      <strong>What the headline metric covers.</strong> All five detectors fire as
+      <strong>What the headline metric covers.</strong> All these detectors fire as
       ordinary rules — <code class="text-xs">error</code> severity by default (the check
-      fails; <code class="text-xs">test-weakened</code> ships <code class="text-xs">warn</code>),
+      fails; <code class="text-xs">test-weakened</code> and the migration-aware
+      <code class="text-xs">superseded</code> ship <code class="text-xs">warn</code>),
       each one configurable to <code class="text-xs">warn</code> or
       <code class="text-xs">off</code> in <code class="text-xs">[rules]</code>. The
       headline catch/over-fire numbers argot is judged on cover detectors 1 &amp; 4;

@@ -62,6 +62,8 @@ It also asks a second question no other tool asks: **did the AI play fair?** Whe
 
 The first five are learned from your git history. The sixth is [written by you](#your-conventions-as-rules) — and it's the part of every linter config your team actually cares about.
 
+argot also notices when the repo itself moves on: it mines your accepted history for **migrations** — an old dependency or call retired in favor of a new one — so the replacement stops reading as foreign, new code that still reaches for the old side raises `superseded` (warn by default), and it lists the files the refactor forgot. Evidence is your own commits; or declare one yourself in two lines of `argot.toml`, effective immediately, no refit needed.
+
 ## Get started
 
 ```sh

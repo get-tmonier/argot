@@ -15,7 +15,7 @@ Pick the local path, the CI path, or both.
 | Skill | Path | When it runs |
 |---|---|---|
 | [`argot-setup`](./argot-setup/SKILL.md) | local | Once per repo — fit the model, build the semantic index, and decide what shouldn't shape the repo's voice (writes `argot.toml`). |
-| [`argot-check`](./argot-check/SKILL.md) | local | Per change — score your working diff against every configured rule — the five learned detectors plus any custom rules — and act on what fires. |
+| [`argot-check`](./argot-check/SKILL.md) | local | Per change — score your working diff against every configured rule — the six learned detectors plus any custom rules — and act on what fires. |
 | [`argot-review-pr`](./argot-review-pr/SKILL.md) | local | On demand — review a specific PR (or range) against the repo's local model, no checkout. |
 | [`argot-setup-ci`](./argot-setup-ci/SKILL.md) | CI | Wire the GitHub Action — a non-blocking score on every PR (no local setup needed). |
 | [`argot-write-rule`](./argot-write-rule/SKILL.md) | local | On demand — codify a repo convention as a scripted custom rule, fixture-tested before it ever sees a real diff. |

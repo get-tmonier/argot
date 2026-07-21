@@ -107,6 +107,21 @@ pub struct LangConventions {
     pub routing_objects: Vec<Convention>,
     /// Typical calls by area (the learned call clusters).
     pub clusters: Vec<ClusterView>,
+    /// In-progress migrations mined from accepted history ("this repo
+    /// replaces X with Y"), each with its evidence and the files still to
+    /// migrate — the repo-wide leftover report.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub migrations: Vec<crate::scoring::supersede::Supersession>,
+}
+
+/// One declared migration (`[[migration]]` in argot.toml) — user-stated
+/// rather than mined, listed alongside the learned ones.
+#[derive(Serialize, Clone, Debug)]
+pub struct DeclaredMigration {
+    pub from: String,
+    pub to: String,
+    pub kind: String,
+    pub reason: String,
 }
 
 /// The repo's conventions, per language.
@@ -117,6 +132,9 @@ pub struct ConventionCatalog {
     /// Placement conventions — where the repo keeps a kind of code (repo-wide,
     /// across languages).
     pub placement: Vec<crate::placement::PlacementConvention>,
+    /// Declared migrations from argot.toml (`[[migration]]`), repo-wide.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub declared_migrations: Vec<DeclaredMigration>,
 }
 
 /// Per-language accumulator for the internal-API walk.
@@ -207,14 +225,31 @@ pub fn build_catalog(repo_dir: &Path, top_n: usize) -> Result<ConventionCatalog>
                 type_funnels: internal.1,
                 routing_objects: internal.2,
                 clusters: view.clusters,
+                migrations: view.supersessions,
             },
         );
     }
+
+    let declared_migrations = argot_engine::config::ArgotConfig::load(repo_dir)
+        .migrations()
+        .active
+        .into_iter()
+        .map(|m| DeclaredMigration {
+            from: m.from,
+            to: m.to,
+            kind: match m.kind {
+                argot_engine::config::MigrationKind::Import => "import".to_string(),
+                argot_engine::config::MigrationKind::Callee => "callee".to_string(),
+            },
+            reason: m.reason,
+        })
+        .collect();
 
     Ok(ConventionCatalog {
         model_hash,
         languages,
         placement: crate::placement::mine_placement(repo_dir),
+        declared_migrations,
     })
 }
 

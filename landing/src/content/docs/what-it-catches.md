@@ -1,16 +1,18 @@
 ---
 title: What it catches
-description: The five axes argot flags — a foreign dependency/API/paradigm the repo has never used, a redundant function it already has, misplaced code, an import that breaks the repo's layering, and a test gamed to green a failing suite — plus an honest account of the in-vocabulary breaks it still won't gate on.
+description: The six axes argot flags — a foreign dependency/API/paradigm the repo has never used, a pattern its own migrations left behind, a redundant function it already has, misplaced code, an import that breaks the repo's layering, and a test gamed to green a failing suite — plus an honest account of the in-vocabulary breaks it still won't gate on.
 group: Guide
 order: 8
 ---
 
 argot catches code that is *technically fine but doesn't fit this project* — valid, typed, and
-lint-clean, but not how this codebase writes things. It works on **five axes**:
+lint-clean, but not how this codebase writes things. It works on **six axes**:
 
 - **Foreign** — a dependency, API, or whole paradigm the repo has never reached for. The base voice
   model (statistical, no neural net; rules `foreign-import`, `unfamiliar-callee`, `rare-tokens`);
   the class an AI agent trips most, and the one the published numbers gate on.
+- **Superseded** — new code written the way the repo is migrating *away from*. Mined from the
+  repo's own replacement commits, or declared in `argot.toml` (rule `superseded`).
 - **Redundant** — a new function that reinvents one the repo already has. The semantic layer finds
   the original and shows you where it lives (rule `redundant`).
 - **Misplaced** — the right code, filed in the wrong package. Also the semantic layer (rule
@@ -22,9 +24,9 @@ lint-clean, but not how this codebase writes things. It works on **five axes**:
   complement of the other four: they catch foul play with *code*, this one catches foul play with
   *tests*.
 
-Every rule defaults to severity `error` — a finding fails `argot check` — except `test-weakened`,
-which ships `warn` (reported, never fails the check); every rule can be reconfigured per repo or
-per run. See [Configure](/docs/configure/#rules--rule-severities).
+Every rule defaults to severity `error` — a finding fails `argot check` — except `superseded` and
+`test-weakened`, which ship `warn` (reported, never fail the check); every rule can be
+reconfigured per repo or per run. See [Configure](/docs/configure/#rules--rule-severities).
 
 Everything below is a real result from the shipped binary (`argot check` on a planted hunk, fit on
 the repo's own history). Where argot flags a line, the transcript is quoted verbatim. Where it
@@ -100,6 +102,53 @@ request-first signature. argot flags it because that entire vocabulary of callee
 codebase built on typed function endpoints. **No linter, type checker, or dependency policy can encode
 "we don't write Django-style views here" — argot learns it.** This is the gap between *valid* and
 *ours*, and it is the class the base voice model is built to close.
+
+## Superseded — new code written the old way
+
+Still the base voice model (rule `superseded`), but pointed at *time* rather than vocabulary. At
+fit, argot mines the repo's own accepted history for **supersessions** — "this repo replaced X with
+Y" — from commits that swap an import or a call for its replacement, repeatedly, across files, in
+one direction, with the old side declining and the new side rising ever since. Two effects follow,
+at check time: the replacement (`Y`) never reads as foreign — the model already knows it's where
+the repo is heading — and new code that reaches for the *old* side (`X`) is flagged.
+
+```js
+// an agent reaches for the date-handling library it's used elsewhere — not the
+// one this repo has been migrating away from for two months
+import moment from 'moment';
+```
+
+```text
+? suspicious · superseded
+  ↳ this repo replaced 'moment' with 'date-fns' — 4 commits across 4 files (2026-01-08..2026-01-30, e.g. 631e692)
+```
+
+A migration can also be **declared** before history carries enough signal — two lines in
+`argot.toml`, effective immediately, no refit needed:
+
+```toml
+[[migration]]
+from = "moment"
+to = "date-fns"
+reason = "Q2 date-handling refactor"
+```
+
+```text
+? suspicious · superseded
+  ↳ argot.toml migration to 'date-fns' — Q2 date-handling refactor
+```
+
+Every migration — mined or declared — is never a black box: the finding cites the evidence (real
+commits, files, dates, an example commit sha) or the declared reason, and `argot conventions` lists
+the whole migration alongside every corpus file still on the old side — the repo-wide "what did the
+refactor forget" report. Unlike the rest of the base voice model, `superseded` ships **`warn`** by
+default: a nudge mid-migration, not a gate — configurable like any rule (see
+[Configure](/docs/configure/#migration--declare-a-migration) for the declared side).
+
+Validated on a probe over 16 real repositories: every corpus with a real migration in its history
+is mined exactly it, and zero false candidates surface on the 11 corpora with no migration to
+find. Full methodology:
+[`docs/research/evidence/supersession-mining-probe.md`](https://github.com/get-tmonier/argot/blob/main/docs/research/evidence/supersession-mining-probe.md).
 
 ## Redundant — a function you already have
 

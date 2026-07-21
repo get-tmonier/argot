@@ -74,7 +74,7 @@ pub use argot_rules_voice::{convention_catalog, extract, inspect, placement, tra
 pub mod scoring {
     pub use argot_rules_voice::scoring::{
         bpe_scorer, call_receiver, conventions, evidence, import_graph, model, sequential,
-        shape_primitive, shape_primitives, typicality,
+        shape_primitive, shape_primitives, supersede, typicality,
     };
 
     /// `calibration` is almost entirely a re-export of

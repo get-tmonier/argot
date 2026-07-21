@@ -4,6 +4,7 @@ use crate::scoring::adapters::adapter_for;
 use crate::scoring::evidence::types::EvidenceCorpus;
 use crate::scoring::model::LanguageModel;
 use crate::scoring::sequential::{ScoredHunk, SequentialConfig, SequentialImportBpeScorer};
+use crate::scoring::supersede::{Supersession, SupersessionKind};
 use argot_engine::config::DetectConfig;
 use argot_lang::ext::{ext_to_lang, extension, EXT_TO_LANG};
 use serde_json::Value;
@@ -64,6 +65,10 @@ pub(super) struct Loaded {
     /// Combined fingerprint of the fit-time model — the same `model_hash` the
     /// manifest records. Lets `check` name which model judged the diff.
     pub(super) model_hash: String,
+    /// Per-language mined supersessions ("this repo replaces X with Y") —
+    /// the `superseded` rule's enforcement list. Their replacement sides are
+    /// already folded into the scorers' attestation at load.
+    pub(super) supersessions: HashMap<String, Vec<Supersession>>,
 }
 /// Best-effort Python `repr` of the `version` value for the mismatch message.
 fn py_repr(v: &Value) -> String {
@@ -139,6 +144,7 @@ pub(super) fn load_scorers(
 
     let mut scorers: HashMap<String, SequentialImportBpeScorer> = HashMap::new();
     let mut facts = VoiceFacts::default();
+    let mut supersessions: HashMap<String, Vec<Supersession>> = HashMap::new();
 
     for (lang, lang_cfg) in languages {
         let lc = match lang_cfg.as_object() {
@@ -256,17 +262,42 @@ pub(super) fn load_scorers(
             }
         };
 
-        let scorer = SequentialImportBpeScorer::from_model(&model, &baseline_bytes, adapter, cfg)
-            .map_err(|e| {
-            (
-                format!("error: failed to load scorer for '{lang}': {e}\n"),
-                2,
-            )
-        })?;
+        let mut scorer =
+            SequentialImportBpeScorer::from_model(&model, &baseline_bytes, adapter, cfg).map_err(
+                |e| {
+                    (
+                        format!("error: failed to load scorer for '{lang}': {e}\n"),
+                        2,
+                    )
+                },
+            )?;
+
+        // Mined supersessions: the replacement side joins the attestation
+        // (never foreign again); the superseded side stays listed for the
+        // `superseded` rule's enforcement scan.
+        let lang_supersessions: Vec<Supersession> = lc
+            .get("supersessions")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+            .unwrap_or_default();
+        let replacement_imports: Vec<String> = lang_supersessions
+            .iter()
+            .filter(|s| s.kind == SupersessionKind::Import)
+            .map(|s| s.new.clone())
+            .collect();
+        let replacement_callees: Vec<String> = lang_supersessions
+            .iter()
+            .filter(|s| s.kind == SupersessionKind::Callee)
+            .map(|s| s.new.clone())
+            .collect();
+        scorer.attest_replacements(&replacement_imports, &replacement_callees);
+
         scorers.insert(lang.clone(), scorer);
         facts.imports.insert(
             lang.clone(),
-            get_strings("import_modules").into_iter().collect(),
+            get_strings("import_modules")
+                .into_iter()
+                .chain(replacement_imports)
+                .collect(),
         );
         facts.callees.insert(
             lang.clone(),
@@ -282,6 +313,10 @@ pub(super) fn load_scorers(
                 })
                 .unwrap_or_default(),
         );
+        if let Some(attested) = facts.callees.get_mut(lang) {
+            attested.extend(replacement_callees);
+        }
+        supersessions.insert(lang.clone(), lang_supersessions);
     }
 
     let mut language_extensions: HashSet<String> = HashSet::new();
@@ -369,6 +404,7 @@ pub(super) fn load_scorers(
         slices,
         new_file_thresholds,
         fit_corpus_files,
+        supersessions,
     })
 }
 /// A repo's fitted per-language scorers, loaded once for reuse outside the
@@ -379,6 +415,17 @@ pub struct RepoScorers {
     scorers: HashMap<String, SequentialImportBpeScorer>,
     /// Combined model fingerprint — the `model:` hash `check` reports.
     pub model_hash: String,
+    /// Per-language mined supersessions, for the single-hunk superseded scan.
+    supersessions: HashMap<String, Vec<Supersession>>,
+}
+
+/// One superseded pattern a hunk uses (mined or declared), with the evidence
+/// line `check` would render.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct SupersededMatch {
+    pub old: String,
+    pub new: String,
+    pub evidence: String,
 }
 
 impl RepoScorers {
@@ -390,6 +437,7 @@ impl RepoScorers {
         Ok(RepoScorers {
             scorers: loaded.scorers,
             model_hash: loaded.model_hash,
+            supersessions: loaded.supersessions,
         })
     }
 
@@ -416,5 +464,27 @@ impl RepoScorers {
             None,
             Some(Path::new(file_path)),
         ))
+    }
+
+    /// The superseded patterns `hunk_content` uses — mined supersessions for
+    /// the file's language plus declared `[[migration]]` entries.
+    pub fn superseded_in_hunk(
+        &self,
+        file_path: &str,
+        hunk_content: &str,
+        migrations: &[argot_engine::config::MigrationRule],
+    ) -> Vec<SupersededMatch> {
+        let Some(lang) = self.language_for(file_path) else {
+            return Vec::new();
+        };
+        let mined = self
+            .supersessions
+            .get(lang)
+            .map(Vec::as_slice)
+            .unwrap_or(&[]);
+        crate::superseded::hunk_matches(lang, hunk_content, mined, migrations)
+            .into_iter()
+            .map(|(old, new, evidence)| SupersededMatch { old, new, evidence })
+            .collect()
     }
 }

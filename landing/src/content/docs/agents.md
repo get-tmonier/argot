@@ -85,13 +85,18 @@ no separate runtime. It exposes five tools:
 **Tool inputs and responses.** `argot.check` and `argot.explain` take `file_path` and `hunk_content`
 (both required) plus optional `file_source` (the full file, for better context); they return
 `out_of_voice`, `score`, `threshold`, `rule` (one of the built-in scoring rule names — `rule-tampered` and custom rules never surface through a single-hunk MCP check: `foreign-import`,
-`unfamiliar-callee`, `rare-tokens`, `convention`, `redundant`, `misplaced`, `layering`,
+`unfamiliar-callee`, `rare-tokens`, `convention`, `superseded`, `redundant`, `misplaced`, `layering`,
 `test-deleted`, `test-disabled`, `test-weakened`), `model`,
-and — on a hit, or always for `explain` — `evidence`. `argot.voice_context` takes `file_path` (required) and optional `top` (default 10), and
-returns `typical_callees_by_cluster`, `familiar_imports`, and the resolved `language`.
-`argot.fit_status` takes no arguments and returns the full `inspect` report (corpus, calibration,
+and — on a hit, or always for `explain` — `evidence`. Either also carries an optional `superseded`
+array (`{ old, new, evidence }[]`) whenever the hunk reaches for a pattern the repo has mined or
+declared as replaced — a migration nudge alongside whatever else the hunk scores. `argot.voice_context` takes `file_path` (required) and optional `top` (default 10), and
+returns `typical_callees_by_cluster`, `familiar_imports`, and the resolved `language`, plus — when
+the file's language has any migrations in play — optional `superseded` (`{ avoid, use }[]`) and a
+`superseded_note`, so an agent hears "the repo is moving away from this" before it writes more of
+it. `argot.fit_status` takes no arguments and returns the full `inspect` report (corpus, calibration,
 verdict, reasons). `argot.conventions` takes no arguments and returns the convention catalog
-(per-language vocabulary + repo-wide placement). Tool-level failures come back as an `isError` text
+(per-language vocabulary + repo-wide placement + any in-progress migrations, mined or declared).
+Tool-level failures come back as an `isError` text
 result the agent can read, not a protocol error.
 
 The point is **writing in-voice from the first token** instead of

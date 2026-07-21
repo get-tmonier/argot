@@ -601,6 +601,22 @@ impl CallReceiverScorer {
         })
     }
 
+    /// Widen the attestation with additional callees (a supersession or
+    /// declared migration's replacement side). Derived sets stay consistent
+    /// with [`CallReceiverScorer::from_model`]'s construction.
+    pub fn extend_attested(&mut self, callees: &[String]) {
+        for c in callees {
+            self.attested_roots
+                .insert(c.split_once('.').map(|(h, _)| h).unwrap_or(c).to_string());
+            if let Some((_, m)) = c.rsplit_once('.') {
+                self.attested_methods.insert(m.to_string());
+            }
+            self.attested_namespaces
+                .insert(leading_namespace(c).to_string());
+            self.attested.insert(c.clone());
+        }
+    }
+
     /// Set the rarity weighting for the cluster branches.
     pub fn with_rarity_weighting(mut self, weighting: RarityWeighting) -> Self {
         self.rarity_weighting = weighting;

@@ -354,6 +354,28 @@ fn run_conventions_cmd(c: ConventionsCmd) -> ExitCode {
         conv_line("Vocabulary        ", &conv.vocabulary);
         conv_line("Type funnels      ", &conv.type_funnels);
         conv_line("Routing objects   ", &conv.routing_objects);
+        for m in &conv.migrations {
+            println!(
+                "  In migration       {} → {} ({} commits, {}..{}) — {} file(s) still to migrate",
+                m.old, m.new, m.commits, m.first, m.last, m.leftover_count
+            );
+            if !m.leftovers.is_empty() {
+                let shown = 5.min(m.leftovers.len());
+                let mut files = m.leftovers[..shown].join(", ");
+                if m.leftover_count > shown {
+                    files.push_str(&format!(", +{} more", m.leftover_count - shown));
+                }
+                println!("                     {files}");
+            }
+        }
+        println!();
+    }
+
+    if !catalog.declared_migrations.is_empty() {
+        println!("── declared migrations (argot.toml) ──");
+        for m in &catalog.declared_migrations {
+            println!("  {} → {} ({}) — {}", m.from, m.to, m.kind, m.reason);
+        }
         println!();
     }
 
@@ -563,6 +585,35 @@ fn run_status(c: StatusCmd) -> ExitCode {
         .map(|h| h.drift_candidates.clone())
         .unwrap_or_default();
 
+    // In-progress migrations: mined supersessions from the artifact plus
+    // declared [[migration]] entries — the freshness surface's "the repo is
+    // moving on" counterpart.
+    let (mined_migrations, leftover_files) = if calibrated {
+        fs::read(ctx.argot_dir.join("scorer-config.json"))
+            .ok()
+            .and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).ok())
+            .and_then(|v| {
+                v.get("languages").and_then(|l| l.as_object()).map(|langs| {
+                    let mut mined = 0usize;
+                    let mut leftovers = 0u64;
+                    for lc in langs.values() {
+                        if let Some(arr) = lc.get("supersessions").and_then(|s| s.as_array()) {
+                            mined += arr.len();
+                            leftovers += arr
+                                .iter()
+                                .filter_map(|s| s.get("leftover_count").and_then(|c| c.as_u64()))
+                                .sum::<u64>();
+                        }
+                    }
+                    (mined, leftovers as usize)
+                })
+            })
+            .unwrap_or((0, 0))
+    } else {
+        (0, 0)
+    };
+    let declared_migrations = status_config.migrations().active.len();
+
     if wants_json(&c.format) {
         let doc = serde_json::json!({
             "repo": { "name": ctx.name, "path": ctx.git_root },
@@ -577,6 +628,11 @@ fn run_status(c: StatusCmd) -> ExitCode {
                 "config_in_sync": config_in_sync,
                 "drift_candidates": drift,
             })),
+            "migrations": {
+                "mined": mined_migrations,
+                "declared": declared_migrations,
+                "leftover_files": leftover_files,
+            },
         });
         println!("{}", serde_json::to_string_pretty(&doc).unwrap_or_default());
         return ExitCode::SUCCESS;
@@ -629,6 +685,15 @@ fn run_status(c: StatusCmd) -> ExitCode {
                 if drift.len() != 1 { "ies" } else { "y" }
             );
         }
+    }
+    if mined_migrations + declared_migrations > 0 {
+        println!(
+            "Migrations: {} in progress ({} mined, {} declared) · {} file(s) still to migrate — `argot conventions`",
+            mined_migrations + declared_migrations,
+            mined_migrations,
+            declared_migrations,
+            leftover_files
+        );
     }
     ExitCode::SUCCESS
 }
@@ -1991,6 +2056,13 @@ fn render_model_human(report: &ModelReport, use_color: bool) -> String {
                 } else {
                     callees.join(", ")
                 }
+            );
+        }
+        for s in &lm.supersessions {
+            let _ = writeln!(
+                out,
+                "    supersession: {} → {} ({} commits, {}..{}, e.g. {}) · {} leftover file(s)",
+                s.old, s.new, s.commits, s.first, s.last, s.example_commit, s.leftover_count
             );
         }
         let _ = writeln!(out);

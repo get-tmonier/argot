@@ -4,7 +4,7 @@ const en: SiteContent = {
   meta: {
     title: 'argot — catch the AI code that doesn’t fit your codebase',
     description:
-      'The harness for AI-written code — statistics on your repo’s own history, not a second LLM. argot flags what doesn’t belong — foreign dependencies, reinvented functions, broken layering, gamed tests — plus the conventions you script yourself. No LLM, no cloud, 100% local.',
+      'The harness for AI-written code — statistics on your repo’s own history, not a second LLM. argot flags what doesn’t belong — foreign dependencies, reinvented functions, broken layering, gamed tests, patterns your own migrations left behind — plus the conventions you script yourself. No LLM, no cloud, 100% local.',
   },
   nav: {
     demo: 'Demo',
@@ -35,6 +35,12 @@ const en: SiteContent = {
         label: 'foreign-import',
         caption:
           'Valid Python — but a framework this repo has never imported. The evidence shows what it reaches for instead.',
+      },
+      {
+        id: 'superseded',
+        label: 'superseded',
+        caption:
+          'This repo replaced requests with httpx months ago. argot cites the migrating commits — and warns before you add one more leftover.',
       },
       {
         id: 'redundant',

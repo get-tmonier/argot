@@ -497,6 +497,10 @@ pub fn run_check(args: CheckArgs, detectors: Vec<RegisteredDetector<'_>>) -> Che
     for w in &mutes.warnings {
         stderr.push_str(&format!("[argot] {w}\n"));
     }
+    let migrations = config.migrations();
+    for w in &migrations.warnings {
+        stderr.push_str(&format!("[argot] {w}\n"));
+    }
 
     // A supported language with no model in this fit is silently dropped by
     // batch_scope below — correct scoring, but the user must know their new
@@ -601,6 +605,7 @@ pub fn run_check(args: CheckArgs, detectors: Vec<RegisteredDetector<'_>>) -> Che
             args: &args,
             filter_adapters: &filter_adapters,
             mute_rules: &mutes.active,
+            migrations: &migrations.active,
             detect: &config.detect,
             header_cpp,
             settings: &settings,

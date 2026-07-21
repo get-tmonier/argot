@@ -54,7 +54,7 @@ informational stderr.
 
 ## The rules
 
-Eleven built-in rules in five groups (plus any repo-local custom rules, group `custom`). `rule-tampered` (group `governance`) fires when the change itself weakens a locked rule — treat it as the highest-priority finding: it means the diff touched the guardrail, not the code. `argot rules` prints this registry with the
+Twelve built-in rules in five groups (plus any repo-local custom rules, group `custom`). `rule-tampered` (group `governance`) fires when the change itself weakens a locked rule — treat it as the highest-priority finding: it means the diff touched the guardrail, not the code. `argot rules` prints this registry with the
 repo's effective severities.
 
 | Rule | Group | What it means | What to do |
@@ -63,6 +63,7 @@ repo's effective severities.
 | `unfamiliar-callee` | voice | A call to a receiver or callee the repo's code never calls. | Check whether the API is wanted; prefer the API the repo already uses. |
 | `rare-tokens` | voice | A token sequence statistically foreign to the repo's voice. | Read the hunk; if it's an off-voice idiom, rewrite it with the repo's vocabulary. |
 | `convention` | voice | A construction that breaks a convention learned from the repo. | Follow the convention named in the evidence, or justify the exception. |
+| `superseded` | voice | New code uses a pattern the repo has replaced — mined from its history, or declared in `argot.toml`. Warn by default. | Use the replacement named in the evidence; only fails the check under `--error-on-warnings`. |
 | `redundant` | semantic | A new function that duplicates one the repo already has. The evidence `↳ duplicates <symbol> (<path>:<line>) — similarity 0.XX` names the original. | **Do not ignore.** Open the cited file, compare, and call the existing function instead of keeping the reimplementation — or justify and mute with a reason. |
 | `misplaced` | semantic | A function that looks like it belongs in another module area. The evidence reads `↳ looks like <area> code filed under <area>`. | Propose moving the code to the cited area, or justify the placement. |
 | `layering` | architecture | An internal import that reverses the repo's established layering direction. | Don't introduce the import — invert the dependency or route through the intended layer. |
@@ -92,8 +93,8 @@ already has that function.
 
 ## Severities and configuration
 
-Every rule defaults to `error` except `test-weakened`, which ships `warn`
-(error → exit `1`; warn → shown, exit `0`;
+Every rule defaults to `error` except `test-weakened` and `superseded`, which
+ship `warn` (error → exit `1`; warn → shown, exit `0`;
 off → silent). Configure durably in `argot.toml`:
 
 ```toml
@@ -141,6 +142,13 @@ For each hit in the JSON, branch on `rule`:
     it (or suggest the switch if the code isn't yours).
   - If the choice is deliberate, tell the user they can record it:
     `argot mute <hash> --reason "…"`.
+- **`superseded`** — the change uses a pattern this repo has moved on from
+  (mined from history, or declared in `argot.toml`). Read the evidence — it
+  names the replacement and the commits that made the switch (or the
+  declared reason). It's warn by default: report it and recommend the named
+  replacement; it only fails the check under `--error-on-warnings`. `argot
+  conventions` lists every migration still in progress, with the leftover
+  files the refactor hasn't reached yet.
 - **`redundant`** — do **not** ignore this. Open the file cited in the
   evidence (`↳ duplicates <symbol> (<path>:<line>)`), compare the two
   functions, and **use the existing one** instead of the reimplementation. If

@@ -180,8 +180,8 @@ argot rules                  # RULE / GROUP / SEVERITY / DESCRIPTION table
 argot rules --format json    # the same, machine-readable
 ```
 
-Eleven built-in rules in five groups: `voice` (`foreign-import`, `unfamiliar-callee`, `rare-tokens`,
-`convention`), `semantic` (`redundant`, `misplaced`), `architecture` (`layering`), `integrity`
+Twelve built-in rules in five groups: `voice` (`foreign-import`, `unfamiliar-callee`, `rare-tokens`,
+`convention`, `superseded`), `semantic` (`redundant`, `misplaced`), `architecture` (`layering`), `integrity`
 (`test-deleted`, `test-disabled`, `test-weakened`), and `governance` (`rule-tampered` — pinned
 `error`, unsuppressable; fires when a change weakens a locked rule). Configure them in `argot.toml`'s `[rules]` or
 per run with `check --rule` — see [Configure](/docs/configure/#rules--rule-severities). A repo
@@ -324,7 +324,11 @@ argot inspect --model --top 12      # show more typical callees per cluster
 `argot fit` writes `.argot/manifest.json` — a versioned, hashed record of what argot learned (model
 hash, scorer-config hash, fit commit + timestamp, corpus size). `inspect --model` reads it back and,
 per language, lists the callees each cluster of your codebase leans on — a quick x-ray of the repo's
-voice.
+voice. When the fit mined any supersessions, each language section also lists them:
+
+```text
+    supersession: moment → date-fns (4 commits, 2026-01-08..2026-01-30, e.g. 631e692) · 9 leftover file(s)
+```
 
 ## describe-voice
 
@@ -342,6 +346,15 @@ It's descriptive, not prescriptive: argot reports what the repo does. Feed it to
 or hand it to an LLM agent as system-prompt context (the same signal the [MCP server](/docs/agents/)
 serves programmatically).
 
+When the fit mined any supersessions from accepted history, a **Replaced patterns** section lists
+each one — the pattern the repo has moved on from, its replacement, and how many files still need
+migrating (declared `[[migration]]` entries don't appear here — see `argot conventions` for the
+combined mined + declared view):
+
+```text
+- `moment` → `date-fns` (4 commits, 2026-01-08..2026-01-30) — 9 file(s) still to migrate
+```
+
 ## conventions
 
 List the conventions the repo already follows — the raw material for a custom rule. Where
@@ -352,7 +365,7 @@ argot conventions                 # the repo's conventions, human-readable
 argot conventions --format json   # the same, machine-readable (rule-ready)
 ```
 
-It reports two kinds:
+It reports three kinds:
 
 - **Vocabulary** — the repo's own most-used internal API: the shared helpers it imports across
   many files, the objects everyone routes calls through. "This is how this codebase talks."
@@ -360,6 +373,26 @@ It reports two kinds:
   (a directory, a filename role like `*.schema.ts`, an extension) and is near-absent elsewhere:
   *"validation lives in schema files"*, *"DB access only in the migration layer"*, *"business logic
   in the service layer, not in views"*. These are the team's structural conventions.
+- **Migrations** — patterns the repo is actively replacing: mined from accepted history, or
+  declared in `argot.toml`'s [`[[migration]]`](/docs/configure/#migration--declare-a-migration).
+  Per language:
+
+  ```text
+  In migration       moment → date-fns (4 commits, 2026-01-08..2026-01-30) — 9 file(s) still to migrate
+                     src/legacy/dates.py, src/reports/weekly.py, … +4 more
+  ```
+
+  followed by any declared migrations, repo-wide:
+
+  ```text
+  ── declared migrations (argot.toml) ──
+    moment → date-fns (import) — Q2 date-handling refactor
+  ```
+
+  This is the repo-wide "what did the refactor forget" report. `--format json` carries the same
+  facts as `languages.<lang>.migrations[]` (`old`, `new`, `kind`, `commits`, `files`, `first`,
+  `last`, `example_commit`, `leftover_count`, `leftovers[]`) and a top-level `declared_migrations[]`
+  (`from`, `to`, `kind`, `reason`).
 
 The signal is corpus- and framework-agnostic — pure feature-by-location association, learned from
 the codebase's own layout, with nothing about any framework hardcoded. Each placement entry carries
@@ -410,7 +443,13 @@ Config:   in sync with the fit
 Hygiene:  no unexcluded generated/data-heavy directories
 ```
 
-`--format json` carries the same `health` block for scripts.
+`--format json` carries the same `health` block for scripts. When any migration — mined or
+declared — is in progress, a `Migrations:` line follows, and the JSON document carries a
+`migrations` object (`mined`, `declared`, `leftover_files`):
+
+```text
+Migrations: 2 in progress (1 mined, 1 declared) · 9 file(s) still to migrate — argot conventions
+```
 
 
 Show the current repository's argot state — whether it has an extracted dataset, a trained model, and

@@ -140,6 +140,28 @@ and `check` surfaces it:
 re-fit. The suggestion only names directories *not already excluded*, so a
 well-configured repo stays quiet.
 
+## Supersession — when the legacy code still outweighs the new
+
+Freshness and drift are both about the model falling out of step with the tree. Supersession is
+the opposite failure: the model is perfectly fresh, but the repo has **two voices layered by
+time** — a migration replaced an old dependency or call with a new one, and the old code is still
+sitting in the corpus in bulk. A model that only counts usage hears the loud, old pattern as "the
+voice" and the recent, correct replacement as foreign.
+
+argot corrects for this at fit time by mining the repo's own accepted history for
+**supersessions** — commits that swap an import or call for its replacement, repeatedly, across
+files, in one direction, with the old side declining and the new side rising ever since. The
+replacement then never reads as foreign, and new code written the old way raises the `superseded`
+rule instead — full mechanics, evidence format, and the config surface for declaring a migration
+yourself are in [What it catches](/docs/what-it-catches/#superseded--new-code-written-the-old-way)
+and [Configure](/docs/configure/#migration--declare-a-migration).
+
+`argot status` surfaces any migration in progress alongside the rest of the health picture:
+
+```text
+Migrations: 2 in progress (1 mined, 1 declared) · 9 file(s) still to migrate — argot conventions
+```
+
 ## Staleness argot refuses to guess about
 
 Two artifacts carry their own identity so a mismatch fails loudly instead of

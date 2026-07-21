@@ -27,6 +27,7 @@ pub mod inspect;
 pub mod load;
 pub mod placement;
 pub mod scoring;
+mod superseded;
 pub mod train;
 
 pub use detector::VoiceDetector;

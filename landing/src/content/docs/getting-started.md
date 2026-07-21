@@ -6,7 +6,8 @@ order: 1
 ---
 
 **argot** learns your repo's patterns from its own git history, then flags AI-written code that
-doesn't fit — on five axes: a dependency, API, or construct it has never used (**foreign**); a new
+doesn't fit — on six axes: a dependency, API, or construct it has never used (**foreign**); a
+pattern its own migrations left behind (**superseded**); a new
 function that reinvents one you already wrote (**redundant**); the right code filed in the wrong
 place (**misplaced**); an internal import that reverses your module layering (**layering**); and a
 test weakened, disabled, or deleted alongside the production change it covers (**integrity**). All

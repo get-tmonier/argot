@@ -23,6 +23,7 @@ pub mod shape_primitives;
 /// `docs/research/evidence/foreign-structure-gate-floor.md`.
 #[cfg(feature = "structural")]
 pub mod structural;
+pub mod supersede;
 pub mod typicality;
 
 mod minhash_params_seed0;
