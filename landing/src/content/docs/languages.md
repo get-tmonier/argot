@@ -23,7 +23,27 @@ error-tolerant parser. Two properties matter here:
 
 Python, TypeScript, JavaScript, Go, Rust, Java, C#, C, C++, Ruby, PHP, and
 Pascal — twelve languages, each with its own tree-sitter adapter, each benchmarked on a
-real open-source corpus. TypeScript and JavaScript are **separate** adapters and
+real open-source corpus:
+
+| Language | Files | Benchmarked on |
+|---|---|---|
+| Python | `.py` | fastapi · rich · faker |
+| TypeScript | `.ts` · `.tsx` | hono · ink · faker-js |
+| JavaScript | `.js` · `.jsx` | express · commander · eslint |
+| Go | `.go` | gh-cli · hugo |
+| Rust | `.rs` | ripgrep · bat |
+| Java | `.java` | guava · junit5 |
+| C# | `.cs` | powershell · jellyfin |
+| C | `.c` · `.h` | redis · curl |
+| C++ | `.cpp` · `.cc` · `.hpp` | rocksdb · fmt |
+| Ruby | `.rb` | homebrew · rubocop |
+| PHP | `.php` | laravel · composer |
+| Pascal | `.pas` · `.pp` · `.dpr` | castle-engine · mormot2 |
+
+Each adapter carries the full language-specific surface — import extraction, callee extraction,
+prose masking, definition/binding resolution, and test-shape extraction for the integrity rules.
+
+TypeScript and JavaScript are **separate** adapters and
 separate models: `.ts`/`.tsx` and `.js`/`.jsx` are written differently, so argot
 learns each voice on its own (and treats a TypeScript repo's transpiled `.js`
 output as generated, not authored). We publish the leak-free per-corpus numbers —

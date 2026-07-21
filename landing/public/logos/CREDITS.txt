@@ -1,0 +1,2 @@
+Language logos from Devicon (https://devicon.dev), licensed MIT.
+Pascal uses the Delphi mark — argot supports Delphi + FreePascal.

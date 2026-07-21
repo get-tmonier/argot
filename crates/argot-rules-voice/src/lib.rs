@@ -19,11 +19,13 @@
 //! build's fit-time detectors as its last parameter, supplied by the caller
 //! (argot-core's facade closes over its own `compose::fit_detectors()`).
 
+pub mod convention_catalog;
 pub mod detector;
 pub mod extract;
 pub mod ignore_suggest;
 pub mod inspect;
 pub mod load;
+pub mod placement;
 pub mod scoring;
 pub mod train;
 

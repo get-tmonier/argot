@@ -1,6 +1,30 @@
 use super::*;
 
 #[test]
+fn import_bindings_pairs_foreign_bound_names_with_modules() {
+    let adapter = JavaScriptAdapter::new();
+    let src = "import express from \"express\";\n\
+               import { render, h as hyper } from \"preact\";\n\
+               import { helper } from \"./util\";\n";
+    let b: std::collections::HashSet<(String, String)> =
+        adapter.import_bindings(src).into_iter().collect();
+    assert!(
+        b.contains(&("express".to_string(), "express".to_string())),
+        "{b:?}"
+    );
+    assert!(
+        b.contains(&("render".to_string(), "preact".to_string())),
+        "{b:?}"
+    );
+    assert!(
+        b.contains(&("hyper".to_string(), "preact".to_string())),
+        "{b:?}"
+    );
+    // Relative import stays repo-internal.
+    assert!(!b.iter().any(|(n, _)| n == "helper"), "{b:?}");
+}
+
+#[test]
 fn callable_bodies_covers_declarations_methods_and_arrow_consts() {
     let adapter = JavaScriptAdapter::new();
     let src = "\

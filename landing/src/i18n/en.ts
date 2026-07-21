@@ -83,9 +83,13 @@ const en: SiteContent = {
   },
   customRules: {
     label: 'Your conventions',
-    title: 'The sixth detector is yours.',
-    body: 'Five detectors learn your repo. The sixth you write: [[a manifest and a tiny script]] in .argot/rules/, versioned with your code, loaded at run time. Any convention, any language — and any file, down to the [[.env and CI configs]] a linter never opens.',
+    title: 'See your conventions — then enforce them.',
+    body: '[[argot conventions]] reads your repo and shows you what it already does: its shared API, and [[where each kind of code lives]] — validation in schema files, DB access in migrations, business logic in the service layer. Pick one and the sixth detector is yours: a manifest and a tiny script in .argot/rules/, any language, down to the [[.env a linter never opens]].',
     points: [
+      {
+        title: 'Discovered, not guessed',
+        desc: 'argot conventions lists what your repo already does — its shared API, and [[where each kind of code lives]] — so a rule starts from what argot found.',
+      },
       {
         title: 'Two-sided',
         desc: 'ts_query_old sees [[what a change removed]] — a rule no classic linter can even express.',
@@ -166,7 +170,7 @@ const en: SiteContent = {
       },
     ],
     languages:
-      'One [[static binary]], 12 languages: Python · TypeScript · JavaScript · Go · Rust · Java · C# · C · C++ · Ruby · PHP · Pascal.',
+      'One [[static binary]]. Twelve languages — each with its own tree-sitter adapter and its own learned model:',
     finePrint:
       'Recall on patterns planted in real files; false alarms on a temporal holdout. Even the structural blind spot — masked foreign — is published, not hidden.',
     benchmarksCta: 'Full per-repo numbers →',
@@ -177,13 +181,14 @@ const en: SiteContent = {
     title: 'A CLI your coding agent can drive.',
     body: 'The skills bring the judgment: [[/argot-setup]] reads your repo, excludes what shouldn’t shape its voice, fits, and verifies the catch.',
     installLabel: 'Add the skills — Claude Code, Cursor, 70+ agents',
-    skillsIntro: 'five slash-commands your agent runs:',
+    skillsIntro: 'six slash-commands your agent runs:',
     skillDescs: [
       'reads your tree, writes argot.toml, verifies the catch',
       'scores each diff, flags what’s foreign — never blocks',
       'reviews one PR against your repo’s voice, no checkout',
       'a non-blocking voice score on every PR',
-      'turns a team convention into a tested custom rule',
+      'turns a convention you state into a tested rule',
+      'finds your conventions, codifies one',
     ],
     pluginNote:
       'On Claude Code? One install adds the skills, the MCP server, and the pre-write guardrail together.',

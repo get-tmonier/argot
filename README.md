@@ -30,11 +30,18 @@
   &nbsp;·&nbsp;<a href="https://argot.tmonier.com/docs/languages/">12 languages →</a>
 </p>
 
-<p align="center">
-  <a href="https://argot.tmonier.com/#film"><img src="landing/public/argot-film-poster.jpg" alt="Watch the argot launch film" width="220" /></a>
-  <br/>
-  <em>🎬 <a href="https://argot.tmonier.com/#film">Watch the 45-second launch film</a></em>
-</p>
+<table align="center">
+  <tr>
+    <td align="center" valign="middle">
+      <a href="https://glama.ai/mcp/servers/get-tmonier/argot"><img src="https://glama.ai/mcp/servers/get-tmonier/argot/badges/card.svg" alt="argot MCP server on Glama" width="340" /></a>
+    </td>
+    <td align="center" valign="middle">
+      <a href="https://argot.tmonier.com/#film"><img src="landing/public/argot-film-poster.jpg" alt="Watch the argot launch film" width="180" /></a>
+      <br/>
+      <em>🎬 <a href="https://argot.tmonier.com/#film">Watch the 45-second launch film</a></em>
+    </td>
+  </tr>
+</table>
 
 ---
 
@@ -93,7 +100,7 @@ argot check      # score your working changes against it
 
 Accuracy is a function of setup — argot learns from what it's allowed to see. Best path: `npx skills add get-tmonier/argot`, then `/argot-setup` in your coding agent (Claude Code, Cursor, 70+ agents) reads your repo, excludes what shouldn't shape the voice, and verifies the catch. Full guide: [Setup](https://argot.tmonier.com/docs/setup/) · [Getting started](https://argot.tmonier.com/docs/getting-started/).
 
-**Claude Code — one install for everything.** The [argot plugin](https://argot.tmonier.com/docs/plugin/) bundles the five skills, the [MCP server](https://argot.tmonier.com/docs/agents/) (`argot mcp` — proactive voice context while your agent writes), and an opt-in, non-blocking pre-write guardrail that *asks* before a foreign dependency lands:
+**Claude Code — one install for everything.** The [argot plugin](https://argot.tmonier.com/docs/plugin/) bundles the six skills, the [MCP server](https://argot.tmonier.com/docs/agents/) (`argot mcp` — proactive voice context while your agent writes), and an opt-in, non-blocking pre-write guardrail that *asks* before a foreign dependency lands:
 
 ```text
 /plugin marketplace add get-tmonier/argot
@@ -127,7 +134,27 @@ fastapi/receipts.py
 
 Every team has conventions no generic linter ships: *"presentational components take props — they don't fetch"*, *"files are parsed through our loader, never a raw `JSON.parse`"*, *"one HTTP client per repo"*. They live in review comments and onboarding docs — until an AI agent, who read neither, merges around them. With argot they're **repo-local rules**: a TOML manifest + a small sandboxed script in `.argot/rules/`, versioned with your code, loaded at run time — no plugin build, no recompile, one rule format across all 12 languages.
 
-And they can do what no classic linter structurally can. A linter sees one version of one file; argot hands your rule **both sides of the diff** — so you can write rules about what a change *removed*:
+**And you don't start from a blank page — argot *finds* your conventions for you.** `argot conventions` reads your codebase's own layout and shows you what it already does: its shared internal API, and *where each kind of code lives*. No other tool detects that last part — the **placement conventions** a team enforces in review but never writes down, learned framework-agnostically from nothing but your file tree and call graph:
+
+```console
+$ argot conventions
+
+── typescript (1,240 files) ──
+  Naming             camelCase 94% · PascalCase 6%
+  Vocabulary         db (86 files), logger (74), apiClient (61), AppError (44)
+  Type funnels       Money, Result, DateTime
+
+── placement · where a kind of code lives ──
+  dir:migrations     queryRunner, addColumn, createTable       100% confined
+  role:schema        z.object, z.string, validate               96% confined
+  dir:services       db.transaction, logger.info, publish       92% confined
+  dir:controllers    req, res, next                             98% confined
+  ext:.tsx           useState, useQuery, styled                 99% confined
+```
+
+Read that as: *"validation lives in `*.schema.ts`, DB access only in migrations, business logic in the service layer — not the controllers or views."* Hand any line to the **argot-suggest-rules** skill and it writes the rule as the contrapositive — *this belongs in its home; flag it anywhere else* — gated on a green fixture suite before it ever sees a diff. You go from *"we should really document that"* to an enforced rule in one step.
+
+And your rules can do what no classic linter structurally can. A linter sees one version of one file; argot hands your rule **both sides of the diff** — so you can write rules about what a change *removed*:
 
 ```toml
 # .argot/rules/no-dropped-endpoints/rule.toml
@@ -192,6 +219,42 @@ Every rule (built-in or yours) defaults through `argot.toml [rules]` — `error`
 | Learns from *your* history · runs 100% local | ❌ | ❌ | ❌ | ✅ |
 
 argot is additive: it sits *after* your type checker and linter and catches the one thing they can't — code that's valid and lint-clean but unlike anything your team has written. It's the harness around AI output, built from the one thing that can't hallucinate: your repo's own history.
+
+## Twelve languages, one model each
+
+<p align="center">
+  <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/python/python-original.svg" width="36" height="36" alt="Python" title="Python" />&nbsp;&nbsp;
+  <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/typescript/typescript-original.svg" width="36" height="36" alt="TypeScript" title="TypeScript" />&nbsp;&nbsp;
+  <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/javascript/javascript-original.svg" width="36" height="36" alt="JavaScript" title="JavaScript" />&nbsp;&nbsp;
+  <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/go/go-original.svg" width="36" height="36" alt="Go" title="Go" />&nbsp;&nbsp;
+  <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/rust/rust-original.svg" width="36" height="36" alt="Rust" title="Rust" />&nbsp;&nbsp;
+  <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/java/java-original.svg" width="36" height="36" alt="Java" title="Java" />&nbsp;&nbsp;
+  <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/csharp/csharp-original.svg" width="36" height="36" alt="C#" title="C#" />&nbsp;&nbsp;
+  <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/c/c-original.svg" width="36" height="36" alt="C" title="C" />&nbsp;&nbsp;
+  <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/cplusplus/cplusplus-original.svg" width="36" height="36" alt="C++" title="C++" />&nbsp;&nbsp;
+  <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/ruby/ruby-original.svg" width="36" height="36" alt="Ruby" title="Ruby" />&nbsp;&nbsp;
+  <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/php/php-original.svg" width="36" height="36" alt="PHP" title="PHP" />&nbsp;&nbsp;
+  <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/delphi/delphi-original.svg" width="36" height="36" alt="Pascal" title="Pascal (Delphi + FreePascal)" />
+</p>
+
+Not a shared grammar with twelve front-ends — **twelve real tree-sitter adapters**, each with its own import/callee extraction, its own naming and idiom model, and its own per-language calibration (a Python hunk is judged against Python, a TypeScript hunk against TypeScript — no cross-language bleed). Each is benchmarked on a real open-source corpus:
+
+| Language | Files | Benchmarked on |
+|---|---|---|
+| Python | `.py` | fastapi · rich · faker |
+| TypeScript | `.ts` `.tsx` | hono · ink · faker-js |
+| JavaScript | `.js` `.jsx` | express · commander · eslint |
+| Go | `.go` | gh-cli · hugo |
+| Rust | `.rs` | ripgrep · bat |
+| Java | `.java` | guava · junit5 |
+| C# | `.cs` | powershell · jellyfin |
+| C | `.c` `.h` | redis · curl |
+| C++ | `.cpp` `.cc` `.hpp` | rocksdb · fmt |
+| Ruby | `.rb` | homebrew · rubocop |
+| PHP | `.php` | laravel · composer |
+| Pascal | `.pas` `.pp` `.dpr` | castle-engine · mormot2 |
+
+<sub>Language logos © their respective projects, via <a href="https://devicon.dev">Devicon</a> (MIT).</sub>
 
 ## Benchmarks
 

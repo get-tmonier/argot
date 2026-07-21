@@ -50,6 +50,36 @@ fn subpath_imports_are_internal_not_foreign() {
 }
 
 #[test]
+fn import_bindings_pairs_foreign_bound_names_with_modules() {
+    let adapter = TypeScriptAdapter::new();
+    let src = "import React from \"react\";\n\
+               import { z, ZodError as ZErr } from \"zod\";\n\
+               import * as np from \"numpy\";\n\
+               import { local } from \"./local\";\n\
+               import { sub } from \"#internal/x\";\n";
+    let b: std::collections::HashSet<(String, String)> =
+        adapter.import_bindings(src).into_iter().collect();
+    // Default import: binding is the local name, module the specifier.
+    assert!(
+        b.contains(&("React".to_string(), "react".to_string())),
+        "{b:?}"
+    );
+    // Named import: bare name and aliased name both bind to the module.
+    assert!(b.contains(&("z".to_string(), "zod".to_string())), "{b:?}");
+    assert!(
+        b.contains(&("ZErr".to_string(), "zod".to_string())),
+        "{b:?}"
+    );
+    // Namespace import.
+    assert!(
+        b.contains(&("np".to_string(), "numpy".to_string())),
+        "{b:?}"
+    );
+    // Relative + subpath imports are repo-internal — never foreign bindings.
+    assert!(!b.iter().any(|(n, _)| n == "local" || n == "sub"), "{b:?}");
+}
+
+#[test]
 fn pnpm_workspace_packages_resolve_as_internal() {
     let dir = std::env::temp_dir().join(format!("argot_ts_pnpm_test_{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);

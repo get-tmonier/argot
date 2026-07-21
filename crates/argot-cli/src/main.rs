@@ -230,6 +230,9 @@ enum Command {
     /// Generate a STYLE.md describing the repo's learned voice.
     #[command(name = "describe-voice")]
     DescribeVoice(DescribeVoiceCmd),
+    /// List the conventions this repo already follows — naming, syntax idioms,
+    /// familiar imports, and typical calls by area — from the fitted model.
+    Conventions(ConventionsCmd),
     /// Pre-write guardrail for coding agents: reads a Claude Code PreToolUse
     /// event on stdin and asks before a dependency foreign to the repo is
     /// written. Wired into `.claude/settings.json` by `argot-setup` on opt-in.
@@ -255,6 +258,119 @@ struct HookCmd {
     /// Path to the repository (defaults to the project dir).
     #[arg(long, default_value = ".")]
     repo: PathBuf,
+}
+
+#[derive(Args)]
+struct ConventionsCmd {
+    /// Path to the repository.
+    #[arg(long, default_value = ".")]
+    repo: PathBuf,
+    /// Output format: human (terminal) or json (stable machine-readable).
+    #[arg(long, default_value = "human", value_parser = ["human", "json"])]
+    format: String,
+    /// Callees listed per cluster and idioms listed per language.
+    #[arg(long = "top", value_name = "N", default_value_t = describe::DEFAULT_TOP)]
+    top: usize,
+}
+
+fn run_conventions_cmd(c: ConventionsCmd) -> ExitCode {
+    let catalog = match argot_core::convention_catalog::build_catalog(&c.repo, c.top) {
+        Ok(cat) => cat,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return ExitCode::from(2);
+        }
+    };
+
+    if c.format == "json" {
+        match serde_json::to_string_pretty(&catalog) {
+            Ok(s) => {
+                println!("{s}");
+                return ExitCode::SUCCESS;
+            }
+            Err(e) => {
+                eprintln!("error: {e}");
+                return ExitCode::from(2);
+            }
+        }
+    }
+
+    if catalog.languages.is_empty() {
+        println!("No conventions learned yet — run `argot fit` first.");
+        return ExitCode::SUCCESS;
+    }
+
+    println!("Conventions of this repository");
+    println!(
+        "Model {}. The repo's own API — the shared helpers and objects it routes through.\n",
+        catalog.model_hash
+    );
+    let conv_line = |label: &str, items: &[argot_core::convention_catalog::Convention]| {
+        if items.is_empty() {
+            return;
+        }
+        let shown: Vec<String> = items
+            .iter()
+            .take(10)
+            .map(|c| {
+                // "Effect (232 files, called in 190)" — show the receiver signal
+                // only when the symbol is both imported and routed through.
+                if c.imported_in > 0 && c.called_in > 0 {
+                    format!(
+                        "{} ({} files, called in {})",
+                        c.name, c.imported_in, c.called_in
+                    )
+                } else {
+                    format!("{} ({} files)", c.name, c.imported_in.max(c.called_in))
+                }
+            })
+            .collect();
+        println!("  {label}  {}", shown.join(", "));
+    };
+    for (lang, conv) in &catalog.languages {
+        println!("── {lang} ({} files) ──", conv.corpus_files);
+        if !conv.naming.is_empty() {
+            let shapes: Vec<String> = conv
+                .naming
+                .iter()
+                .map(|s| format!("{} {:.0}%", s.shape, s.fraction * 100.0))
+                .collect();
+            println!("  Naming             {}", shapes.join(" · "));
+        }
+        // `idioms` (raw node-kind frequencies) stay in --format json only: the
+        // top kinds are always the generic ones (identifier, call_expression),
+        // which read as noise in the terse human list, and there is no
+        // corpus-agnostic way to rank distinctiveness without a hardcoded
+        // node-kind denylist. The useful idiom-conventions ("use Effect.gen",
+        // "decorators live here") already surface via placement + vocabulary.
+        if !conv.familiar_imports.is_empty() {
+            let shown = 12.min(conv.familiar_imports.len());
+            let mut imports = conv.familiar_imports[..shown].join(", ");
+            if conv.familiar_imports.len() > shown {
+                imports.push_str(&format!(", +{} more", conv.familiar_imports.len() - shown));
+            }
+            println!("  Familiar imports   {imports}");
+        }
+        conv_line("Vocabulary        ", &conv.vocabulary);
+        conv_line("Type funnels      ", &conv.type_funnels);
+        conv_line("Routing objects   ", &conv.routing_objects);
+        println!();
+    }
+
+    if !catalog.placement.is_empty() {
+        println!("── placement (where a kind of code lives) ──");
+        for p in &catalog.placement {
+            let sig: Vec<String> = p
+                .signature
+                .iter()
+                .take(5)
+                .map(|f| f.feature.clone())
+                .collect();
+            println!("  {:<26} ({}f)  {}", p.location, p.files, sig.join(", "));
+        }
+        println!();
+    }
+    ExitCode::SUCCESS
 }
 
 #[derive(Args)]
@@ -2479,6 +2595,7 @@ fn main() -> ExitCode {
         }
         Some(Command::Mcp(c)) => mcp::run_mcp(c.repo),
         Some(Command::DescribeVoice(c)) => describe::run_describe_voice(c.repo, c.top, c.out),
+        Some(Command::Conventions(c)) => run_conventions_cmd(c),
         Some(Command::Hook(c)) => hook::run_hook(c.repo),
     }
 }

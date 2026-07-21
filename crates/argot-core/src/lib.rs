@@ -64,7 +64,7 @@ pub mod suppress {
 /// `extract`/`inspect`/`train` are argot-rules-voice's own pipeline stages,
 /// re-exported here at their historical `argot_core::{extract,inspect,train}`
 /// paths.
-pub use argot_rules_voice::{extract, inspect, train};
+pub use argot_rules_voice::{convention_catalog, extract, inspect, placement, train};
 
 /// Scoring engine facade: the voice slice's own scoring modules re-exported at
 /// their historical `argot_core::scoring::*` paths, plus the language

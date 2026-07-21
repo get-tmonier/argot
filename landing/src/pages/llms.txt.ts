@@ -112,7 +112,7 @@ export const GET: APIRoute = async () => {
     '',
     `- [AGENTS.md](${SITE.github}/blob/main/AGENTS.md): the canonical contract for using argot with a coding agent — the never-block rule, how to read \`argot check\` output, and muting false positives with a reason.`,
     `- [README](${SITE.github}/blob/main/README.md): install, quickstart, what it catches, and the honest benchmarks.`,
-    `- [Skills](${SITE.github}/tree/main/skills): the \`argot-setup\`, \`argot-check\`, \`argot-review-pr\`, \`argot-setup-ci\`, and \`argot-write-rule\` agent skills — \`npx skills add get-tmonier/argot\`.`,
+    `- [Skills](${SITE.github}/tree/main/skills): the \`argot-setup\`, \`argot-check\`, \`argot-review-pr\`, \`argot-setup-ci\`, \`argot-write-rule\`, and \`argot-suggest-rules\` agent skills — \`npx skills add get-tmonier/argot\`.`,
     `- [Benchmarks](${SITE.domain}/benchmarks): per-repo catch and false-alarm numbers, fed from CI.`,
     '',
   ];

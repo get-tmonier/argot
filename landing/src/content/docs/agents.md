@@ -24,7 +24,7 @@ full contract lives in the repo's
 
 ## Skills
 
-Five agent-agnostic skills (Claude Code, Cursor, Codex, …):
+Six agent-agnostic skills (Claude Code, Cursor, Codex, …):
 
 | Skill | When it runs |
 |---|---|
@@ -32,7 +32,8 @@ Five agent-agnostic skills (Claude Code, Cursor, Codex, …):
 | `argot-check` | Per change (local) — score the working diff and surface anything foreign. |
 | `argot-review-pr` | On demand (local) — review one PR or diff range against the repo's voice, no checkout. |
 | `argot-setup-ci` | Once (CI) — wire the GitHub Action for a non-blocking voice score on every PR. |
-| `argot-write-rule` | On demand (local) — codify a repo convention as a scripted custom rule, fixture-tested before it ever sees a real diff. |
+| `argot-write-rule` | On demand (local) — codify a repo convention *you state* as a scripted custom rule, fixture-tested before it ever sees a real diff. |
+| `argot-suggest-rules` | On demand (local) — surface the conventions argot *discovered* (`argot conventions`: the repo's vocabulary and where each kind of code lives) and codify a chosen one as a rule. |
 
 In **Claude Code**, install the [plugin](/docs/plugin/) — it bundles the skills,
 the MCP server below, *and* the pre-write guardrail in one step:
@@ -71,11 +72,12 @@ advice, read the output correctly, and mute false positives with a reason.
 
 `argot mcp` runs a [Model Context Protocol](https://modelcontextprotocol.io)
 server over stdio, in-process against the fitted `.argot/` model — local-first,
-no separate runtime. It exposes four tools:
+no separate runtime. It exposes five tools:
 
 | Tool | When the agent calls it | Returns |
 |---|---|---|
 | `argot.voice_context` | **before** generating code for a file | typical callees and familiar imports for the file's language — bias generation toward local idioms |
+| `argot.conventions` | to learn the repo's conventions | the repo's vocabulary (shared internal API, per language) and its placement conventions — where each kind of code lives |
 | `argot.check` | on a generated hunk | whether it's out of voice, the score, the rule that fired, and evidence |
 | `argot.explain` | to understand a hit | the rule plus the full evidence trail |
 | `argot.fit_status` | to gauge trust | corpus composition, calibration freshness, and a Ready / Ready-with-notes / Not-recommended verdict |
@@ -88,8 +90,9 @@ no separate runtime. It exposes four tools:
 and — on a hit, or always for `explain` — `evidence`. `argot.voice_context` takes `file_path` (required) and optional `top` (default 10), and
 returns `typical_callees_by_cluster`, `familiar_imports`, and the resolved `language`.
 `argot.fit_status` takes no arguments and returns the full `inspect` report (corpus, calibration,
-verdict, reasons). Tool-level failures come back as an `isError` text result the agent can read, not a
-protocol error.
+verdict, reasons). `argot.conventions` takes no arguments and returns the convention catalog
+(per-language vocabulary + repo-wide placement). Tool-level failures come back as an `isError` text
+result the agent can read, not a protocol error.
 
 The point is **writing in-voice from the first token** instead of
 writing-then-fixing. Fit the repo first (`argot init`), then wire it up:
