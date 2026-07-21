@@ -117,17 +117,17 @@ fn tool_definitions() -> Value {
     json!([
         {
             "name": "argot.check",
-            "description": "Score a code hunk against the repo's voice. Returns whether it is out of voice, the score, the rule that fired, and evidence naming the surprising tokens.",
+            "description": "Score one code hunk against the repo's learned voice; returns out_of_voice, the score, the rule that fired, and evidence naming the surprising tokens. WHEN TO USE: right after you write or edit a hunk, to catch a dependency/API/idiom foreign to this repo before it lands. WHEN NOT / ALTERNATIVES: to steer generation *before* writing, call argot.voice_context instead (biasing beats fixing); when a hit needs judging, call argot.explain for the full evidence trail; for whole-repo conventions rather than one hunk, call argot.conventions. PREREQUISITE: the repo must be fitted — if unsure call argot.fit_status first; on an unfitted repo this returns an error, not a verdict.",
             "inputSchema": hunk_schema,
         },
         {
             "name": "argot.explain",
-            "description": "Explain a hunk's voice score in detail: the rule it fired and the full evidence trail (surprising tokens with repo attestation counts).",
+            "description": "Like argot.check but returns the full evidence trail — the rule plus every surprising token with its repo-attestation count. WHEN TO USE: a hunk is flagged and you must decide whether it's a real divergence or a false positive, so you need the *why*, not just the verdict. WHEN NOT / ALTERNATIVES: for a quick pass/fail on generated code, plain argot.check is cheaper. Same inputs and same fitted-repo prerequisite as argot.check.",
             "inputSchema": hunk_schema,
         },
         {
             "name": "argot.voice_context",
-            "description": "Preemptive: given a target file, return the local voice that applies there — the typical callees per cluster and the familiar imports — so generation is biased toward the repo's idioms from the first token.",
+            "description": "Preemptive, per-file: given the path you're about to write, return the local voice that applies there — typical callees per cluster and familiar imports — so generation is biased toward the repo's idioms from the first token. WHEN TO USE: before generating or editing code for a specific file. WHEN NOT / ALTERNATIVES: to verify what you already wrote, call argot.check (or argot.explain); for the whole repo's conventions rather than one file's idioms, call argot.conventions. PREREQUISITE: the repo must be fitted (argot.fit_status reports readiness).",
             "inputSchema": json!({
                 "type": "object",
                 "properties": {
@@ -139,12 +139,12 @@ fn tool_definitions() -> Value {
         },
         {
             "name": "argot.fit_status",
-            "description": "Report whether the repo is well-fitted for argot: corpus composition, calibration freshness, and a Ready / Ready-with-notes / Not-recommended verdict.",
+            "description": "Report whether the repo is well-fitted for argot — corpus composition, calibration freshness, and a Ready / Ready-with-notes / Not-recommended verdict. WHEN TO USE: call this FIRST, before relying on the other tools. If it reports Not-recommended (too little history, weak calibration), argot.check / argot.voice_context / argot.conventions results are low-confidence and should be treated as advisory. Takes no arguments.",
             "inputSchema": json!({ "type": "object", "properties": {} }),
         },
         {
             "name": "argot.conventions",
-            "description": "List the repo's own conventions: its internal-API vocabulary (the shared helpers and objects everyone routes through, per language) and its placement conventions (where a kind of code lives — validation in schema files, DB access in migrations, business logic in the service layer, not views). Use to bias generation toward the repo's structure, or as the raw material for a custom rule.",
+            "description": "List the repo's own conventions, repo-wide: its internal-API vocabulary (the shared helpers and objects everyone routes through, per language) and its placement conventions (where a kind of code lives — validation in schema files, DB access in migrations, business logic in the service layer, not views). WHEN TO USE: to learn a repo's structure before generating across it, or as the raw material for a custom rule. WHEN NOT / ALTERNATIVES: for one file's local idioms (typical callees + imports) rather than the whole-repo picture, call argot.voice_context; to score or explain a specific hunk, call argot.check / argot.explain. PREREQUISITE: the repo must be fitted (argot.fit_status reports readiness).",
             "inputSchema": json!({ "type": "object", "properties": {} }),
         },
     ])

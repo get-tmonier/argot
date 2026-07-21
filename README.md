@@ -27,6 +27,7 @@
   <img src="https://img.shields.io/badge/status-alpha-5B8DEF" alt="Status: alpha" />
   <img src="https://img.shields.io/badge/rust-single%20static%20binary-DEA584?logo=rust&logoColor=white" alt="Rust" />
   <img src="https://img.shields.io/badge/100%25-local%20%C2%B7%20no%20cloud-brightgreen" alt="100% local, no cloud" />
+  <a href="https://glama.ai/mcp/servers/get-tmonier/argot"><img src="https://glama.ai/mcp/servers/get-tmonier/argot/badges/score.svg" alt="argot MCP server on Glama" /></a>
   &nbsp;·&nbsp;<a href="https://argot.tmonier.com/docs/languages/">12 languages →</a>
 </p>
 
