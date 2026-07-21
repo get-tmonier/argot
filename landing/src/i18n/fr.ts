@@ -85,6 +85,10 @@ const fr: SiteContent = {
     body: 'Cinq détecteurs apprennent votre dépôt. Le sixième, vous l’écrivez : [[un manifeste et un petit script]] dans .argot/rules/, versionnés avec votre code, chargés à l’exécution. N’importe quelle convention, n’importe quel langage — et n’importe quel fichier, jusqu’aux [[.env et configs CI]] qu’un linter n’ouvre jamais.',
     points: [
       {
+        title: 'Découvertes, pas devinées',
+        desc: 'argot conventions liste ce que votre dépôt fait déjà — son API partagée, et [[où vit chaque type de code]] — pour qu’une règle parte de ce qu’argot a trouvé.',
+      },
+      {
         title: 'Des deux côtés du diff',
         desc: 'ts_query_old voit [[ce qu’un changement supprime]] — une règle qu’aucun linter classique ne peut exprimer.',
       },

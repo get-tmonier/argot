@@ -144,6 +144,26 @@ The one filter added *because* the measurement showed it (not by hand): the
 extractor's `<call>` sentinel (a call on an unresolved fluent-chain receiver)
 is dropped — structural, not vocabulary.
 
+## Recall — bounded, honest
+
+Exhaustive recall would need a ground-truth list of *every* convention a repo
+holds, which nobody has. Instead, a **bounded recall** on the conventions a
+maintainer would obviously enumerate from the layout, checked against the
+miner's output:
+
+| repo | enumerated conventions | surfaced |
+|---|--:|--:|
+| outline | migrations→`queryInterface`, models→`Column`/`Table`, validation→`z.object`, policies→auth, UI→hooks, editor→ProseMirror | 6/6 |
+| laravel | Console→`$this.option`, Eloquent ORM, Middleware→`$next`, Query builder, Validation, Routing | 6/6 |
+| dagster | migrations→`op.get_bind`, GraphQL→`graphene`, CLI→`Typer`, UI→`useMemo`/`gql`, integrations | 5/5 |
+
+**17/17** on the recognizable placement conventions. Honest caveats: this is
+recall-on-enumerable, not exhaustive; recall is bounded by the support floor (a
+convention living in fewer than `MIN_GROUP` files can't clear the bar) and by
+expressibility (a convention that isn't a feature concentrating in a location —
+a purely semantic rule — is out of scope, the same honesty the whole miner
+keeps).
+
 ## Where this goes
 
 This is the **placement-mining template** for the convention miner — the piece

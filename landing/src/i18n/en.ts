@@ -87,6 +87,10 @@ const en: SiteContent = {
     body: 'Five detectors learn your repo. The sixth you write: [[a manifest and a tiny script]] in .argot/rules/, versioned with your code, loaded at run time. Any convention, any language — and any file, down to the [[.env and CI configs]] a linter never opens.',
     points: [
       {
+        title: 'Discovered, not guessed',
+        desc: 'argot conventions lists what your repo already does — its shared API, and [[where each kind of code lives]] — so a rule starts from what argot found.',
+      },
+      {
         title: 'Two-sided',
         desc: 'ts_query_old sees [[what a change removed]] — a rule no classic linter can even express.',
       },
