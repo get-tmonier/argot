@@ -30,6 +30,15 @@ the contradicting evidence here rather than silently overriding.
   sampling, and the bench wall-time tuning (single outer seed,
   `threshold_n_seeds=3`, per-PR extract `--limit`) that ships alongside.
   Dagster pinned as the reference multi-language corpus.
+- **[convention-mining-and-report.md](convention-mining-and-report.md)** —
+  `argot rules suggest` mines the repo's near-universal patterns into
+  *candidate* scripted rules, each back-tested against accepted history so a
+  noisy one is demoted before it's proposed; `argot report --html` is a
+  self-contained dashboard that reviews them and finally surfaces the
+  naming/syntax conventions the model hid. The report only visualizes — a new
+  `argot-suggest-rules` skill drives accept → scaffold → gate. Why
+  human-in-the-loop (no auto-install), why the back-test, why report-only for
+  naming.
 
 ## When to write one
 
