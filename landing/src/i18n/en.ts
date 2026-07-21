@@ -181,13 +181,14 @@ const en: SiteContent = {
     title: 'A CLI your coding agent can drive.',
     body: 'The skills bring the judgment: [[/argot-setup]] reads your repo, excludes what shouldn’t shape its voice, fits, and verifies the catch.',
     installLabel: 'Add the skills — Claude Code, Cursor, 70+ agents',
-    skillsIntro: 'five slash-commands your agent runs:',
+    skillsIntro: 'six slash-commands your agent runs:',
     skillDescs: [
       'reads your tree, writes argot.toml, verifies the catch',
       'scores each diff, flags what’s foreign — never blocks',
       'reviews one PR against your repo’s voice, no checkout',
       'a non-blocking voice score on every PR',
-      'turns a team convention into a tested custom rule',
+      'turns a team convention you state into a tested rule',
+      'finds the conventions in your repo, codifies one you pick',
     ],
     pluginNote:
       'On Claude Code? One install adds the skills, the MCP server, and the pre-write guardrail together.',

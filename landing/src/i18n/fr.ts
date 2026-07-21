@@ -180,13 +180,14 @@ const fr: SiteContent = {
     title: 'Un CLI que votre agent peut piloter.',
     body: 'Les skills apportent le jugement : [[/argot-setup]] lit votre dépôt, exclut ce qui ne doit pas façonner sa voix, calibre, et vérifie la détection.',
     installLabel: 'Ajoutez les skills — Claude Code, Cursor, 70+ agents',
-    skillsIntro: 'cinq slash-commands que votre agent lance :',
+    skillsIntro: 'six slash-commands que votre agent lance :',
     skillDescs: [
       'lit votre arbre, écrit argot.toml, vérifie la détection',
       'score chaque diff, signale l’étranger — ne bloque jamais',
       'examine une PR selon la voix de votre dépôt, sans checkout',
       'un score de voix non bloquant sur chaque PR',
-      'transforme une convention d’équipe en règle testée',
+      'transforme une convention que vous énoncez en règle testée',
+      'trouve les conventions de votre dépôt, en codifie une au choix',
     ],
     pluginNote:
       'Sur Claude Code ? Une seule installation ajoute les skills, le serveur MCP et le garde-fou pré-écriture.',
