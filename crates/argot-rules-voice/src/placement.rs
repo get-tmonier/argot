@@ -153,9 +153,15 @@ fn location_globs(location: &str) -> Vec<String> {
 /// `noise` is the language's own noise set (from the adapter's
 /// `identifier_noise()`) — the only "what to ignore" input, and it is
 /// language-provided, not hardcoded here. Self-reference leads (`self`/`this`)
-/// are dropped too (universal, structural).
+/// and the extractor's `<call>` sentinel (a call on an unresolved receiver, e.g.
+/// a fluent chain) are dropped too — both structural, not vocabulary.
 fn features(src: &str, lang: Language, noise: &HashSet<String>) -> HashSet<String> {
-    let drop = |lead: &str| lead.is_empty() || SELF_REFS.contains(&lead) || noise.contains(lead);
+    let drop = |lead: &str| {
+        lead.is_empty()
+            || lead.starts_with('<')
+            || SELF_REFS.contains(&lead)
+            || noise.contains(lead)
+    };
     let mut f = HashSet::new();
     for c in non_none_callees(src, lang) {
         match c.rfind('.') {

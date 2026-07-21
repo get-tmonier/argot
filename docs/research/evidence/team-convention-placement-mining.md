@@ -111,6 +111,39 @@ exposed two things eyeballing one repo would not:
 - Filename-role extraction is heuristic (last dot-segment / known suffixes);
   directory-segment partitioning is the most robust axis.
 
+## Precision — measured, not eyeballed
+
+Driving the production `mine_placement` over 6 open-source corpora (outline,
+laravel, dagster, guava, redis, scrapy) — **98 mined conventions total**:
+
+- **Objective floor: 83%** of conventions have a *named-symbol primary
+  signature* (an identifier call ≥ 3 chars, not a generic word or the extractor
+  `<call>` sentinel). This needs no human judgment.
+- **Hand-labelled: ~82%** are genuine placement conventions a maintainer would
+  recognize (`role:schema → z.object`, `dir:migrations → queryInterface`,
+  `dir:Eloquent → $model.setRelation`, `dir:policies → isTeamModel`,
+  `dir:concurrent → executor`, `dir:modules → RedisModule_*`). The two figures
+  agree.
+
+**The residual impurity is almost entirely test/tooling locations** — guava
+alone contributes 5 (`testlib`, `testing`, `testers`, `benchmark`,
+`guava-tests`), plus laravel `types`/`Testing` and dagster `legacy_tests`. These
+are *correct* placement facts ("tests use `assertEquals`") but low
+rule-value. Two honest points:
+
+1. On a **properly set-up repo** (test/build dirs in `argot.toml [exclude]`, as
+   argot-setup arranges) those never enter the corpus, so precision is higher —
+   the measurement above uses raw bench checkouts with no exclusions.
+2. We do **not** hardcode a test-directory denylist to inflate the number — test
+   exclusion is the repo's `[exclude]` job, the same mechanism as the voice fit
+   (per the no-hardcoding principle). Chasing the metric by tuning thresholds or
+   adding vocabulary lists is exactly the hand-tuning the measurement exists to
+   avoid.
+
+The one filter added *because* the measurement showed it (not by hand): the
+extractor's `<call>` sentinel (a call on an unresolved fluent-chain receiver)
+is dropped — structural, not vocabulary.
+
 ## Where this goes
 
 This is the **placement-mining template** for the convention miner — the piece

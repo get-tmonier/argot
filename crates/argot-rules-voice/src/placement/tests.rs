@@ -115,6 +115,46 @@ fn empty_corpus_yields_nothing() {
 }
 
 #[test]
+fn mine_placement_surfaces_a_convention_end_to_end() {
+    // Lay out a repo where `queryInterface` lives only in `migrations/`, then
+    // run the full pipeline (walk → features → aggregate) and assert it surfaces.
+    let dir = std::env::temp_dir().join(format!("argot_placement_e2e_{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("migrations")).unwrap();
+    std::fs::create_dir_all(dir.join("app")).unwrap();
+    for i in 0..10 {
+        std::fs::write(
+            dir.join("migrations").join(format!("m{i}.ts")),
+            "export const up = queryInterface.addColumn(\"t\", \"c\");\n",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join("app").join(format!("a{i}.ts")),
+            "export const view = render();\n",
+        )
+        .unwrap();
+    }
+
+    let places = mine_placement(&dir);
+    let _ = std::fs::remove_dir_all(&dir);
+
+    let migrations = places.iter().find(|p| p.location == "dir:migrations");
+    assert!(
+        migrations.is_some(),
+        "mined: {:?}",
+        places.iter().map(|p| &p.location).collect::<Vec<_>>()
+    );
+    let m = migrations.unwrap();
+    assert!(
+        m.signature.iter().any(|f| f.feature == "queryInterface"),
+        "signature: {:?}",
+        m.signature.iter().map(|f| &f.feature).collect::<Vec<_>>()
+    );
+    // Rule-ready: the home glob scopes a rule to files outside migrations/.
+    assert_eq!(m.location_globs, vec!["**/migrations/**"]);
+}
+
+#[test]
 fn location_globs_scope_the_home() {
     assert_eq!(location_globs("dir:migrations"), vec!["**/migrations/**"]);
     assert_eq!(location_globs("ext:.tsx"), vec!["**/*.tsx"]);
