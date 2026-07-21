@@ -1048,6 +1048,64 @@ impl JavaScriptAdapter {
         out
     }
 
+    /// See `LanguageAdapter::import_bindings`. Non-relative (foreign) imports
+    /// only, each bound name paired with its raw module specifier
+    /// (`import { z } from "zod"` → `(z, zod)`), so the call-receiver gate can
+    /// tell a hunk that *uses* a foreign dependency's symbol from the repo's own
+    /// code. Relative imports are repo-internal — see `internal_import_bindings`.
+    pub fn import_bindings(&self, source: &str) -> Vec<(String, String)> {
+        let tree = parse(source);
+        let root = tree.root_node();
+        let mut out = Vec::new();
+        for node in descendants(root) {
+            if node.kind() != "import_statement" {
+                continue;
+            }
+            let Some(src) = node.child_by_field_name("source") else {
+                continue;
+            };
+            if src.kind() != "string" {
+                continue;
+            }
+            let spec = strip_quotes(node_text(src, source));
+            if spec.is_empty() || is_internal_specifier(spec) {
+                continue;
+            }
+            let module = spec.to_string();
+            for clause in children(node) {
+                if clause.kind() != "import_clause" {
+                    continue;
+                }
+                for item in descendants(clause) {
+                    match item.kind() {
+                        "identifier"
+                            if item.parent().map(|p| p.kind()) == Some("import_clause") =>
+                        {
+                            out.push((node_text(item, source).to_string(), module.clone()));
+                        }
+                        "import_specifier" => {
+                            let bound = item
+                                .child_by_field_name("alias")
+                                .or_else(|| item.child_by_field_name("name"));
+                            if let Some(b) = bound {
+                                out.push((node_text(b, source).to_string(), module.clone()));
+                            }
+                        }
+                        "namespace_import" => {
+                            for c in children(item) {
+                                if c.kind() == "identifier" {
+                                    out.push((node_text(c, source).to_string(), module.clone()));
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+        out
+    }
+
     /// JS reserved words, literals, and implicit identifiers filtered out of
     /// the repo-wide identifier vocabulary.
     pub fn identifier_noise(&self) -> &HashSet<String> {
@@ -1082,6 +1140,9 @@ impl LanguageAdapter for JavaScriptAdapter {
     }
     fn internal_import_bindings(&self, source: &str) -> HashSet<String> {
         JavaScriptAdapter::internal_import_bindings(self, source)
+    }
+    fn import_bindings(&self, source: &str) -> Vec<(String, String)> {
+        JavaScriptAdapter::import_bindings(self, source)
     }
     fn value_bindings(&self, source: &str) -> HashSet<String> {
         JavaScriptAdapter::value_bindings(self, source)
