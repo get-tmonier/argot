@@ -83,8 +83,8 @@ const en: SiteContent = {
   },
   customRules: {
     label: 'Your conventions',
-    title: 'The sixth detector is yours.',
-    body: 'Five detectors learn your repo. The sixth you write — and you don’t start from a blank page: [[argot conventions]] shows you your shared API and where each kind of code lives. A manifest and a tiny script in .argot/rules/, any language, down to the [[.env a linter never opens]].',
+    title: 'See your conventions — then enforce them.',
+    body: '[[argot conventions]] reads your repo and shows you what it already does: its shared API, and [[where each kind of code lives]] — validation in schema files, DB access in migrations, business logic in the service layer. Pick one and the sixth detector is yours: a manifest and a tiny script in .argot/rules/, any language, down to the [[.env a linter never opens]].',
     points: [
       {
         title: 'Discovered, not guessed',
@@ -170,7 +170,7 @@ const en: SiteContent = {
       },
     ],
     languages:
-      'One [[static binary]], 12 languages: Python · TypeScript · JavaScript · Go · Rust · Java · C# · C · C++ · Ruby · PHP · Pascal.',
+      'One [[static binary]]. Twelve languages — each with its own tree-sitter adapter and its own learned model:',
     finePrint:
       'Recall on patterns planted in real files; false alarms on a temporal holdout. Even the structural blind spot — masked foreign — is published, not hidden.',
     benchmarksCta: 'Full per-repo numbers →',

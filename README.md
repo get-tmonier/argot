@@ -213,6 +213,42 @@ Every rule (built-in or yours) defaults through `argot.toml [rules]` — `error`
 
 argot is additive: it sits *after* your type checker and linter and catches the one thing they can't — code that's valid and lint-clean but unlike anything your team has written. It's the harness around AI output, built from the one thing that can't hallucinate: your repo's own history.
 
+## Twelve languages, one model each
+
+<p align="center">
+  <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/python/python-original.svg" width="36" height="36" alt="Python" title="Python" />&nbsp;&nbsp;
+  <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/typescript/typescript-original.svg" width="36" height="36" alt="TypeScript" title="TypeScript" />&nbsp;&nbsp;
+  <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/javascript/javascript-original.svg" width="36" height="36" alt="JavaScript" title="JavaScript" />&nbsp;&nbsp;
+  <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/go/go-original.svg" width="36" height="36" alt="Go" title="Go" />&nbsp;&nbsp;
+  <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/rust/rust-original.svg" width="36" height="36" alt="Rust" title="Rust" />&nbsp;&nbsp;
+  <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/java/java-original.svg" width="36" height="36" alt="Java" title="Java" />&nbsp;&nbsp;
+  <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/csharp/csharp-original.svg" width="36" height="36" alt="C#" title="C#" />&nbsp;&nbsp;
+  <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/c/c-original.svg" width="36" height="36" alt="C" title="C" />&nbsp;&nbsp;
+  <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/cplusplus/cplusplus-original.svg" width="36" height="36" alt="C++" title="C++" />&nbsp;&nbsp;
+  <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/ruby/ruby-original.svg" width="36" height="36" alt="Ruby" title="Ruby" />&nbsp;&nbsp;
+  <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/php/php-original.svg" width="36" height="36" alt="PHP" title="PHP" />&nbsp;&nbsp;
+  <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/delphi/delphi-original.svg" width="36" height="36" alt="Pascal" title="Pascal (Delphi + FreePascal)" />
+</p>
+
+Not a shared grammar with twelve front-ends — **twelve real tree-sitter adapters**, each with its own import/callee extraction, its own naming and idiom model, and its own per-language calibration (a Python hunk is judged against Python, a TypeScript hunk against TypeScript — no cross-language bleed). Each is benchmarked on a real open-source corpus:
+
+| Language | Files | Benchmarked on |
+|---|---|---|
+| Python | `.py` | fastapi · rich · faker |
+| TypeScript | `.ts` `.tsx` | hono · ink · faker-js |
+| JavaScript | `.js` `.jsx` | express · commander · eslint |
+| Go | `.go` | gh-cli · hugo |
+| Rust | `.rs` | ripgrep · bat |
+| Java | `.java` | guava · junit5 |
+| C# | `.cs` | powershell · jellyfin |
+| C | `.c` `.h` | redis · curl |
+| C++ | `.cpp` `.cc` `.hpp` | rocksdb · fmt |
+| Ruby | `.rb` | homebrew · rubocop |
+| PHP | `.php` | laravel · composer |
+| Pascal | `.pas` `.pp` `.dpr` | castle-engine · mormot2 |
+
+<sub>Language logos © their respective projects, via <a href="https://devicon.dev">Devicon</a> (MIT).</sub>
+
 ## Benchmarks
 
 **Honest, leak-free numbers**, measured by the real `fit → check` pipeline — foreign fixtures spliced into real host files; false alarms counted on a temporal holdout the model never saw:

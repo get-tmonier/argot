@@ -81,8 +81,8 @@ const fr: SiteContent = {
   },
   customRules: {
     label: 'Vos conventions',
-    title: 'Le sixième détecteur, c’est vous.',
-    body: 'Cinq détecteurs apprennent votre dépôt. Le sixième, vous l’écrivez — et pas depuis une page blanche : [[argot conventions]] vous montre votre API partagée et où vit chaque type de code. Un manifeste et un petit script dans .argot/rules/, n’importe quel langage, jusqu’aux [[.env qu’un linter n’ouvre jamais]].',
+    title: 'Voyez vos conventions — puis imposez-les.',
+    body: '[[argot conventions]] lit votre dépôt et vous montre ce qu’il fait déjà : son API partagée, et [[où vit chaque type de code]] — la validation dans les fichiers schema, l’accès base dans les migrations, la logique métier dans la couche service. Choisissez-en une et le sixième détecteur est à vous : un manifeste et un petit script dans .argot/rules/, n’importe quel langage, jusqu’aux [[.env qu’un linter n’ouvre jamais]].',
     points: [
       {
         title: 'Découvertes, pas devinées',
@@ -169,7 +169,7 @@ const fr: SiteContent = {
       },
     ],
     languages:
-      'Un seul [[binaire statique]], 12 langages : Python · TypeScript · JavaScript · Go · Rust · Java · C# · C · C++ · Ruby · PHP · Pascal.',
+      'Un seul [[binaire statique]]. Douze langages — chacun avec son propre adapter tree-sitter et son propre modèle appris :',
     finePrint:
       'Rappel sur des motifs plantés dans de vrais fichiers ; fausses alertes par holdout temporel. Même l’angle mort structurel — l’étranger masqué — est publié, pas caché.',
     benchmarksCta: 'Tous les chiffres par dépôt →',

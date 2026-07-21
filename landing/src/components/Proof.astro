@@ -6,6 +6,24 @@ interface Props {
   content: SiteContent;
 }
 const { proof } = Astro.props.content;
+
+// The twelve supported languages, each a real tree-sitter adapter with its own
+// learned model (per-corpus numbers on /benchmarks). Logos are vendored from
+// Devicon (MIT, see public/logos/CREDITS.txt); Pascal shows the Delphi mark.
+const langs = [
+  { name: 'Python', slug: 'python' },
+  { name: 'TypeScript', slug: 'typescript' },
+  { name: 'JavaScript', slug: 'javascript' },
+  { name: 'Go', slug: 'go' },
+  { name: 'Rust', slug: 'rust' },
+  { name: 'Java', slug: 'java' },
+  { name: 'C#', slug: 'csharp' },
+  { name: 'C', slug: 'c' },
+  { name: 'C++', slug: 'cpp' },
+  { name: 'Ruby', slug: 'ruby' },
+  { name: 'PHP', slug: 'php' },
+  { name: 'Pascal', slug: 'pascal' },
+];
 ---
 
 <!-- KPI row of stat tiles: hero figures wear ink (text tokens), identity is
@@ -47,8 +65,27 @@ const { proof } = Astro.props.content;
 
     <p
       class="reveal mx-auto mt-10 max-w-2xl text-center text-sm leading-relaxed text-ink-dim md:mt-12"
-      set:html={emphasize(proof.languages.replaceAll(' \u00b7', '\u00a0\u00b7'))}
+      set:html={emphasize(proof.languages)}
     />
+
+    <ul class="reveal lang-grid mx-auto mt-5 max-w-3xl" style="--reveal-delay: 90ms">
+      {
+        langs.map((l) => (
+          <li class="lang-chip">
+            <img
+              class="lang-logo"
+              src={`/logos/${l.slug}.svg`}
+              alt=""
+              width="20"
+              height="20"
+              loading="lazy"
+              decoding="async"
+            />
+            <span class="lang-name">{l.name}</span>
+          </li>
+        ))
+      }
+    </ul>
 
     <p class="reveal mx-auto mt-6 max-w-2xl text-center font-mono text-xs leading-relaxed text-ink-dim/80">
       {proof.finePrint}
@@ -93,6 +130,43 @@ const { proof } = Astro.props.content;
       transform: none;
       animation: none;
     }
+  }
+
+  /* --- the language badge grid --- */
+  .lang-grid {
+    list-style: none;
+    margin-inline: auto;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem;
+  }
+  .lang-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: color-mix(in srgb, var(--panel) 45%, var(--bg) 55%);
+    padding: 0.32rem 0.7rem 0.32rem 0.4rem;
+    transition:
+      border-color 0.15s,
+      transform 0.15s;
+  }
+  .lang-chip:hover {
+    border-color: color-mix(in srgb, var(--ember) 55%, var(--line));
+    transform: translateY(-1px);
+  }
+  .lang-logo {
+    width: 1.15rem;
+    height: 1.15rem;
+    flex: none;
+    object-fit: contain;
+  }
+  .lang-name {
+    font-size: 0.8rem;
+    color: var(--ink-dim);
   }
 </style>
 
