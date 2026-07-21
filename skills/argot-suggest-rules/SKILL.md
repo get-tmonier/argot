@@ -43,6 +43,25 @@ into a real scripted rule — same manifest + Rhai + fixture-gate shape as
    confined."* Present the strongest few to the user in plain words ("argot sees
    that validation via `z.*` concentrates in your schema files — codify that?").
 
+   The catalog also carries `migrations[]` (patterns argot's history-mining
+   found the repo has replaced) and `declared_migrations[]` (already declared
+   in `argot.toml`). **A mined migration is not a rule to write** — codify it
+   as a `[[migration]]` entry instead, asking the user for the `reason`:
+   ```json
+   // languages.<lang>.migrations[]
+   { "old": "moment", "new": "date-fns", "kind": "import",
+     "commits": 4, "files": 4, "leftover_count": 9 }
+   ```
+   ```toml
+   # argot.toml
+   [[migration]]
+   from = "moment"
+   to = "date-fns"
+   reason = "Q2 date-handling refactor"   # ask the user for this
+   ```
+   No fixture gate needed — `[[migration]]` takes effect immediately, no
+   refit required.
+
 2. **Pick a candidate with the user.** Prefer high `concentration` and low
    `out_files` (few existing leaks). A convention that's only 60% confined isn't
    a rule yet — say so. The `out_files` count is the current number of
@@ -151,6 +170,9 @@ Offer it only when the user frames the placement as a hard invariant.
 - **Never invent a placement the mining didn't find.** This skill codifies what
   `argot conventions` reports; to state a convention argot didn't discover, use
   **argot-write-rule** instead.
+- **Never turn a mined migration into a scripted rule.** A `migrations[]`
+  entry is codified as `[[migration]]` in `argot.toml`, not a `.argot/rules/`
+  script.
 - **Never ship a rule for a feature you can't detect syntactically.** If it needs
   type inference or cross-file resolution, say so and stop.
 - Existing violations (`out_files`) are muted per-hit with a reason, not

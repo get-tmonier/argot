@@ -440,6 +440,11 @@ struct LangConfig {
     /// to before this field existed.
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     slices: Vec<SliceConfig>,
+    /// Learned supersessions ("this repo replaces X with Y") with their
+    /// mining evidence. Omitted when none — a repo without a usable history
+    /// keeps its config byte-identical.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    supersessions: Vec<crate::scoring::supersede::Supersession>,
     /// Fit-time model snapshot: BPE token stats + callee attestation +
     /// cluster partition. Check scores against this, never the live tree.
     model: LanguageModel,
@@ -1019,6 +1024,15 @@ pub fn run_calibrate(
     // against. Byte-identical to a working-tree read on a clean checkout.
     let head = HeadSource::new(repo_dir);
 
+    // Supersession mining: one bounded walk of the accepted first-parent
+    // history, shared by every language below. Paths the corpus excludes
+    // never shape supersessions either (lock-step principle).
+    let t_supersede = argot_engine::timing::phase("calibrate: supersession mining");
+    let supersession_deltas = crate::scoring::supersede::history_deltas(repo_dir, &|path| {
+        !path_suppressions.is_suppressed(path)
+    });
+    t_supersede.done();
+
     // The additive groups' fit lifecycle — the composition root supplies this
     // build's groups (this function's `fit_detectors` parameter); the loop
     // below drives them at three points: begin (a one-time model/prior
@@ -1305,6 +1319,30 @@ pub fn run_calibrate(
             None
         };
 
+        // Supersessions for this language: mine the history deltas, then
+        // attach corpus leftovers (a completed migration carries nothing to
+        // guard and is dropped there).
+        let t_sup = argot_engine::timing::phase(format!("calibrate[{name}]: supersessions"));
+        let mined = supersession_deltas
+            .get(name)
+            .map(crate::scoring::supersede::mine_language)
+            .unwrap_or_default();
+        let supersessions = if mined.is_empty() {
+            Vec::new()
+        } else {
+            let corpus_rel_sources: Vec<(String, String)> = corpus
+                .iter()
+                .map(|(p, s)| (rel_to_repo(p, repo_dir), s.clone()))
+                .collect();
+            crate::scoring::supersede::attach_leftovers(
+                mined,
+                &corpus_rel_sources,
+                adapter.as_ref(),
+                language,
+            )
+        };
+        t_sup.done();
+
         // Fit-time model snapshot: the calibration call-receiver's fitted
         // state is threshold-parameter-independent (rare/alpha are scoring
         // knobs, not fitted state), so exporting from it is exact.
@@ -1362,6 +1400,7 @@ pub fn run_calibrate(
                 evidence_corpus: evidence,
                 model_hash,
                 slices: slice_configs,
+                supersessions,
                 model,
             },
         );

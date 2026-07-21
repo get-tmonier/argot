@@ -207,6 +207,83 @@ impl Default for DetectConfig {
     }
 }
 
+/// Which vocabulary a declared migration names. Mirrors the voice model's
+/// supersession kinds without the engine depending on any rule crate.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MigrationKind {
+    #[default]
+    Import,
+    Callee,
+}
+
+/// One declared migration (`[[migration]]`): the repo is moving from `from`
+/// to `to`. New code using `from` raises the `superseded` rule, and `to`
+/// never reads as a foreign pattern — effective at check time, no refit
+/// needed. The declared counterpart of a mined supersession: the user states
+/// a migration before history shows enough signal, or codifies one argot
+/// surfaced.
+#[derive(Debug, Clone, PartialEq)]
+pub struct MigrationRule {
+    pub from: String,
+    pub to: String,
+    /// Why the repo is migrating — rendered as the finding's evidence.
+    pub reason: String,
+    pub kind: MigrationKind,
+}
+
+/// The validated `[[migration]]` set plus per-entry validation notes.
+#[derive(Debug, Clone, Default)]
+pub struct MigrationsFile {
+    pub active: Vec<MigrationRule>,
+    pub warnings: Vec<String>,
+}
+
+/// Validate raw `[[migration]]` tables: `from`, `to`, and `reason` are
+/// mandatory; `kind` is `"import"` (default) or `"callee"`. One bad entry
+/// warns and is skipped — never a parse failure (the `[[mute]]` discipline).
+fn build_migrations(raw: Vec<RawMigration>) -> MigrationsFile {
+    let mut out = MigrationsFile::default();
+    for (i, m) in raw.into_iter().enumerate() {
+        let nth = i + 1;
+        let (Some(from), Some(to)) = (m.from.clone(), m.to.clone()) else {
+            out.warnings.push(format!(
+                "argot.toml: [[migration]] #{nth}: 'from' and 'to' are required — ignored"
+            ));
+            continue;
+        };
+        let Some(reason) = m.reason.clone().filter(|r| !r.trim().is_empty()) else {
+            out.warnings.push(format!(
+                "argot.toml: [[migration]] #{nth} ({from} -> {to}): a reason is required — ignored"
+            ));
+            continue;
+        };
+        let kind = match m.kind.as_deref() {
+            None | Some("import") => MigrationKind::Import,
+            Some("callee") => MigrationKind::Callee,
+            Some(other) => {
+                out.warnings.push(format!(
+                    "argot.toml: [[migration]] #{nth} ({from} -> {to}): unknown kind '{other}' \
+                     (valid: \"import\", \"callee\") — ignored"
+                ));
+                continue;
+            }
+        };
+        if from == to {
+            out.warnings.push(format!(
+                "argot.toml: [[migration]] #{nth}: 'from' and 'to' are both '{from}' — ignored"
+            ));
+            continue;
+        }
+        out.active.push(MigrationRule {
+            from,
+            to,
+            reason,
+            kind,
+        });
+    }
+    out
+}
+
 /// The resolved argot configuration (`argot.toml` ⊕ `argot.local.toml`).
 #[derive(Debug, Clone)]
 pub struct ArgotConfig {
@@ -242,6 +319,9 @@ pub struct ArgotConfig {
     pub fit_refresh_from: FitRefreshFrom,
     /// Raw `[[mute]]` tables, validated on demand by [`ArgotConfig::mutes`].
     mutes: Vec<RawMute>,
+    /// Raw `[[migration]]` tables, validated on demand by
+    /// [`ArgotConfig::migrations`].
+    migrations: Vec<RawMigration>,
     /// True when an `argot.toml` (or local) backed these values.
     pub from_file: bool,
     /// Parse-level notes (malformed config file) for stderr.
@@ -262,6 +342,7 @@ impl Default for ArgotConfig {
             fit_refresh_after: DEFAULT_FIT_REFRESH_AFTER,
             fit_refresh_from: FitRefreshFrom::default(),
             mutes: Vec::new(),
+            migrations: Vec::new(),
             from_file: false,
             warnings: Vec::new(),
         }
@@ -286,6 +367,19 @@ struct RawConfig {
     /// `[[mute]]` array-of-tables.
     #[serde(default)]
     mute: Vec<RawMute>,
+    /// `[[migration]]` array-of-tables.
+    #[serde(default)]
+    migration: Vec<RawMigration>,
+}
+
+/// Permissive on-disk shape: every field optional so one malformed
+/// `[[migration]]` is a warning, not a parse failure for the whole config.
+#[derive(Debug, Clone, Default, Deserialize)]
+struct RawMigration {
+    from: Option<String>,
+    to: Option<String>,
+    reason: Option<String>,
+    kind: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -506,9 +600,11 @@ impl ArgotConfig {
             })
             .unwrap_or_default();
 
-        // [[mute]]: appended.
+        // [[mute]] / [[migration]]: appended.
         let mut mutes = base.mute;
         mutes.extend(local.mute);
+        let mut migrations = base.migration;
+        migrations.extend(local.migration);
 
         ArgotConfig {
             exclude: ExcludeConfig { recommended, paths },
@@ -525,6 +621,7 @@ impl ArgotConfig {
             fit_refresh_after,
             fit_refresh_from,
             mutes,
+            migrations,
             from_file,
             warnings,
         }
@@ -589,6 +686,12 @@ impl ArgotConfig {
     /// run vocabulary (built-ins + the repo's custom rules).
     pub fn mutes_with(&self, registry: &Registry, today: &str) -> SuppressionsFile {
         build_mutes(registry, self.mutes.clone(), today)
+    }
+
+    /// The declared migrations (`[[migration]]`), validated — invalid entries
+    /// warn and are skipped.
+    pub fn migrations(&self) -> MigrationsFile {
+        build_migrations(self.migrations.clone())
     }
 }
 
@@ -674,6 +777,18 @@ refresh-from = \"default-branch\"
 # hash = \"a1b2c3d4e5f6\"
 # reason = \"adopting axios repo-wide\"
 # expires = \"2026-12-31\"   # optional
+
+# Declared migrations — \"we're replacing X with Y\". New code using X raises
+# the `superseded` rule (warn by default), Y stops reading as foreign, and
+# `argot conventions` lists the files still to migrate. Effective immediately,
+# no refit needed. argot also mines these from your accepted history; declare
+# one to enforce a migration before history shows enough signal. Example:
+#
+# [[migration]]
+# from = \"moment\"
+# to = \"date-fns\"
+# reason = \"Q2 date-handling refactor\"
+# # kind = \"callee\"        # optional: \"import\" (default) or \"callee\"
 "
     )
 }
@@ -777,6 +892,67 @@ mod tests {
         let sup = cfg.path_suppressions();
         assert!(sup.is_suppressed("tests/app.py"));
         assert!(!sup.is_suppressed("src/app.py"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn reads_and_validates_migrations() {
+        let dir = scratch("migrations");
+        std::fs::write(
+            dir.join(CONFIG_FILE),
+            "\
+[[migration]]
+from = \"moment\"
+to = \"date-fns\"
+reason = \"Q2 refactor\"
+
+[[migration]]
+from = \"legacy_render\"
+to = \"render_v2\"
+reason = \"render rewrite\"
+kind = \"callee\"
+
+[[migration]]
+from = \"orphan\"
+to = \"target\"
+
+[[migration]]
+from = \"x\"
+to = \"y\"
+reason = \"bad kind\"
+kind = \"module\"
+",
+        )
+        .unwrap();
+        let cfg = ArgotConfig::load(&dir);
+        let migrations = cfg.migrations();
+        assert_eq!(migrations.active.len(), 2);
+        assert_eq!(migrations.active[0].from, "moment");
+        assert_eq!(migrations.active[0].kind, MigrationKind::Import);
+        assert_eq!(migrations.active[1].kind, MigrationKind::Callee);
+        assert_eq!(migrations.warnings.len(), 2);
+        assert!(migrations.warnings[0].contains("reason is required"));
+        assert!(migrations.warnings[1].contains("unknown kind 'module'"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn local_migrations_append_to_committed_ones() {
+        let dir = scratch("migrations_local");
+        std::fs::write(
+            dir.join(CONFIG_FILE),
+            "[[migration]]\nfrom = \"a\"\nto = \"b\"\nreason = \"one\"\n",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join(LOCAL_CONFIG_FILE),
+            "[[migration]]\nfrom = \"c\"\nto = \"d\"\nreason = \"two\"\n",
+        )
+        .unwrap();
+        let cfg = ArgotConfig::load(&dir);
+        let migrations = cfg.migrations();
+        assert_eq!(migrations.active.len(), 2);
+        assert_eq!(migrations.active[1].from, "c");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

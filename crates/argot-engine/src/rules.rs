@@ -129,6 +129,14 @@ pub const RULES: &[Rule] = &[
         default_severity: Severity::Error,
     },
     Rule {
+        name: "superseded",
+        reason: "superseded",
+        group: GROUP_VOICE,
+        label: "superseded pattern",
+        description: "a pattern this repo has been replacing — or declared migrated away from",
+        default_severity: Severity::Warn,
+    },
+    Rule {
         name: "redundant",
         reason: "redundant",
         group: GROUP_SEMANTIC,

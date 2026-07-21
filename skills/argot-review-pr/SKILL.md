@@ -48,7 +48,7 @@ In `--format human` the meta line reads
 
 ## The rules
 
-Eleven built-in rules in five groups (`argot rules` prints the registry with the
+Twelve built-in rules in five groups (`argot rules` prints the registry with the
 repo's effective severities — plus any scripted custom rules the repo carries
 under `.argot/rules/`, group `custom`; treat their findings like any row
 below, with the rule's own message as the evidence):
@@ -59,6 +59,7 @@ below, with the rule's own message as the evidence):
 | `unfamiliar-callee` | voice | Calls a receiver/callee the repo's code never calls. | Suggest the API the repo already uses, or confirm the new one is wanted. |
 | `rare-tokens` | voice | A token sequence statistically foreign to the repo's voice. | Ask the author to rewrite the idiom in the repo's vocabulary if it's off-voice. |
 | `convention` | voice | Breaks a convention learned from the repo. | Cite the convention from the evidence; ask for a follow-or-justify. |
+| `superseded` | voice | New code uses a pattern the repo has been replacing (mined from its migration commits) or declared migrated away from (`[[migration]]` in argot.toml). Evidence cites the replacing commits or the declared reason. | Recommend the replacement the evidence names; `argot conventions` lists the migration and the files still on the old pattern. Warn by default — flag it in review, it won't gate. |
 | `redundant` | semantic | Duplicates a function the repo already has — evidence `↳ duplicates <symbol> (<path>:<line>) — similarity 0.XX` names the original. | **Do not ignore.** Open the cited file, compare, and recommend calling the existing function instead of merging a reimplementation — or a justified mute. |
 | `misplaced` | semantic | The function looks like it belongs in another module area — evidence `↳ looks like <area> code filed under <area>`. | Suggest moving it to the cited area, or ask the author to justify the placement. |
 | `layering` | architecture | An internal import that reverses the repo's established layering direction. | Recommend not introducing the import — invert the dependency or route through the intended layer. |
@@ -74,8 +75,9 @@ reported at `unusual`. The three `integrity` rules (`test-deleted`,
 evidenced event (a marker added, assertions excised), stronger than `unusual`
 but not the categorical certainty of a 0-usage import. **An `unusual` hit is
 NOT "usually fine" — look at its rule.** Severities: every rule defaults to
-`error`; the repo can downgrade per rule or group in `argot.toml` `[rules]` or
-per run with `argot review --rule <name|group>=<severity>`.
+`error` except `test-weakened` and `superseded` (warn — reported, never gate
+on their own); the repo can adjust per rule or group in `argot.toml` `[rules]`
+or per run with `argot review --rule <name|group>=<severity>`.
 
 ## Gauge trust first
 

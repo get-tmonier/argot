@@ -5,8 +5,8 @@ group: Guide
 order: 13
 ---
 
-argot's eleven built-in rules cover the patterns every repo eventually cares about — foreign
-imports, reinvented functions, layering, gamed tests. Some conventions are yours alone, though:
+argot's twelve built-in rules cover the patterns every repo eventually cares about — foreign
+imports, reinvented functions, layering, gamed tests, migration leftovers. Some conventions are yours alone, though:
 "never call this deprecated internal helper," "route handlers must not touch the ORM directly,"
 "this repo's one rule about raw SQL." For those, write a **custom rule**.
 

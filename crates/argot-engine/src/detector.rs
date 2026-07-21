@@ -29,6 +29,9 @@ pub struct CheckContext<'a> {
     pub filter_adapters: &'a HashMap<String, Box<dyn LanguageAdapter>>,
     /// Active `[[mute]]` rules.
     pub mute_rules: &'a [SuppressionRule],
+    /// Declared migrations (`[[migration]]`) — the voice pass enforces them
+    /// alongside its mined supersessions.
+    pub migrations: &'a [crate::config::MigrationRule],
     /// `[detect]` configuration (read by the semantic pass).
     pub detect: &'a DetectConfig,
     /// Repo-wide `.h` → C/C++ routing majority.

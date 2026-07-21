@@ -4,7 +4,7 @@ const fr: SiteContent = {
   meta: {
     title: 'argot — détectez le code IA qui ne colle pas à votre dépôt',
     description:
-      'Le harnais du code écrit par IA — des statistiques sur l’historique de votre propre dépôt, pas un second LLM. argot signale ce qui n’a pas sa place — dépendances étrangères, fonctions réinventées, architecture inversée, tests truqués — plus les conventions que vous scriptez vous-même. Sans LLM, sans cloud, 100 % local.',
+      'Le harnais du code écrit par IA — des statistiques sur l’historique de votre propre dépôt, pas un second LLM. argot signale ce qui n’a pas sa place — dépendances étrangères, fonctions réinventées, architecture inversée, tests truqués, restes de vos propres migrations — plus les conventions que vous scriptez vous-même. Sans LLM, sans cloud, 100 % local.',
   },
   nav: {
     demo: 'Démo',
@@ -35,6 +35,12 @@ const fr: SiteContent = {
         label: 'foreign-import',
         caption:
           'Du Python valide — mais un framework que ce dépôt n’a jamais importé. L’évidence montre ce qu’il utilise à la place.',
+      },
+      {
+        id: 'superseded',
+        label: 'superseded',
+        caption:
+          'Ce dépôt a remplacé requests par httpx il y a des mois. argot cite les commits de la migration — et prévient avant un reste de plus.',
       },
       {
         id: 'redundant',

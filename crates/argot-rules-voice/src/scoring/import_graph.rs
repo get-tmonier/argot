@@ -55,6 +55,13 @@ impl ImportGraphScorer {
         self.repo_modules_prefixes = prefixes.into_iter().collect();
     }
 
+    /// Widen the known-module snapshot with a supersession/migration's
+    /// replacement side — the pattern the repo is moving *to* must never
+    /// read as foreign.
+    pub fn extend_known<I: IntoIterator<Item = String>>(&mut self, modules: I) {
+        self.repo_modules.extend(modules);
+    }
+
     /// True if `spec` is not a known internal module specifier.
     ///
     /// `__future__` is a Python compiler directive available in every file, not

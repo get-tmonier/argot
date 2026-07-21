@@ -350,7 +350,29 @@ impl Detector for VoiceDetector {
             }
         }
 
-        let (hits, hunk_count, files_scanned) = score_patches(
+        // Declared migrations (`[[migration]]`) widen the attestation the
+        // same way mined supersessions did at load — the pattern the repo
+        // declared it is moving *to* must never read as foreign, and that
+        // must hold without a refit.
+        if !ctx.migrations.is_empty() {
+            let imports: Vec<String> = ctx
+                .migrations
+                .iter()
+                .filter(|m| m.kind == argot_engine::config::MigrationKind::Import)
+                .map(|m| m.to.clone())
+                .collect();
+            let callees: Vec<String> = ctx
+                .migrations
+                .iter()
+                .filter(|m| m.kind == argot_engine::config::MigrationKind::Callee)
+                .map(|m| m.to.clone())
+                .collect();
+            for scorer in loaded.scorers.values_mut() {
+                scorer.attest_replacements(&imports, &callees);
+            }
+        }
+
+        let (mut hits, hunk_count, files_scanned) = score_patches(
             ctx.batches,
             &mut loaded.scorers,
             ctx.filter_adapters,
@@ -365,6 +387,16 @@ impl Detector for VoiceDetector {
         );
         ctx.scan.hunk_count = hunk_count;
         ctx.scan.files_scanned = files_scanned;
+        hits.extend(crate::superseded::superseded_findings(
+            ctx.batches,
+            &loaded.supersessions,
+            ctx.migrations,
+            ctx.filter_adapters,
+            ctx.mute_rules,
+            ctx.registry,
+            ctx.settings,
+            ctx.header_cpp,
+        ));
         hits
     }
 }

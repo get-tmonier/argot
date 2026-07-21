@@ -5,7 +5,7 @@ group: Start
 order: 3
 ---
 
-argot has **five detectors**, all learned entirely from your git history — plus a sixth kind that
+argot has **six detectors**, all learned entirely from your git history — plus one kind that
 isn't learned at all: [custom rules](/docs/custom-rules/) you script yourself. Each detector emits
 findings under a named **rule** (`argot rules` lists them all), and every rule's severity is yours
 to configure — see [Configure](/docs/configure/#rules--rule-severities).
@@ -15,6 +15,14 @@ token-frequency distributions and a maximum log-likelihood ratio. That's what ca
 patterns — a dependency or API the repo has never used (rules `foreign-import`,
 `unfamiliar-callee`, `rare-tokens`) — and it's why the statistical pass fits in seconds and scores in milliseconds
 on CPU.
+
+The **supersession detector** rides the same fit: it replays up to 1,000 accepted first-parent
+commits and mines replacement pairs — an import or callee removed while its replacement is added,
+in the same file of the same commit, repeatedly, across files, in one direction. A survivor means
+the repo is mid-migration: the replacement stops reading as foreign, and new code written the old
+way raises `superseded` (warn by default), citing the migrating commits themselves. Migrations can
+also be [declared in two lines of `argot.toml`](/docs/configure/#migration--declare-a-migration).
+Pure git2 and tree-sitter — no model, no network.
 
 The **reinvention** and **placement** detectors share the one neural component: a per-repo
 code-embedding index, built at fit with a small local model (`jina-code`, ~100 MB, statically

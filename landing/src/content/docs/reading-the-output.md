@@ -41,9 +41,11 @@ Each hit line carries five things:
   boundary) from the architecture detector, and `test-deleted` / `test-disabled` / `test-weakened`
   (a test removed, skipped, or weakened alongside the production change it covers) from the
   integrity detector. A further rule, `convention`, exists in the engine but rarely fires on its
-  own. Every rule defaults to `error` except `test-weakened`, which ships `warn` — it's printed
-  like any other hit, but on its own it doesn't fail the check. `argot rules` lists them all with
-  their effective severities.
+  own; `superseded` (new code written a pattern the repo is actively replacing, mined from history
+  or declared in `argot.toml`) fires only on a repo with a migration in play. Every rule defaults
+  to `error` except `superseded` and `test-weakened`, which ship `warn` — printed like any other
+  hit, but on its own neither fails the check. `argot rules` lists them all with their effective
+  severities.
 
 ## Confidence tiers
 
@@ -59,8 +61,8 @@ relative to the calibrated threshold `t` (stored in `.argot/scorer-config.json`)
 | `foreign` | `score ≥ t+1.5` | High-confidence anomaly |
 
 `redundant`, `misplaced`, and `layering` findings are always pinned to `unusual`; the integrity
-findings (`test-deleted`, `test-disabled`, `test-weakened`), `rule-tampered`, and every
-[custom rule](/docs/custom-rules/) are always pinned to `suspicious`.
+findings (`test-deleted`, `test-disabled`, `test-weakened`), `superseded`, `rule-tampered`, and
+every [custom rule](/docs/custom-rules/) are always pinned to `suspicious`.
 None of these carry a score margin — the evidence is an event lookup, not a BPE distance. `argot
 check --min-confidence <tier>` filters the display.
 
@@ -73,6 +75,10 @@ The `↳` line is the per-hunk evidence — *why* this hunk fired:
   not the words.
 - For **foreign-import** and **unfamiliar-callee** hits it shows the offending names plus a
   `common here:` line that orients you to the repo's typical vocabulary in that dimension.
+- For **superseded** hits it cites the migration itself. A mined one names the commits and dates:
+  `↳ this repo replaced 'oldlib' with 'newlib' — 4 commits across 4 files (2026-01-08..2026-01-30, e.g. 631e692)`.
+  A declared one (from `argot.toml`'s `[[migration]]`) names the reason instead:
+  `↳ argot.toml migration to 'date-fns' — Q2 date-handling refactor`.
 - For **redundant** hits it names the existing function the new one duplicates, with its location and
   the similarity — the semantic layer's nearest-code evidence:
   `↳ duplicates slugify (src/utils/text.py:1) — similarity 0.86`.
@@ -118,7 +124,7 @@ Each entry in `hits[]`:
 | `threshold` | Calibrated threshold the confidence tier is measured against. |
 | `confidence` | Evidence strength: `unusual` / `suspicious` / `foreign`. |
 | `severity` | The rule's configured severity for this run: `error` (fails the check) or `warn`. |
-| `rule` | Stable rule name: `foreign-import`, `unfamiliar-callee`, `rare-tokens`, `convention`, `redundant`, `misplaced`, `layering`, `test-deleted`, `test-disabled`, or `test-weakened` — the same key you'd use in `argot.toml [rules]`, `--rule`, and suppressions. |
+| `rule` | Stable rule name: `foreign-import`, `unfamiliar-callee`, `rare-tokens`, `convention`, `superseded`, `redundant`, `misplaced`, `layering`, `test-deleted`, `test-disabled`, or `test-weakened` — the same key you'd use in `argot.toml [rules]`, `--rule`, and suppressions. |
 | `rule_label` | Human label of `rule` (e.g. `rare token sequence`, `foreign import`). |
 | `source` | `workdir` / `staged` / `untracked`, or a short commit SHA. |
 | `hash` | Content-based hit hash — paste into `argot mute <hash>`. |

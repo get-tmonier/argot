@@ -161,6 +161,24 @@ most-used callees:"
     }
     let _ = writeln!(out);
 
+    // In-progress migrations mined from accepted history.
+    if !view.supersessions.is_empty() {
+        let _ = writeln!(
+            out,
+            "**Replaced patterns.** The repo's history shows it is moving away \
+from these — new code should use the replacement:"
+        );
+        let _ = writeln!(out);
+        for s in &view.supersessions {
+            let _ = writeln!(
+                out,
+                "- `{}` → `{}` ({} commits, {}..{}) — {} file(s) still to migrate",
+                s.old, s.new, s.commits, s.first, s.last, s.leftover_count
+            );
+        }
+        let _ = writeln!(out);
+    }
+
     // Red-flag summary.
     let _ = writeln!(
         out,
@@ -195,6 +213,18 @@ mod tests {
                     files: 100,
                     top_callees: vec![("app.get".to_string(), 90), ("Depends".to_string(), 40)],
                 }],
+                supersessions: vec![argot_core::scoring::supersede::Supersession {
+                    old: "flask".to_string(),
+                    new: "fastapi".to_string(),
+                    kind: argot_core::scoring::supersede::SupersessionKind::Import,
+                    commits: 6,
+                    files: 14,
+                    first: "2026-01-02".to_string(),
+                    last: "2026-04-01".to_string(),
+                    example_commit: "abc1234".to_string(),
+                    leftover_count: 3,
+                    leftovers: vec!["app/legacy.py".to_string()],
+                }],
             },
         );
         ModelReport {
@@ -223,6 +253,9 @@ mod tests {
         // app.get is in 90 of 100 files → strong tendency.
         assert!(md.contains("strong tendency"));
         assert!(md.contains("Model `deadbeef`"));
+        assert!(md.contains("**Replaced patterns.**"));
+        assert!(md.contains("`flask` → `fastapi` (6 commits, 2026-01-02..2026-04-01)"));
+        assert!(md.contains("3 file(s) still to migrate"));
     }
 
     #[test]
@@ -242,6 +275,7 @@ mod tests {
                 corpus_files: 1,
                 familiar_imports: vec!["fastapi".to_string()],
                 clusters: vec![],
+                supersessions: vec![],
             },
         );
         let report = ModelReport {

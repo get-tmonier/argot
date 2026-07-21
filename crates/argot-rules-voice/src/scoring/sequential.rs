@@ -374,6 +374,17 @@ impl SequentialImportBpeScorer {
 
     /// Install the changeset-wide callable definitions for this check run —
     /// names any file in the change defines. Cleared by passing an empty set.
+    /// Widen the fit-time attestation with replacement-side patterns (mined
+    /// supersessions at load, declared `[[migration]]` targets at check —
+    /// the latter apply without a refit). What the repo is moving *to* must
+    /// never read as foreign.
+    pub fn attest_replacements(&mut self, imports: &[String], callees: &[String]) {
+        self.import_scorer.extend_known(imports.iter().cloned());
+        if let Some(cr) = self.call_receiver.as_mut() {
+            cr.extend_attested(callees);
+        }
+    }
+
     pub fn set_changeset_bindings(&mut self, bindings: HashSet<String>) {
         self.changeset_bindings = bindings;
     }

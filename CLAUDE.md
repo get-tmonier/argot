@@ -49,8 +49,10 @@ crates/
                          #   composite (BPE + import + call-receiver + conventions
                          #   + typicality — arbitration is ONE slice, do not split),
                          #   calibration, train/extract, model loading/RepoScorers,
-                         #   inspect, ignore-suggest. Feature `structural` (research
-                         #   AST-bigram signal, NON-GATING, off in releases).
+                         #   inspect, ignore-suggest, supersession mining
+                         #   (`superseded` rule + declared `[[migration]]`).
+                         #   Feature `structural` (research AST-bigram signal,
+                         #   NON-GATING, off in releases).
   argot-rules-semantic/  # `redundant` + `misplaced` (embeddings; llama-cpp-2 deps
                          #   live HERE). See "Semantic layer".
   argot-rules-arch/      # `layering` (module-dependency graph). See below.
@@ -211,9 +213,10 @@ Keep evidence of every experiment in `docs/research/evidence/` regardless of out
 When a command, flag, rule, or exit code changes, these ship the change to
 users and must move together:
 
-- `skills/` — the four shipped skills (`argot-setup`, `argot-check`,
-  `argot-review-pr`, `argot-setup-ci`); workflow procedures, not command
-  catalogs — `argot --help` stays the source of truth.
+- `skills/` — the six shipped skills (`argot-setup`, `argot-check`,
+  `argot-review-pr`, `argot-setup-ci`, `argot-suggest-rules`,
+  `argot-write-rule`); workflow procedures, not command catalogs —
+  `argot --help` stays the source of truth.
 - `crates/argot-cli/src/mcp.rs` — the MCP server (`argot mcp`).
 - `.claude-plugin/` — the Claude Code plugin (bundles the skills + MCP server).
 - `action.yml` — the GitHub Action; its inputs table is documented in

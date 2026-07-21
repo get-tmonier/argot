@@ -201,7 +201,9 @@ fn tool_check(args: &Value, repo: &Path, explain: bool) -> Result<Value, String>
         .ok_or("hunk_content is required")?;
     let file_source = args.get("file_source").and_then(Value::as_str);
 
-    let detect = argot_core::config::ArgotConfig::load(repo).detect;
+    let config = argot_core::config::ArgotConfig::load(repo);
+    let migrations = config.migrations().active;
+    let detect = config.detect;
     let mut scorers = RepoScorers::load(&argot_dir(repo), &detect)?;
     if scorers.language_for(file_path).is_none() {
         return Err(format!(
@@ -240,6 +242,14 @@ fn tool_check(args: &Value, repo: &Path, explain: bool) -> Result<Value, String>
                 out["evidence_detail"] = serde_json::to_value(ev).unwrap_or(Value::Null);
             }
         }
+    }
+    // Superseded patterns the hunk uses (mined supersessions + declared
+    // [[migration]] entries) — the same signal `check`'s `superseded` rule
+    // reports, so an agent hears "this repo moved on from X" before writing
+    // more of it.
+    let superseded = scorers.superseded_in_hunk(file_path, hunk_content, &migrations);
+    if !superseded.is_empty() {
+        out["superseded"] = serde_json::to_value(&superseded).unwrap_or(Value::Null);
     }
     Ok(out)
 }
@@ -282,14 +292,25 @@ fn tool_voice_context(args: &Value, repo: &Path) -> Result<Value, String> {
         .collect();
 
     let familiar_imports: Vec<&String> = lang_view.familiar_imports.iter().take(top).collect();
-    Ok(json!({
+    let superseded: Vec<Value> = lang_view
+        .supersessions
+        .iter()
+        .map(|s| json!({ "avoid": s.old, "use": s.new }))
+        .collect();
+    let mut out = json!({
         "file_path": file_path,
         "language": language,
         "model": model.manifest.as_ref().map(|m| m.model_hash.clone()),
         "typical_callees_by_cluster": clusters,
         "familiar_imports": familiar_imports,
         "note": "Prefer these callees and imports; code that reaches for names absent here will read as out of voice.",
-    }))
+    });
+    if !superseded.is_empty() {
+        out["superseded"] = json!(superseded);
+        out["superseded_note"] =
+            json!("The repo is migrating away from these — use the replacement.");
+    }
+    Ok(out)
 }
 
 /// `argot.fit_status`: the repo's suitability verdict + calibration health.

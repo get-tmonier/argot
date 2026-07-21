@@ -143,11 +143,11 @@ The same resolved `[exclude]` + `[detect]` govern what argot **learns** from,
 ## `[rules]` — rule severities
 
 **Location:** the `[rules]` section of `argot.toml`. Every finding argot emits
-belongs to one of **eleven stable rules**, in five groups:
+belongs to one of **twelve stable rules**, in five groups:
 
 | Group | Rules |
 |---|---|
-| `voice` | `foreign-import` · `unfamiliar-callee` · `rare-tokens` · `convention` |
+| `voice` | `foreign-import` · `unfamiliar-callee` · `rare-tokens` · `convention` · `superseded` |
 | `semantic` | `redundant` · `misplaced` |
 | `architecture` | `layering` |
 | `integrity` | `test-deleted` · `test-disabled` · `test-weakened` |
@@ -357,14 +357,54 @@ warning on stderr — one bad entry never voids the file. An entry with `expires
 in the past is treated as expired and ignored; one expiring **today** is still
 active.
 
+## `[[migration]]` — declare a migration
+
+*This is the config surface for the `superseded` rule's **declared** side. argot also
+**mines** the same fact from your accepted history — no config needed — and the rule
+itself (evidence, severity, the leftover report) is documented end to end in
+[What it catches](/docs/what-it-catches/#superseded--new-code-written-the-old-way).*
+
+A repo mid-migration has two voices, and a model trained on history alone only hears
+the loud (old) one until enough commits accumulate. `[[migration]]` states the
+replacement yourself, and it's enforced from the very next `check` — no refit needed:
+
+```toml
+[[migration]]
+from = "moment"
+to = "date-fns"
+reason = "Q2 date-handling refactor"
+# kind = "callee"   # optional: "import" (default) or "callee"
+```
+
+- **`from`, `to`, and `reason` are mandatory** — the same discipline as `[[mute]]`. An
+  entry missing one, or naming an unknown `kind`, is skipped with a warning on stderr;
+  one bad entry never voids the file.
+- **`kind`** is optional: `"import"` (the default) for a module specifier, or
+  `"callee"` for a method/function call.
+- **`argot.local.toml` entries append** to the committed ones, exactly like `[[mute]]`.
+- **Effective immediately, no refit needed.** A declared migration is read at check
+  time, not baked into the fitted model: `to` stops reading as foreign and `from`
+  starts raising `superseded` from the very next `check`. Declaring one doesn't even
+  trigger the background auto-refresh — `[[migration]]` isn't part of the config
+  fingerprint `[fit]` freshness watches (see [`[fit]`](#fit--the-background-auto-refresh)).
+- **Scoping reuses the existing per-rule path scopes** — no separate mechanism:
+  `[rules] superseded = { severity = "warn", include = ["src/**"] }` limits where the
+  rule fires (mined or declared alike), exactly like
+  [scoping any other rule](#path-scoping-a-rule).
+- The finding it produces is a rule like any other: `[rules] superseded = "off"` turns
+  it off (per repo or per run), `[[mute]]` and inline
+  `# argot: ignore-next-line rule=superseded — reason` suppress one hit, and
+  `argot rules` lists its effective severity (`warn` by default — reported, never
+  failing the check on its own).
+
 ## `argot.local.toml` — personal overrides
 
 Want a scratch directory excluded on *your* machine only, without touching the
 committed config? Put it in **`argot.local.toml`** at the repo root — `init`
 gitignores it for you. It deep-merges over `argot.toml`: scalars there win,
-list entries (`paths`, `generated-markers`, `[[mute]]`) append, and `[rules]`
-entries override the committed ones key by key (the CLI's `--rule` still beats
-both).
+list entries (`paths`, `generated-markers`, `[[mute]]`, `[[migration]]`) append, and
+`[rules]` entries override the committed ones key by key (the CLI's `--rule` still
+beats both).
 
 ```toml
 # argot.local.toml — gitignored, personal, uncommitted.

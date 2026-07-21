@@ -45,6 +45,7 @@ one of the most actionable findings argot makes:
 | `unfamiliar-callee` | voice | a call to something this kind of file never calls | Same: compare against the named common callees. |
 | `rare-tokens` | voice | a token sequence statistically foreign to the repo's voice | Read the flagged identifiers; rewrite with the repo's vocabulary if unintended. |
 | `convention` | voice | a construction that breaks a learned repo convention | As above. |
+| `superseded` | voice | new code uses a pattern this repo has replaced — mined from history, or declared in `argot.toml` | Use the replacement named in the evidence (the commits that made the switch, or the declared reason). |
 | `redundant` | semantic | this new function duplicates one the repo already has | **Open the file the evidence names** (`↳ duplicates X (path:line)`), compare, and use the existing function instead — or justify and mute. |
 | `misplaced` | semantic | this function's nearest kin all live in another area | Propose moving it to the named area, or justify its placement. |
 | `layering` | architecture | this internal import reverses the repo's layer direction | Don't introduce the import — invert the dependency or go through the intended layer. |
@@ -54,9 +55,14 @@ one of the most actionable findings argot makes:
 
 Rules are configurable like any linter: `argot rules` lists them; `argot.toml
 [rules]` or `argot check --rule <name|group>=<error|warn|off>` sets severities.
-Everything defaults to `error` except `test-weakened`, which ships as `warn`
-(reported, never fails the check) — its finding classes are real but noisier
-on routine test churn.
+Everything defaults to `error` except `test-weakened` and `superseded`, which
+ship as `warn` (reported, never fails the check) — their finding classes are
+real but noisier on routine test churn / mid-migration code.
+
+Declare a migration yourself before history shows enough signal with
+`[[migration]]` in `argot.toml` (`from`, `to`, `reason`) — it's effective
+immediately, no refit needed: the `to` side stops reading as foreign and the
+`from` side raises `superseded`.
 
 **Gauge trust first.** Run `argot inspect` (or MCP `argot.fit_status`). If the
 verdict is **Not recommended**, down-weight every hit — the model isn't
@@ -173,7 +179,11 @@ Trust the binary. `argot rules` prints the live rule registry and `argot
   install with `npx skills add get-tmonier/argot`.
 - **MCP** (proactive): `argot mcp` exposes `voice_context` so you can write
   in-voice from the first token — see
-  [the agents guide](https://argot.tmonier.com/docs/agents/).
+  [the agents guide](https://argot.tmonier.com/docs/agents/). When a
+  migration applies, `argot.check`/`argot.explain` hits carry a `superseded`
+  array (`old`/`new`/`evidence`) and `voice_context` carries `superseded`
+  (`avoid`/`use` pairs) plus a `superseded_note` — the preemptive "don't
+  write more of this" signal.
 - **Pre-write guardrail** (Claude Code, opt-in): a `PreToolUse` hook (`argot
   hook`) that *asks* before you introduce a dependency foreign to the repo —
   it ships with the [plugin](https://argot.tmonier.com/docs/plugin/), or

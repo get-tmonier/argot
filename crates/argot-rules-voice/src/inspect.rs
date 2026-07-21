@@ -193,6 +193,10 @@ pub struct LanguageModelView {
     /// The repo's familiar import surface (first-party + attested third-party).
     pub familiar_imports: Vec<String>,
     pub clusters: Vec<ClusterView>,
+    /// Mined supersessions ("this repo replaces X with Y"), with their
+    /// evidence. Empty for artifacts fitted before the field existed.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub supersessions: Vec<crate::scoring::supersede::Supersession>,
 }
 
 /// `argot inspect --model` report: what the model learned, plus the artifact
@@ -745,6 +749,10 @@ pub fn inspect_model(repo_dir: &Path, top_n: usize) -> Result<ModelReport> {
                         })
                         .unwrap_or_default(),
                     clusters,
+                    supersessions: cfg
+                        .get("supersessions")
+                        .and_then(|v| serde_json::from_value(v.clone()).ok())
+                        .unwrap_or_default(),
                 },
             );
         }
