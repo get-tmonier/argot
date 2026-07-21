@@ -84,7 +84,7 @@ const en: SiteContent = {
   customRules: {
     label: 'Your conventions',
     title: 'The sixth detector is yours.',
-    body: 'Five detectors learn your repo. The sixth you write: [[a manifest and a tiny script]] in .argot/rules/, versioned with your code, loaded at run time. And you don’t start from a blank page — [[argot conventions shows you what your repo already does]] and where each kind of code lives, so a rule starts from what argot found. Any convention, any language — down to the [[.env and CI configs]] a linter never opens.',
+    body: 'Five detectors learn your repo. The sixth you write — and you don’t start from a blank page: [[argot conventions]] shows you your shared API and where each kind of code lives. A manifest and a tiny script in .argot/rules/, any language, down to the [[.env a linter never opens]].',
     points: [
       {
         title: 'Discovered, not guessed',
@@ -187,8 +187,8 @@ const en: SiteContent = {
       'scores each diff, flags what’s foreign — never blocks',
       'reviews one PR against your repo’s voice, no checkout',
       'a non-blocking voice score on every PR',
-      'turns a team convention you state into a tested rule',
-      'finds the conventions in your repo, codifies one you pick',
+      'turns a convention you state into a tested rule',
+      'finds your conventions, codifies one',
     ],
     pluginNote:
       'On Claude Code? One install adds the skills, the MCP server, and the pre-write guardrail together.',

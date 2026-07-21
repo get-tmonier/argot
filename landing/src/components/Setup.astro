@@ -161,7 +161,9 @@ const skillCmds = [
   }
   .skill-cmd {
     flex: none;
-    min-width: 6.4rem;
+    /* Wide enough for the longest command (/argot-suggest-rules) so every
+       description starts at the same column — a clean two-column list. */
+    min-width: 10.25rem;
     font-family: var(--font-mono, ui-monospace, monospace);
     font-weight: 600;
     color: var(--ember-bright);
