@@ -43,7 +43,33 @@ for m in ts_query_old(ROUTES) {
       <a class="rules-cta" href="/docs/custom-rules/">{customRules.cta} →</a>
     </div>
 
-    <div class="reveal" style="--reveal-delay: 120ms">
+    <div class="reveal rules-stack" style="--reveal-delay: 120ms">
+      <div class="conv-card">
+        <div class="conv-head"><span class="rule-prompt">$</span> argot conventions</div>
+        <p class="conv-sub">where each kind of code lives — learned from your layout</p>
+        <div class="conv-rows">
+          {
+            [
+              { place: 'migrations/', feats: 'queryRunner · addColumn', pct: 100 },
+              { place: '*.schema.ts', feats: 'z.object · validate', pct: 96 },
+              { place: 'services/', feats: 'db.transaction · publish', pct: 92 },
+              { place: 'controllers/', feats: 'req · res · next', pct: 98 },
+            ].map((r) => (
+              <div class="conv-row">
+                <span class="conv-place">{r.place}</span>
+                <span class="conv-feats">{r.feats}</span>
+                <span class="conv-bar">
+                  <i style={`width:${r.pct}%`} />
+                </span>
+                <span class="conv-pct">{r.pct}%</span>
+              </div>
+            ))
+          }
+        </div>
+      </div>
+
+      <div class="conv-arrow" aria-hidden="true">codify a line ↓</div>
+
       <div class="rule-card">
         <div class="rule-head">
           <span class="rule-path">.argot/rules/no-dropped-endpoints/</span>
@@ -155,5 +181,81 @@ for m in ts_query_old(ROUTES) {
   .rule-ok {
     color: var(--jade);
     font-weight: 700;
+  }
+
+  /* --- the conventions-output mockup (discovery) --- */
+  .rules-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+  .conv-card {
+    border-radius: 16px;
+    border: 1px solid var(--line);
+    background: color-mix(in srgb, var(--panel) 55%, var(--bg) 45%);
+    box-shadow:
+      0 1px 0 0 rgba(255, 255, 255, 0.03) inset,
+      0 24px 60px -30px rgba(0, 0, 0, 0.8);
+    padding: 1rem 1.1rem 1.15rem;
+  }
+  .conv-head {
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    color: var(--ink);
+  }
+  .conv-sub {
+    margin: 0.25rem 0 0.9rem;
+    font-size: 0.78rem;
+    color: var(--muted);
+  }
+  .conv-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+  .conv-row {
+    display: grid;
+    grid-template-columns: 6.5rem 1fr 4rem 2.4rem;
+    align-items: center;
+    gap: 0.6rem;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+  }
+  .conv-place {
+    color: var(--ember);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .conv-feats {
+    color: var(--ink-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .conv-bar {
+    height: 6px;
+    border-radius: 999px;
+    background: var(--line-2);
+    overflow: hidden;
+  }
+  .conv-bar i {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--ember), var(--jade));
+  }
+  .conv-pct {
+    color: var(--jade);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .conv-arrow {
+    align-self: center;
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
   }
 </style>

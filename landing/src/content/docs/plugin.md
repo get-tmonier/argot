@@ -1,12 +1,12 @@
 ---
 title: Plugin (Claude Code)
-description: The argot Claude Code plugin — the five skills, the MCP server, and the pre-write guardrail hook in one install, versioned and auto-updating.
+description: The argot Claude Code plugin — the six skills, the MCP server, and the pre-write guardrail hook in one install, versioned and auto-updating.
 group: Guide
 order: 10
 ---
 
 In **Claude Code**, one install gives you everything argot offers an agent —
-the five [skills](/docs/agents/), the [MCP server](/docs/agents/#mcp--proactive-voice),
+the six [skills](/docs/agents/), the [MCP server](/docs/agents/#mcp--proactive-voice),
 and the [pre-write guardrail hook](#the-pre-write-guardrail) — bundled,
 namespaced, and updated together.
 
@@ -17,8 +17,8 @@ namespaced, and updated together.
 
 The first line registers argot's marketplace; the second installs the plugin.
 Restart or run `/reload-plugins` and the skills appear as `/argot:argot-setup`,
-`/argot:argot-check`, `/argot:argot-review-pr`, `/argot:argot-setup-ci`, and
-`/argot:argot-write-rule`.
+`/argot:argot-check`, `/argot:argot-review-pr`, `/argot:argot-setup-ci`,
+`/argot:argot-write-rule`, and `/argot:argot-suggest-rules`.
 
 ## Prerequisite: the `argot` binary
 
@@ -38,8 +38,8 @@ tell you to install it and the guardrail hook silently no-ops.
 
 | Component | What it is | Where it runs |
 |---|---|---|
-| **Five skills** | `/argot:argot-setup`, `-check`, `-review-pr`, `-setup-ci`, `-write-rule` — the commit-time safety net and setup flow | invoked by you or the agent |
-| **MCP server** | `argot mcp` — proactive `voice_context` before generating, `check`/`explain` after | when an MCP client connects |
+| **Six skills** | `/argot:argot-setup`, `-check`, `-review-pr`, `-setup-ci`, `-write-rule`, `-suggest-rules` — the commit-time safety net, setup flow, and convention-discovery loop | invoked by you or the agent |
+| **MCP server** | `argot mcp` — proactive `voice_context` + `conventions` before generating, `check`/`explain` after | when an MCP client connects |
 | **Pre-write hook** | `argot hook` — *asks* before a foreign dependency lands | automatically, in fitted repos only |
 
 The skills and MCP server are documented in depth on the

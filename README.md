@@ -127,7 +127,27 @@ fastapi/receipts.py
 
 Every team has conventions no generic linter ships: *"presentational components take props — they don't fetch"*, *"files are parsed through our loader, never a raw `JSON.parse`"*, *"one HTTP client per repo"*. They live in review comments and onboarding docs — until an AI agent, who read neither, merges around them. With argot they're **repo-local rules**: a TOML manifest + a small sandboxed script in `.argot/rules/`, versioned with your code, loaded at run time — no plugin build, no recompile, one rule format across all 12 languages.
 
-And they can do what no classic linter structurally can. A linter sees one version of one file; argot hands your rule **both sides of the diff** — so you can write rules about what a change *removed*:
+**And you don't start from a blank page — argot *finds* your conventions for you.** `argot conventions` reads your codebase's own layout and shows you what it already does: its shared internal API, and *where each kind of code lives*. No other tool detects that last part — the **placement conventions** a team enforces in review but never writes down, learned framework-agnostically from nothing but your file tree and call graph:
+
+```console
+$ argot conventions
+
+── typescript (1,240 files) ──
+  Naming             camelCase 94% · PascalCase 6%
+  Vocabulary         db (86 files), logger (74), apiClient (61), AppError (44)
+  Type funnels       Money, Result, DateTime
+
+── placement · where a kind of code lives ──
+  dir:migrations     queryRunner, addColumn, createTable       100% confined
+  role:schema        z.object, z.string, validate               96% confined
+  dir:services       db.transaction, logger.info, publish       92% confined
+  dir:controllers    req, res, next                             98% confined
+  ext:.tsx           useState, useQuery, styled                 99% confined
+```
+
+Read that as: *"validation lives in `*.schema.ts`, DB access only in migrations, business logic in the service layer — not the controllers or views."* Hand any line to the **argot-suggest-rules** skill and it writes the rule as the contrapositive — *this belongs in its home; flag it anywhere else* — gated on a green fixture suite before it ever sees a diff. You go from *"we should really document that"* to an enforced rule in one step.
+
+And your rules can do what no classic linter structurally can. A linter sees one version of one file; argot hands your rule **both sides of the diff** — so you can write rules about what a change *removed*:
 
 ```toml
 # .argot/rules/no-dropped-endpoints/rule.toml

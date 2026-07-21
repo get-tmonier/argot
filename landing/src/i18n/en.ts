@@ -84,7 +84,7 @@ const en: SiteContent = {
   customRules: {
     label: 'Your conventions',
     title: 'The sixth detector is yours.',
-    body: 'Five detectors learn your repo. The sixth you write: [[a manifest and a tiny script]] in .argot/rules/, versioned with your code, loaded at run time. Any convention, any language — and any file, down to the [[.env and CI configs]] a linter never opens.',
+    body: 'Five detectors learn your repo. The sixth you write: [[a manifest and a tiny script]] in .argot/rules/, versioned with your code, loaded at run time. And you don’t start from a blank page — [[argot conventions shows you what your repo already does]] and where each kind of code lives, so a rule starts from what argot found. Any convention, any language — down to the [[.env and CI configs]] a linter never opens.',
     points: [
       {
         title: 'Discovered, not guessed',

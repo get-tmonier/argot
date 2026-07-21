@@ -82,7 +82,7 @@ const fr: SiteContent = {
   customRules: {
     label: 'Vos conventions',
     title: 'Le sixième détecteur, c’est vous.',
-    body: 'Cinq détecteurs apprennent votre dépôt. Le sixième, vous l’écrivez : [[un manifeste et un petit script]] dans .argot/rules/, versionnés avec votre code, chargés à l’exécution. N’importe quelle convention, n’importe quel langage — et n’importe quel fichier, jusqu’aux [[.env et configs CI]] qu’un linter n’ouvre jamais.',
+    body: 'Cinq détecteurs apprennent votre dépôt. Le sixième, vous l’écrivez : [[un manifeste et un petit script]] dans .argot/rules/, versionnés avec votre code, chargés à l’exécution. Et vous ne partez pas d’une page blanche — [[argot conventions vous montre ce que votre dépôt fait déjà]] et où vit chaque type de code, pour qu’une règle parte de ce qu’argot a trouvé. N’importe quelle convention, n’importe quel langage — jusqu’aux [[.env et configs CI]] qu’un linter n’ouvre jamais.',
     points: [
       {
         title: 'Découvertes, pas devinées',
