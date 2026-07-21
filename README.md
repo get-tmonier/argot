@@ -30,15 +30,18 @@
   &nbsp;·&nbsp;<a href="https://argot.tmonier.com/docs/languages/">12 languages →</a>
 </p>
 
-<p align="center">
-  <a href="https://glama.ai/mcp/servers/get-tmonier/argot"><img src="https://glama.ai/mcp/servers/get-tmonier/argot/badges/card.svg" alt="argot MCP server on Glama" width="360" /></a>
-</p>
-
-<p align="center">
-  <a href="https://argot.tmonier.com/#film"><img src="landing/public/argot-film-poster.jpg" alt="Watch the argot launch film" width="220" /></a>
-  <br/>
-  <em>🎬 <a href="https://argot.tmonier.com/#film">Watch the 45-second launch film</a></em>
-</p>
+<table align="center">
+  <tr>
+    <td align="center" valign="middle">
+      <a href="https://glama.ai/mcp/servers/get-tmonier/argot"><img src="https://glama.ai/mcp/servers/get-tmonier/argot/badges/card.svg" alt="argot MCP server on Glama" width="340" /></a>
+    </td>
+    <td align="center" valign="middle">
+      <a href="https://argot.tmonier.com/#film"><img src="landing/public/argot-film-poster.jpg" alt="Watch the argot launch film" width="180" /></a>
+      <br/>
+      <em>🎬 <a href="https://argot.tmonier.com/#film">Watch the 45-second launch film</a></em>
+    </td>
+  </tr>
+</table>
 
 ---
 
