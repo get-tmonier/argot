@@ -21,6 +21,21 @@ fn python_acc(files: &[&str]) -> LangAcc {
 }
 
 #[test]
+fn naming_idioms_report_the_dominant_morphology() {
+    // snake_case-dominant Python source → `snake` leads the naming; node kinds
+    // are tallied for the (json-only) idioms.
+    let acc = python_acc(&[
+        "def compute_total(order_items):\n    running_total = 0\n    return running_total\n",
+        "def fetch_user_record(user_id):\n    the_record = None\n    return the_record\n",
+    ]);
+    let (naming, idioms) = naming_idioms(&acc, "python", 10);
+    assert!(!naming.is_empty());
+    assert_eq!(naming[0].shape, "snake", "{naming:?}");
+    assert!(naming[0].fraction > 0.5);
+    assert!(!idioms.is_empty());
+}
+
+#[test]
 fn imported_repo_symbol_is_vocabulary_and_folds_in_receiver_use() {
     // `db` is imported from a repo-internal module AND routed through as a
     // receiver in every file → one vocabulary entry with both counts, not two.

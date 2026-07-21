@@ -329,6 +329,20 @@ fn run_conventions_cmd(c: ConventionsCmd) -> ExitCode {
     };
     for (lang, conv) in &catalog.languages {
         println!("── {lang} ({} files) ──", conv.corpus_files);
+        if !conv.naming.is_empty() {
+            let shapes: Vec<String> = conv
+                .naming
+                .iter()
+                .map(|s| format!("{} {:.0}%", s.shape, s.fraction * 100.0))
+                .collect();
+            println!("  Naming             {}", shapes.join(" · "));
+        }
+        // `idioms` (raw node-kind frequencies) stay in --format json only: the
+        // top kinds are always the generic ones (identifier, call_expression),
+        // which read as noise in the terse human list, and there is no
+        // corpus-agnostic way to rank distinctiveness without a hardcoded
+        // node-kind denylist. The useful idiom-conventions ("use Effect.gen",
+        // "decorators live here") already surface via placement + vocabulary.
         if !conv.familiar_imports.is_empty() {
             let shown = 12.min(conv.familiar_imports.len());
             let mut imports = conv.familiar_imports[..shown].join(", ");

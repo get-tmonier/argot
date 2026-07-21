@@ -68,12 +68,32 @@ impl Convention {
     }
 }
 
+/// One identifier-morphology share of the repo's naming (`snake_case` → 0.96).
+#[derive(Serialize, Clone, Debug)]
+pub struct NamingShape {
+    pub shape: String,
+    pub fraction: f64,
+}
+
+/// One syntax idiom the repo leans on (`decorator` → 418 occurrences).
+#[derive(Serialize, Clone, Debug)]
+pub struct SyntaxIdiom {
+    pub kind: String,
+    pub count: u64,
+}
+
 /// The conventions of one language present in the repo.
 #[derive(Serialize)]
 pub struct LangConventions {
     pub corpus_files: usize,
     /// The repo's familiar import surface — anything outside it is foreign.
     pub familiar_imports: Vec<String>,
+    /// Dominant identifier morphologies (`snake_case`, `camelCase`), most-used
+    /// first — the repo's naming convention.
+    pub naming: Vec<NamingShape>,
+    /// Normal syntax constructs (`async_function_definition`, `decorator`),
+    /// most-frequent first — the repo's structural idioms.
+    pub idioms: Vec<SyntaxIdiom>,
     /// The repo's shared vocabulary — symbols imported from its own modules
     /// (`Effect`, `Console`, `RepoAddress`), each annotated with how often it is
     /// also routed through as a receiver.
@@ -172,11 +192,17 @@ pub fn build_catalog(repo_dir: &Path, top_n: usize) -> Result<ConventionCatalog>
             .get(lang.as_str())
             .map(|acc| internal_api(acc, lang.as_str()))
             .unwrap_or_default();
+        let (naming, idioms) = accs
+            .get(lang.as_str())
+            .map(|acc| naming_idioms(acc, lang.as_str(), top_n))
+            .unwrap_or_default();
         languages.insert(
             lang,
             LangConventions {
                 corpus_files: view.corpus_files,
                 familiar_imports: view.familiar_imports,
+                naming,
+                idioms,
                 vocabulary: internal.0,
                 type_funnels: internal.1,
                 routing_objects: internal.2,
@@ -190,6 +216,56 @@ pub fn build_catalog(repo_dir: &Path, top_n: usize) -> Result<ConventionCatalog>
         languages,
         placement: crate::placement::mine_placement(repo_dir),
     })
+}
+
+/// The language's naming morphology + syntax idioms, computed from the corpus
+/// with the same `fit_convention_frequencies` the scoring stage uses (the fitted
+/// `ConventionModel` isn't persisted to the artifact, so we recompute it here
+/// from the walked sources). Naming: shares >= 1%, most-dominant first. Idioms:
+/// the `top_n` most-frequent named node kinds.
+fn naming_idioms(acc: &LangAcc, lang: &str, top_n: usize) -> (Vec<NamingShape>, Vec<SyntaxIdiom>) {
+    let Some(language) = Language::from_scoring_name(lang) else {
+        return (Vec::new(), Vec::new());
+    };
+    let corpus: Vec<(std::path::PathBuf, String)> = acc
+        .files
+        .iter()
+        .map(|(src, _, _)| (std::path::PathBuf::new(), src.clone()))
+        .collect();
+    let model = crate::scoring::conventions::fit_convention_frequencies(&corpus, language);
+
+    let mut naming: Vec<NamingShape> = if model.total_idents == 0 {
+        Vec::new()
+    } else {
+        model
+            .ident_shapes
+            .iter()
+            .map(|(shape, n)| NamingShape {
+                shape: shape.clone(),
+                fraction: *n as f64 / model.total_idents as f64,
+            })
+            .filter(|s| s.fraction >= 0.01)
+            .collect()
+    };
+    naming.sort_by(|a, b| {
+        b.fraction
+            .partial_cmp(&a.fraction)
+            .unwrap()
+            .then_with(|| a.shape.cmp(&b.shape))
+    });
+
+    let mut idioms: Vec<SyntaxIdiom> = model
+        .node_kinds
+        .iter()
+        .map(|(kind, count)| SyntaxIdiom {
+            kind: kind.clone(),
+            count: *count,
+        })
+        .collect();
+    idioms.sort_by(|a, b| b.count.cmp(&a.count).then_with(|| a.kind.cmp(&b.kind)));
+    idioms.truncate(top_n);
+
+    (naming, idioms)
 }
 
 /// Rank the language's internal API by cross-file fan-in into three tiers.
