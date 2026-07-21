@@ -146,6 +146,14 @@ contract as everything else here: writing the rule is yours to do on request, bu
 softening one of its findings is still the human's call. The **argot-write-rule** skill walks
 this exact loop end-to-end, with `argot rules test <name>` as its gate.
 
+**To find a repo's conventions instead of stating one**, run `argot conventions` (`--format json`
+for a rule-ready shape). It lists the repo's own vocabulary (the internal API everyone uses) and
+its **placement conventions** — where a kind of code lives (*validation in schema files*, *DB
+access only in migrations*, *business logic in the service layer, not views*), learned from the
+layout with nothing framework-specific hardcoded. The **argot-suggest-rules** skill turns a
+chosen convention into a scripted rule as the contrapositive — *this belongs in its home, flag it
+elsewhere* — still gated on `argot rules test`.
+
 A rule may be **locked** (`{ severity = "error", locked = true }` in the committed
 `argot.toml`): its findings refuse every suppression surface, runtime severity overrides are
 ignored, and a diff that weakens the lock — or edits a locked custom rule's files — fires

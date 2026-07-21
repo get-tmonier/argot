@@ -342,6 +342,32 @@ It's descriptive, not prescriptive: argot reports what the repo does. Feed it to
 or hand it to an LLM agent as system-prompt context (the same signal the [MCP server](/docs/agents/)
 serves programmatically).
 
+## conventions
+
+List the conventions the repo already follows — the raw material for a custom rule. Where
+`describe-voice` writes prose, `conventions` produces a structured, actionable list.
+
+```bash
+argot conventions                 # the repo's conventions, human-readable
+argot conventions --format json   # the same, machine-readable (rule-ready)
+```
+
+It reports two kinds:
+
+- **Vocabulary** — the repo's own most-used internal API: the shared helpers it imports across
+  many files, the objects everyone routes calls through. "This is how this codebase talks."
+- **Placement** — *where* a kind of code lives. A call or import that concentrates in one location
+  (a directory, a filename role like `*.schema.ts`, an extension) and is near-absent elsewhere:
+  *"validation lives in schema files"*, *"DB access only in the migration layer"*, *"business logic
+  in the service layer, not in views"*. These are the team's structural conventions.
+
+The signal is corpus- and framework-agnostic — pure feature-by-location association, learned from
+the codebase's own layout, with nothing about any framework hardcoded. Each placement entry carries
+its **home** (path globs), so `--format json` is directly consumable: the
+[argot-suggest-rules](/docs/custom-rules/) flow turns a chosen convention into a scripted rule as the
+contrapositive — *this call belongs in its home, flag it elsewhere* — gated on a fixture suite before
+it ever sees a real diff.
+
 ## mute · list-mutes · review-mutes
 
 The suppression commands — accept a reported hit for good, then review or prune what you've muted:

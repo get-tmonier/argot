@@ -4,7 +4,7 @@
     "name": "Damien Meur",
     "url": "https://tmonier.com"
   },
-  "description": "The argot marketplace — the argot voice guardrail as a Claude Code plugin (setup, check, review-pr, setup-ci, and write-rule skills, plus the argot MCP server).",
+  "description": "The argot marketplace — the argot voice guardrail as a Claude Code plugin (setup, check, review-pr, setup-ci, write-rule, and suggest-rules skills, plus the argot MCP server).",
   "plugins": [
     {
       "name": "argot",

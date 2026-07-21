@@ -103,7 +103,7 @@ fn dispatch(method: &str, params: &Value, repo: &Path) -> Result<Value, RpcError
     }
 }
 
-/// The four tools, with JSON-Schema input shapes.
+/// The tools, with JSON-Schema input shapes.
 fn tool_definitions() -> Value {
     let hunk_schema = json!({
         "type": "object",
@@ -142,6 +142,11 @@ fn tool_definitions() -> Value {
             "description": "Report whether the repo is well-fitted for argot: corpus composition, calibration freshness, and a Ready / Ready-with-notes / Not-recommended verdict.",
             "inputSchema": json!({ "type": "object", "properties": {} }),
         },
+        {
+            "name": "argot.conventions",
+            "description": "List the repo's own conventions: its internal-API vocabulary (the shared helpers and objects everyone routes through, per language) and its placement conventions (where a kind of code lives — validation in schema files, DB access in migrations, business logic in the service layer, not views). Use to bias generation toward the repo's structure, or as the raw material for a custom rule.",
+            "inputSchema": json!({ "type": "object", "properties": {} }),
+        },
     ])
 }
 
@@ -159,6 +164,7 @@ fn tools_call(params: &Value, repo: &Path) -> Result<Value, RpcError> {
         "argot.explain" => tool_check(&args, repo, true),
         "argot.voice_context" => tool_voice_context(&args, repo),
         "argot.fit_status" => tool_fit_status(repo),
+        "argot.conventions" => tool_conventions(repo),
         other => return Err((-32602, format!("unknown tool: {other}"))),
     };
 
@@ -292,6 +298,13 @@ fn tool_fit_status(repo: &Path) -> Result<Value, String> {
     serde_json::to_value(&report).map_err(|e| e.to_string())
 }
 
+/// `argot.conventions`: the repo's vocabulary + placement conventions.
+fn tool_conventions(repo: &Path) -> Result<Value, String> {
+    let catalog =
+        argot_core::convention_catalog::build_catalog(repo, 10).map_err(|e| e.to_string())?;
+    serde_json::to_value(&catalog).map_err(|e| e.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -306,7 +319,7 @@ mod tests {
     }
 
     #[test]
-    fn tools_list_exposes_the_four_tools() {
+    fn tools_list_exposes_every_tool() {
         let repo = PathBuf::from(".");
         let result = dispatch("tools/list", &Value::Null, &repo).unwrap();
         let names: Vec<&str> = result["tools"]
@@ -319,6 +332,7 @@ mod tests {
         assert!(names.contains(&"argot.explain"));
         assert!(names.contains(&"argot.voice_context"));
         assert!(names.contains(&"argot.fit_status"));
+        assert!(names.contains(&"argot.conventions"));
     }
 
     #[test]
