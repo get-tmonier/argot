@@ -21,6 +21,15 @@ github-attestations = true
 # (`curl … | sh`); `powershell` gives Windows a package-manager-free
 # `irm … | iex` one-liner for the x86_64-pc-windows-msvc build below.
 installers = ["shell", "powershell", "npm"]
+# Package Unix artifacts as `.tar.gz`, not dist's default `.tar.xz`. The shell
+# and npm installers untar the release via the system `tar`, which needs the
+# separate `xz` binary for `.tar.xz` — absent from minimal images (debian-slim,
+# distroless, many CI/Docker containers), where `npm i -g @tmonier/argot` then
+# dies with `tar: xz: Cannot exec`. gzip is built into tar/libarchive
+# everywhere, so `.tar.gz` installs with zero extra system deps. Costs a few MB
+# of compression vs xz; buys install reliability on any base image. dist has no
+# per-installer format knob, so this applies to every Unix artifact.
+unix-archive = ".tar.gz"
 # Windows: link the DYNAMIC CRT (/MD). cargo-dist defaults to the static CRT,
 # but llama.cpp's cmake-built objects (the semantic layer) reference dynamic
 # UCRT imports (__imp_fopen, __imp__aligned_malloc, …) — mixing the two broke
