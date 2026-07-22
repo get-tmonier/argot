@@ -73,13 +73,14 @@ notes say what to keep an eye on.
 
 argot reliably flags a **novel pattern** foreign to this repo (~98% when the
 foreign symbol is in the change), a **reinvented function** (the evidence names
-the original), **misplaced code**, and a **layering violation** (96.8% caught at
-zero false positives on control edits). It also flags **tests weakened,
-disabled, or deleted alongside a code change** — a test gutted, skipped, or its
-assertions loosened while the production code it exercises also changes —
-94% of authored gaming edits caught across 22 corpora / 11 languages, with
-1.2% of real accepted test-touching commits flagged at gating severity and
-zero fires on authored legitimate-refactor controls. Trust those hits.
+the original), **misplaced code**, and a **layering violation** (264/272, 97.1%,
+on authored fixtures across 25 corpora / 12 languages). It also flags **tests
+weakened, disabled, or deleted alongside a code change** — a test gutted,
+skipped, or its assertions loosened while the production code it exercises also
+changes — 155/164 (94.5%) authored gaming fixtures across 23 corpora / 12
+languages, with 45/3,602 (1.25%) accepted-history test-touching commits flagged
+at gating severity and zero fires on 106 legitimate-refactor controls. These are
+detector-specific measures, not a product-wide accuracy claim. Trust those hits.
 
 It does **not** reliably catch *in-vocabulary* breaks — where every token is
 already in the repo and only the choice is wrong (a bare `ValueError` where the

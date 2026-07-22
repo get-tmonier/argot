@@ -1,6 +1,6 @@
 ---
 title: Limitations
-description: What argot deliberately does not prove: fit suitability, in-vocabulary choices, masked content, and changes outside the checked range.
+description: "What argot deliberately does not prove: fit suitability, in-vocabulary choices, masked content, and changes outside the checked range."
 group: Reference
 order: 14
 ---

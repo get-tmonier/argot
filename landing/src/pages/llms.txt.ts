@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { getCollection } from 'astro:content';
 import { SITE } from '#lib/site';
+import { claimValue } from '../data/claims/claims';
 
 /**
  * `/llms.txt` — the agent-facing index (https://llmstxt.org). Generated from the
@@ -16,6 +17,9 @@ const docHref = (id: string): string =>
 const mdHref = (id: string): string => `${SITE.domain}/docs/${id}.md`;
 
 export const GET: APIRoute = async () => {
+  const architectureClaim = claimValue('architecture.layering');
+  const integrityClaim = claimValue('integrity.catch');
+  const integrityHistoryClaim = claimValue('integrity.accepted_history');
   const docs = (await getCollection('docs')).sort(
     (a, b) =>
       GROUP_ORDER.indexOf(a.data.group) - GROUP_ORDER.indexOf(b.data.group) ||
@@ -42,7 +46,8 @@ export const GET: APIRoute = async () => {
     '',
     '## What it catches',
     '',
-    'Six detectors, all learned from the repo\'s own git history. Every finding ' +
+    'A voice pass plus semantic, architecture, integrity, and optional custom-rule checks. ' +
+      'History supplies the fitted model and artifacts; custom rules are authored by the repo. Every finding ' +
       'belongs to a named rule with a configurable severity (`error` fails the check, ' +
       '`warn` reports without failing, `off` disables) — set in `argot.toml [rules]` ' +
       'or per run with `--rule <name|group>=<severity>`; `argot rules` lists them.',
@@ -74,14 +79,13 @@ export const GET: APIRoute = async () => {
     '',
     '**5 · Layering — the architecture graph:** an internal import that reverses the ' +
       'repo\'s established layer direction or crosses a boundary it never crosses. ' +
-      '96.8% of planted violations caught at 0% false positives on control edits. ' +
+      `Canonical result: ${architectureClaim}. ` +
       'Rule: `layering` (group `architecture`).',
     '',
     '**6 · Test integrity — the test-inventory diff:** a test weakened, disabled, or ' +
       'deleted alongside the production change it covers — the shape of an agent ' +
-      'gaming a failing suite. 94% of authored gaming edits caught across 23 corpora / ' +
-      '12 languages, 1.13% of real accepted test-touching commits flagged at gating ' +
-      'severity, zero fires on legitimate-refactor controls. Rules (group ' +
+      `gaming a failing suite. Canonical fixture result: ${integrityClaim}; accepted-history ` +
+      `result: ${integrityHistoryClaim}. Rules (group ` +
       '`integrity`): `test-deleted`, `test-disabled`, `test-weakened` (ships `warn`).',
     '',
     'The semantic layer runs a small local code-embedding model (`jina-embeddings-v2-' +
@@ -93,7 +97,7 @@ export const GET: APIRoute = async () => {
     '',
     '**Beyond the learned six — your own rules.** A repo can drop scripted rules under ' +
       '`.argot/rules/<name>/` (a TOML manifest + a sandboxed Rhai script, group `custom`): ' +
-      'repo-specific conventions no generic linter ships, run on every diff across all 11 ' +
+      'repo-specific conventions no generic linter ships, run on every diff across all 12 ' +
       'languages — and, via path globs, on files argot doesn\'t even score (`.env`, CI ' +
       'configs). A rule can be **locked** (`{ severity = "error", locked = true }` in the ' +
       'committed `argot.toml`): its severity freezes and every suppression surface is refused, ' +
