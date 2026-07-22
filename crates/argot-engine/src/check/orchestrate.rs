@@ -12,7 +12,7 @@ use crate::config::ArgotConfig;
 use crate::detector::{run_detectors, CheckContext, RegisteredDetector, ScanReport};
 use crate::finding::{Finding, SuppressedBy};
 use crate::git_walk::{open_repo, SUPPORTED_EXTENSIONS};
-use crate::output::OutputFormat;
+use crate::output::{CheckResult, OutputFormat};
 use crate::rules::{self, RuleSettings, Severity as RuleSeverity};
 use crate::suppress::{write_last_check, LastCheckHit, SuppressionRule};
 use argot_lang::adapters::LanguageAdapter;
@@ -31,15 +31,46 @@ fn confidence_index(s: &str) -> usize {
 /// configured `error` (or when `--error-on-warnings` promotes a warn-only
 /// run), 0 otherwise. Unregistered reasons gate as `error` — a finding never
 /// silently loses its gate.
-fn gate_exit_code(visible: &[&Finding], settings: &RuleSettings, error_on_warnings: bool) -> i32 {
-    let fails = visible
+fn gate_exit_code(hits: &[&Finding], settings: &RuleSettings, error_on_warnings: bool) -> i32 {
+    let fails = hits
         .iter()
         .any(|h| settings.severity_of_reason(&h.reason) == RuleSeverity::Error)
-        || (error_on_warnings && !visible.is_empty());
+        || (error_on_warnings && !hits.is_empty());
     if fails {
         1
     } else {
         0
+    }
+}
+
+pub(super) fn result_summary(
+    unsuppressed: &[&Finding],
+    visible: &[&Finding],
+    suppressed_hits: usize,
+    settings: &RuleSettings,
+    error_on_warnings: bool,
+) -> CheckResult {
+    let error_hits = unsuppressed
+        .iter()
+        .filter(|h| settings.severity_of_reason(&h.reason) == RuleSeverity::Error)
+        .count();
+    let warn_hits = unsuppressed.len() - error_hits;
+    let exit_code = gate_exit_code(unsuppressed, settings, error_on_warnings);
+    CheckResult {
+        exit_code,
+        unsuppressed_hits: unsuppressed.len(),
+        visible_hits: visible.len(),
+        hidden_hits: unsuppressed.len() - visible.len(),
+        suppressed_hits,
+        error_hits,
+        warn_hits,
+        gating_hits: if exit_code == 0 {
+            0
+        } else if error_hits > 0 {
+            error_hits
+        } else {
+            warn_hits
+        },
     }
 }
 /// Could the changeset's OLD side have carried locks the new config lost?
@@ -400,6 +431,16 @@ pub fn run_check(args: CheckArgs, detectors: Vec<RegisteredDetector<'_>>) -> Che
                     0,
                     Vec::new(),
                     &base.model_hash,
+                    CheckResult {
+                        exit_code: 0,
+                        unsuppressed_hits: 0,
+                        visible_hits: 0,
+                        hidden_hits: 0,
+                        suppressed_hits: 0,
+                        error_hits: 0,
+                        warn_hits: 0,
+                        gating_hits: 0,
+                    },
                 );
                 return CheckOutcome {
                     stdout: render_machine(args.format, &meta, &[]),
@@ -679,6 +720,13 @@ pub fn run_check(args: CheckArgs, detectors: Vec<RegisteredDetector<'_>>) -> Che
             confidence_index(confidence(&h.reason, h.score, t)) >= min_idx
         })
         .collect();
+    let result = result_summary(
+        &above,
+        &visible,
+        suppressed.len(),
+        &settings,
+        args.error_on_warnings,
+    );
 
     // --add-ignores: edit the working tree instead of reporting.
     if args.add_ignores {
@@ -710,6 +758,7 @@ pub fn run_check(args: CheckArgs, detectors: Vec<RegisteredDetector<'_>>) -> Che
             hunk_count,
             files_scanned,
             &base.model_hash,
+            result.clone(),
         );
         let mut stdout = render_machine(args.format, &meta, &records);
         // In the github format, the health notes ("model drifted", "config
@@ -729,7 +778,7 @@ pub fn run_check(args: CheckArgs, detectors: Vec<RegisteredDetector<'_>>) -> Che
         return CheckOutcome {
             stdout,
             stderr,
-            exit_code: gate_exit_code(&visible, &settings, args.error_on_warnings),
+            exit_code: result.exit_code,
         };
     }
 
@@ -748,14 +797,26 @@ pub fn run_check(args: CheckArgs, detectors: Vec<RegisteredDetector<'_>>) -> Che
                 args.min_confidence
             )
         } else if let Some(t) = threshold_override {
-            format!("All {hunk_count} hunk(s) scored below threshold {t:.2} — looks clean.\n")
+            format!(
+                "No configured findings on {hunk_count} scanned hunk{} (threshold {t:.2}).\n",
+                if hunk_count == 1 { "" } else { "s" }
+            )
         } else {
-            format!("All {hunk_count} hunk(s) scored below calibrated thresholds — looks clean.\n")
+            format!(
+                "No configured findings on {hunk_count} scanned hunk{} — this scan found nothing configured to report.\n",
+                if hunk_count == 1 { "" } else { "s" }
+            )
         };
+        if result.hidden_hits > 0 && result.gating_hits > 0 {
+            stderr.push_str(&format!(
+                "[argot] {} finding(s) hidden by --min-confidence affect this run's status; lower --min-confidence to reveal them\n",
+                result.hidden_hits
+            ));
+        }
         return CheckOutcome {
             stdout,
             stderr,
-            exit_code: 0,
+            exit_code: result.exit_code,
         };
     }
 
@@ -765,17 +826,24 @@ pub fn run_check(args: CheckArgs, detectors: Vec<RegisteredDetector<'_>>) -> Che
         Some(args.hunk_lines)
     };
     let mut stdout = String::new();
-    let any_truncated = render_results(&visible, hunk_lines, args.use_color, &mut stdout);
+    let any_truncated =
+        render_results(&visible, hunk_lines, args.use_color, &settings, &mut stdout);
 
     if any_truncated && !args.verbose {
         stdout.push('\n');
         stdout.push_str("tip: pass --verbose (-v) to expand truncated hunks.\n");
     }
+    if result.hidden_hits > 0 && result.gating_hits > 0 {
+        stdout.push_str(&format!(
+            "\nnote: {} finding(s) hidden by --min-confidence affect this run's status; lower --min-confidence to reveal them.\n",
+            result.hidden_hits
+        ));
+    }
 
     CheckOutcome {
         stdout,
         stderr,
-        exit_code: gate_exit_code(&visible, &settings, args.error_on_warnings),
+        exit_code: result.exit_code,
     }
 }
 /// Outcome of `argot review-mutes` — mute-rot cleanup over the hash-scoped

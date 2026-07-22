@@ -1,8 +1,7 @@
-argot check · 1 hunk above threshold (1 unusual)
-note: argot is a probabilistic style linter — verify before action.
+1 finding needs a look (1 error)
+note: findings are evidence for your judgment, not proof of a defect.
 
-text.py
-  .  L21-L30         9.18  unusual  · workdir · none [c395b069e067]
+error · none · text.py:L21-L30 · unusual [[c395b069e067]]
   21 |     if current:
   22 |         lines.append(current)
   23 |     return lines
@@ -10,5 +9,6 @@ text.py
   25 | 
   26 | def extra_helper(items):
        (+4 more lines)
+  → inspect the evidence, then mute with `argot mute c395b069e067 --reason "…"` only if intentional.
 
 tip: pass --verbose (-v) to expand truncated hunks.

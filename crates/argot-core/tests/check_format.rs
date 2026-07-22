@@ -15,6 +15,56 @@ use argot_core::output::OutputFormat;
 use argot_core::scoring::calibration::{run_calibrate, CalibrateOptions};
 use serde_json::Value;
 
+fn assert_check_json_v1(doc: &Value) {
+    let schema: Value =
+        serde_json::from_str(include_str!("../../../docs/schema/check-v1.schema.json"))
+            .expect("valid check JSON schema");
+    let validator = jsonschema::JSONSchema::compile(&schema).expect("compile check JSON schema");
+    let errors = validator
+        .validate(doc)
+        .err()
+        .map(|errors| errors.map(|error| error.to_string()).collect::<Vec<_>>());
+    if let Some(errors) = errors {
+        panic!(
+            "check JSON v1 schema validation failed: {}",
+            errors.join("; ")
+        );
+    }
+}
+
+#[test]
+fn check_json_v1_accepts_unknown_consumer_fields() {
+    let schema: Value =
+        serde_json::from_str(include_str!("../../../docs/schema/check-v1.schema.json"))
+            .expect("valid check JSON schema");
+    let validator = jsonschema::JSONSchema::compile(&schema).expect("compile check JSON schema");
+    let mut doc = serde_json::json!({
+        "schema_version": 1,
+        "tool": { "name": "argot", "version": "0.0.0-test" },
+        "model": "test-model",
+        "repo": "/tmp/repo",
+        "scanned": "workdir",
+        "hunks_scanned": 0,
+        "files_scanned": [],
+        "result": {
+            "exit_code": 0,
+            "unsuppressed_hits": 0,
+            "visible_hits": 0,
+            "hidden_hits": 0,
+            "suppressed_hits": 0,
+            "error_hits": 0,
+            "warn_hits": 0,
+            "gating_hits": 0
+        },
+        "hits": []
+    });
+    doc["consumer_extension"] = serde_json::json!({ "future": true });
+    assert!(
+        validator.is_valid(&doc),
+        "v1 consumers must tolerate additive unknown fields"
+    );
+}
+
 fn fixture_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/check")
 }
@@ -98,6 +148,7 @@ fn check_json_format_emits_a_single_json_document_with_hits() {
     // Stdout must be exactly one JSON document — parse the whole string.
     let doc: Value = serde_json::from_str(&out.stdout).expect("stdout is pure JSON");
     assert_eq!(doc["tool"]["name"], "argot");
+    assert_eq!(doc["schema_version"], 1);
     assert_eq!(doc["tool"]["version"], env!("CARGO_PKG_VERSION"));
     let hits = doc["hits"].as_array().expect("hits array");
     assert!(!hits.is_empty(), "threshold -1000 must surface hits");
@@ -119,6 +170,7 @@ fn check_json_format_emits_a_single_json_document_with_hits() {
         assert_eq!(h["hash"].as_str().unwrap().len(), 12, "hit hash present");
         assert!(h["evidence"].is_array());
     }
+    assert_check_json_v1(&doc);
 }
 
 #[test]
@@ -214,4 +266,5 @@ fn check_json_format_clean_run_exits_zero_with_empty_hits() {
     let doc: Value = serde_json::from_str(&out.stdout).expect("stdout is pure JSON");
     assert_eq!(doc["hits"].as_array().unwrap().len(), 0);
     assert!(doc["hunks_scanned"].as_u64().unwrap() >= 1);
+    assert_check_json_v1(&doc);
 }

@@ -106,6 +106,27 @@ pub struct FileScan {
     pub hunks: usize,
 }
 
+/// Result counts and exit status for a complete `check` run.
+#[derive(Debug, Clone, Serialize)]
+pub struct CheckResult {
+    /// The process status selected from every unsuppressed configured finding.
+    pub exit_code: i32,
+    /// Findings eligible to affect status after configuration and suppression.
+    pub unsuppressed_hits: usize,
+    /// Findings emitted in the selected output format.
+    pub visible_hits: usize,
+    /// Findings hidden only by `--min-confidence`.
+    pub hidden_hits: usize,
+    /// Findings removed by an exclude, inline suppression, or mute.
+    pub suppressed_hits: usize,
+    /// Unsuppressed findings whose configured rule severity is `error`.
+    pub error_hits: usize,
+    /// Unsuppressed findings whose configured rule severity is `warn`.
+    pub warn_hits: usize,
+    /// Unsuppressed findings which make this run exit non-zero.
+    pub gating_hits: usize,
+}
+
 /// Run-level metadata shared by both machine formats.
 pub struct ReportMeta {
     /// Tool version (the workspace-shared crate version).
@@ -120,6 +141,8 @@ pub struct ReportMeta {
     pub files_scanned: Vec<FileScan>,
     /// Combined fingerprint of the fit-time model that scored the diff.
     pub model: String,
+    /// The selected status and count contract for this run.
+    pub result: CheckResult,
 }
 
 /// Map a hit to its SARIF result level: the confidence tier grades the level
@@ -151,12 +174,14 @@ fn to_pretty(doc: &Value) -> String {
 /// Render the argot JSON document (`--format json`).
 pub fn render_json(meta: &ReportMeta, hits: &[HitRecord]) -> String {
     let doc = json!({
+        "schema_version": 1,
         "tool": { "name": "argot", "version": meta.tool_version },
         "model": meta.model,
         "repo": meta.repo,
         "scanned": meta.scanned,
         "hunks_scanned": meta.hunks_scanned,
         "files_scanned": meta.files_scanned,
+        "result": meta.result,
         "hits": hits,
     });
     to_pretty(&doc)
@@ -183,7 +208,7 @@ pub fn render_sarif(meta: &ReportMeta, hits: &[HitRecord]) -> String {
                 "shortDescription": { "text": label },
                 "fullDescription": {
                     "text": format!(
-                        "argot flagged this hunk as out of the repo's voice: {label}."
+                        "argot recorded repository-grounded evidence for this hunk: {label}. Review the evidence before deciding what to do."
                     )
                 },
                 "helpUri": "https://github.com/get-tmonier/argot",
@@ -229,6 +254,19 @@ pub fn render_sarif(meta: &ReportMeta, hits: &[HitRecord]) -> String {
             })
         })
         .collect();
+    let notifications = if meta.result.hidden_hits > 0 && meta.result.gating_hits > 0 {
+        vec![json!({
+            "level": "warning",
+            "message": {
+                "text": format!(
+                    "{} finding(s) hidden by --min-confidence affect this run's status; lower --min-confidence to reveal them.",
+                    meta.result.hidden_hits
+                )
+            }
+        })]
+    } else {
+        Vec::new()
+    };
 
     let doc = json!({
         "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
@@ -243,11 +281,13 @@ pub fn render_sarif(meta: &ReportMeta, hits: &[HitRecord]) -> String {
                 }
             },
             "results": results,
+            "invocations": [{ "toolExecutionNotifications": notifications }],
             "properties": {
                 "model": meta.model,
                 "repo": meta.repo,
                 "scanned": meta.scanned,
                 "hunksScanned": meta.hunks_scanned,
+                "result": meta.result,
             },
         }],
     });
@@ -270,7 +310,7 @@ fn github_escape_property(s: &str) -> String {
 /// `::error`/`::warning` line per hit — the runner turns these into inline PR
 /// annotations with no upload step. Severity maps directly: `error` rules
 /// annotate as errors, `warn` rules as warnings.
-pub fn render_github(hits: &[HitRecord]) -> String {
+pub fn render_github(hits: &[HitRecord], result: &CheckResult) -> String {
     let mut out = String::new();
     for h in hits {
         let level = if h.severity == "error" {
@@ -296,6 +336,12 @@ pub fn render_github(hits: &[HitRecord]) -> String {
             github_escape(&message),
         ));
     }
+    if result.hidden_hits > 0 && result.gating_hits > 0 {
+        out.push_str(&format!(
+            "::notice title=argot::{} finding(s) hidden by --min-confidence affect this run's status; lower --min-confidence to reveal them.\n",
+            result.hidden_hits
+        ));
+    }
     out
 }
 
@@ -314,6 +360,16 @@ mod tests {
                 hunks: 7,
             }],
             model: "abc123def456".to_string(),
+            result: CheckResult {
+                exit_code: 1,
+                unsuppressed_hits: 1,
+                visible_hits: 1,
+                hidden_hits: 0,
+                suppressed_hits: 0,
+                error_hits: 1,
+                warn_hits: 0,
+                gating_hits: 1,
+            },
         }
     }
 
@@ -459,6 +515,9 @@ mod tests {
             .unwrap()
             .contains("foreign import — score 8.25 vs threshold 6.75 (foreign)"));
         assert!(r["message"]["text"].as_str().unwrap().contains("axios"));
+        let description = rule["fullDescription"]["text"].as_str().unwrap();
+        assert!(description.contains("repository-grounded evidence"));
+        assert!(!description.contains("out of the repo's voice"));
     }
 
     #[test]
@@ -484,7 +543,8 @@ mod tests {
     fn github_format_emits_one_annotation_per_hit_with_severity_level() {
         let mut warn_hit = hit("unusual", "redundant");
         warn_hit.severity = "warn".to_string();
-        let out = render_github(&[hit("foreign", "foreign-import"), warn_hit]);
+        let result = meta().result;
+        let out = render_github(&[hit("foreign", "foreign-import"), warn_hit], &result);
         let lines: Vec<&str> = out.lines().collect();
         assert_eq!(lines.len(), 2);
         assert!(lines[0].starts_with(
@@ -500,9 +560,20 @@ mod tests {
         let mut h = hit("foreign", "foreign-import");
         h.path = "src/a,b:c.py".to_string();
         h.evidence = vec!["50% of\nlines".to_string()];
-        let out = render_github(&[h]);
+        let result = meta().result;
+        let out = render_github(&[h], &result);
         assert!(out.contains("file=src/a%2Cb%3Ac.py"));
         assert!(out.contains("50%25 of%0Alines"));
+    }
+
+    #[test]
+    fn github_format_reports_status_affecting_hidden_findings() {
+        let mut result = meta().result;
+        result.visible_hits = 0;
+        result.hidden_hits = 2;
+        result.gating_hits = 1;
+        let out = render_github(&[], &result);
+        assert!(out.contains("::notice title=argot::2 finding(s) hidden by --min-confidence"));
     }
 
     #[test]
@@ -517,5 +588,21 @@ mod tests {
                 .len(),
             0
         );
+    }
+
+    #[test]
+    fn sarif_reports_status_affecting_hidden_findings() {
+        let mut meta = meta();
+        meta.result.visible_hits = 0;
+        meta.result.hidden_hits = 1;
+        meta.result.gating_hits = 1;
+        let out = render_sarif(&meta, &[]);
+        let doc: Value = serde_json::from_str(&out).unwrap();
+        let notification = &doc["runs"][0]["invocations"][0]["toolExecutionNotifications"][0];
+        assert_eq!(notification["level"], "warning");
+        assert!(notification["message"]["text"]
+            .as_str()
+            .unwrap()
+            .contains("hidden by --min-confidence"));
     }
 }

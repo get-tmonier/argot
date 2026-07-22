@@ -1,8 +1,7 @@
-argot check · 2 hunks above threshold (2 unusual)
-note: argot is a probabilistic style linter — verify before action.
+2 findings need a look (2 errors)
+note: findings are evidence for your judgment, not proof of a defect.
 
-integration.py
-  .  L1-L9          -0.64  unusual  · ef37598 · none [f7b87debbd96]
+error · none · integration.py:L1-L9 · unusual [[f7b87debbd96]]
   1 | from __future__ import annotations
   2 | import sqlalchemy
   3 | from sqlalchemy.orm import sessionmaker
@@ -10,9 +9,9 @@ integration.py
   5 | 
   6 | def connect(url):
       (+3 more lines)
+  → inspect the evidence, then mute with `argot mute f7b87debbd96 --reason "…"` only if intentional.
 
-pipeline.py
-  .  L1-L8          -0.62  unusual  · ef37598 · none [8a3e96e16ec3]
+error · none · pipeline.py:L1-L8 · unusual [[8a3e96e16ec3]]
   1 | from __future__ import annotations
   2 | from stats import mean
   3 | from text import normalize
@@ -20,5 +19,6 @@ pipeline.py
   5 | 
   6 | def summarize(rows):
       (+2 more lines)
+  → inspect the evidence, then mute with `argot mute 8a3e96e16ec3 --reason "…"` only if intentional.
 
 tip: pass --verbose (-v) to expand truncated hunks.

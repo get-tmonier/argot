@@ -1,8 +1,7 @@
-argot check · 1 hunk above threshold (1 foreign)
-note: argot is a probabilistic style linter — verify before action.
+1 finding needs a look (1 error)
+note: findings are evidence for your judgment, not proof of a defect.
 
-integration.py
-  !  L1-L9           1.00  foreign  · ef37598 · foreign-import [848320fed028]
+error · foreign-import · integration.py:L1-L9 · foreign [[848320fed028]]
      ↳ sqlalchemy (L2) — never seen in repo
        common here: __future__ (5×), collections (1×), json (1×) (+4 more)
   1 | from __future__ import annotations
@@ -13,6 +12,7 @@ integration.py
   5 | 
   6 | def connect(url):
       (+3 more lines)
+  → inspect the evidence, then mute with `argot mute 848320fed028 --reason "…"` only if intentional.
 
 tip: pass --verbose (-v) to expand truncated hunks.
 exit=1

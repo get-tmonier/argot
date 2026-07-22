@@ -4,6 +4,141 @@ use super::*;
 use crate::rules;
 use crate::suppress::parse_inline;
 
+fn finding(
+    reason: &str,
+    suppressed_by: Option<crate::finding::SuppressedBy>,
+) -> crate::finding::Finding {
+    crate::finding::Finding {
+        score: 1.0,
+        file_path: "src/app.py".to_string(),
+        line: 1,
+        line_end: 1,
+        source: "workdir".to_string(),
+        reason: reason.to_string(),
+        flagged: true,
+        threshold: 1.0,
+        hunk_content: "x\n".to_string(),
+        evidence: None,
+        hash: "a1b2c3d4e5f6".to_string(),
+        suppressed_by,
+    }
+}
+
+#[test]
+fn hidden_findings_keep_their_gate_and_are_counted() {
+    let error = finding("import", None);
+    let warn = finding("test_weakened", None);
+    let suppressed = finding("import", Some(crate::finding::SuppressedBy::Mute));
+    let settings = rules::RuleSettings::resolve(&[]);
+    let summary = super::orchestrate::result_summary(
+        &[&error, &warn],
+        &[&warn],
+        usize::from(suppressed.suppressed_by.is_some()),
+        &settings,
+        false,
+    );
+
+    assert_eq!(summary.exit_code, 1, "a hidden error still fails the run");
+    assert_eq!(summary.unsuppressed_hits, 2);
+    assert_eq!(summary.visible_hits, 1);
+    assert_eq!(summary.hidden_hits, 1);
+    assert_eq!(summary.suppressed_hits, 1);
+    assert_eq!(summary.error_hits, 1);
+    assert_eq!(summary.warn_hits, 1);
+    assert_eq!(summary.gating_hits, 1);
+}
+
+#[test]
+fn status_uses_all_unsuppressed_findings_not_the_displayed_tier() {
+    let error = finding("import", None);
+    let warn = finding("test_weakened", None);
+    let suppressed = finding("import", Some(crate::finding::SuppressedBy::Mute));
+    let settings = rules::RuleSettings::resolve(&[]);
+
+    // The three confidence tiers select presentation only. No displayed hit,
+    // the warn hit only, and every hit must retain the same error status.
+    for visible in [&[][..], &[&warn][..], &[&error, &warn][..]] {
+        let summary =
+            super::orchestrate::result_summary(&[&error, &warn], visible, 0, &settings, false);
+        assert_eq!(summary.exit_code, 1);
+    }
+
+    let warn_default = super::orchestrate::result_summary(&[&warn], &[], 0, &settings, false);
+    assert_eq!(
+        warn_default.exit_code, 0,
+        "warn-only is advisory by default"
+    );
+    let warn_strict = super::orchestrate::result_summary(&[&warn], &[], 0, &settings, true);
+    assert_eq!(
+        warn_strict.exit_code, 1,
+        "strict warnings still gate when hidden"
+    );
+    let suppressed_only = super::orchestrate::result_summary(
+        &[],
+        &[],
+        usize::from(suppressed.suppressed_by.is_some()),
+        &settings,
+        true,
+    );
+    assert_eq!(suppressed_only.exit_code, 0);
+    assert_eq!(suppressed_only.suppressed_hits, 1);
+}
+
+#[test]
+fn human_brief_leads_with_severity_then_rule_span_and_action() {
+    let mut error = finding("import", None);
+    error.file_path = "z.py".to_string();
+    error.line = 9;
+    error.hash = "errorhash001".to_string();
+    let mut warn = finding("test_weakened", None);
+    warn.file_path = "a.py".to_string();
+    warn.line = 2;
+    warn.hash = "warnhash0002".to_string();
+    let settings = rules::RuleSettings::resolve(&[]);
+
+    let mut out = String::new();
+    assert!(!super::render::render_results(
+        &[&warn, &error],
+        None,
+        false,
+        &settings,
+        &mut out
+    ));
+    assert!(out.starts_with("2 findings need a look (1 error, 1 warning)\n"));
+    assert!(!out.contains("style linter"));
+    assert!(
+        out.find("error · foreign-import · z.py:L9").unwrap()
+            < out.find("warn · test-weakened · a.py:L2").unwrap()
+    );
+    assert!(out.contains("argot mute errorhash001 --reason"));
+}
+
+#[test]
+fn normal_human_brief_shows_three_priority_findings_then_expansion_hint() {
+    let settings = rules::RuleSettings::resolve(&[]);
+    let findings: Vec<crate::finding::Finding> = (1..=4)
+        .map(|line| {
+            let mut hit = finding("import", None);
+            hit.file_path = format!("{line}.py");
+            hit.line = line;
+            hit.hash = format!("hash{line:08}");
+            hit
+        })
+        .collect();
+    let refs: Vec<&crate::finding::Finding> = findings.iter().collect();
+    let mut out = String::new();
+
+    assert!(!super::render::render_results(
+        &refs,
+        Some(1),
+        false,
+        &settings,
+        &mut out
+    ));
+    assert_eq!(out.matches("argot mute hash").count(), 3);
+    assert!(out.contains("1 more finding is not shown in this brief; pass --verbose (-v)"));
+}
+
 #[test]
 fn insert_ignore_comments_bottom_up_with_indentation() {
     let src = "def a():\n    x = 1\n    y = 2\n\ndef b():\n    z = 3\n";
