@@ -6,7 +6,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "D=\"${CLAUDE_PROJECT_DIR:-.}\"; [ -f \"$D/.argot/scorer-config.json\" ] && command -v argot >/dev/null 2>&1 && argot hook --repo \"$D\" || true"
+            "command": "D=\"${CLAUDE_PROJECT_DIR:-.}\"; [ -f \"$D/.argot/scorer-config.json\" ] && command -v argot >/dev/null 2>&1 && argot hook --repo \"$D\" || true",
+            "timeout": 5
           }
         ]
       }
