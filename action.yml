@@ -159,7 +159,10 @@ runs:
         # cargo-dist wraps Unix archives in a target directory, while the
         # Windows ZIP stores its files at the archive root.
         if [ "$ext" = "zip" ]; then
-          tar -xf "$archive" -C "$install_dir"
+          # Git Bash tar misreads a drive-letter destination (for example
+          # D:\\a\\_temp) as a remote archive target. Let PowerShell consume
+          # the native Windows paths instead.
+          ARCHIVE="$archive" INSTALL_DIR="$install_dir" powershell -NoProfile -NonInteractive -Command 'Expand-Archive -LiteralPath $env:ARCHIVE -DestinationPath $env:INSTALL_DIR -Force'
         else
           tar -xf "$archive" -C "$install_dir" --strip-components=1
         fi
