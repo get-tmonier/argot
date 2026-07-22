@@ -56,7 +56,7 @@ pub fn run_mcp(repo: PathBuf) -> ExitCode {
 /// so a silent stdio server is visibly alive and its readiness is obvious.
 fn startup_banner(repo: &Path, fitted: bool) -> String {
     format!(
-        "argot {} · MCP server ready on stdio · repo: {} · model: {} · waiting for a client",
+        "argot {} · MCP server ready on stdio · repo: {} · model: {} · passive: a client must invoke tools; use `argot check` for complete changeset checking",
         env!("CARGO_PKG_VERSION"),
         repo.display(),
         if fitted {
@@ -94,7 +94,7 @@ fn dispatch(method: &str, params: &Value, repo: &Path) -> Result<Value, RpcError
             "protocolVersion": PROTOCOL_VERSION,
             "capabilities": { "tools": {} },
             "serverInfo": { "name": "argot", "version": env!("CARGO_PKG_VERSION") },
-            "instructions": "argot scores code against this repo's learned voice — statistics on its git history, not an LLM. BEFORE you add a dependency/import or write a new file, call argot.voice_context for the target path to see the repo's familiar imports and idioms, and prefer them; treat a name absent there as a signal to reconsider unless it's deliberate. After generating a hunk, call argot.check to catch anything out of voice.",
+            "instructions": "Argot MCP tools are passive: the host must invoke them. They inspect only the supplied hunk or requested path, not a complete changeset. Before writing, call argot.voice_context for familiar imports and idioms; after writing, call argot.check for a hunk-level signal. Use the full CLI `argot check` to inspect a complete changeset.",
         })),
         "tools/list" => Ok(json!({ "tools": tool_definitions() })),
         "tools/call" => tools_call(params, repo),
@@ -117,17 +117,17 @@ fn tool_definitions() -> Value {
     json!([
         {
             "name": "argot.check",
-            "description": "Score one code hunk against the repo's learned voice; returns out_of_voice, the score, the rule that fired, and evidence naming the surprising tokens. WHEN TO USE: right after you write or edit a hunk, to catch a dependency/API/idiom foreign to this repo before it lands. WHEN NOT / ALTERNATIVES: to steer generation *before* writing, call argot.voice_context instead (biasing beats fixing); when a hit needs judging, call argot.explain for the full evidence trail; for whole-repo conventions rather than one hunk, call argot.conventions. PREREQUISITE: the repo must be fitted — if unsure call argot.fit_status first; on an unfitted repo this returns an error, not a verdict. BEHAVIOR: read-only and non-destructive (scores in-process against the fitted model; writes nothing). Returns out_of_voice, score, threshold, rule, and — on a hit — evidence.",
+            "description": "Passively score one supplied code hunk against the fitted repository model; the host must call this tool. It does not inspect a complete changeset or guarantee invocation. Use the full CLI `argot check` for complete changeset checking. Returns out_of_voice, score, threshold, rule, and evidence when available. Read-only and non-destructive; requires a fitted repo.",
             "inputSchema": hunk_schema,
         },
         {
             "name": "argot.explain",
-            "description": "Like argot.check but returns the full evidence trail — the rule plus every surprising token with its repo-attestation count. WHEN TO USE: a hunk is flagged and you must decide whether it's a real divergence or a false positive, so you need the *why*, not just the verdict. WHEN NOT / ALTERNATIVES: for a quick pass/fail on generated code, plain argot.check is cheaper. Same inputs and same fitted-repo prerequisite as argot.check. BEHAVIOR: read-only, no side effects. Returns the same fields as argot.check plus the full evidence array (each surprising token with its repo-attestation count).",
+            "description": "Passively inspect one supplied hunk and return its fuller repository evidence; the host must call this tool. It is not complete-changeset checking and does not guarantee invocation. Use the full CLI `argot check` for complete changeset checking. Read-only, no side effects, and requires a fitted repo.",
             "inputSchema": hunk_schema,
         },
         {
             "name": "argot.voice_context",
-            "description": "Preemptive, per-file: given the path you're about to write, return the local voice that applies there — typical callees per cluster and familiar imports — so generation is biased toward the repo's idioms from the first token. WHEN TO USE: before generating or editing code for a specific file. WHEN NOT / ALTERNATIVES: to verify what you already wrote, call argot.check (or argot.explain); for the whole repo's conventions rather than one file's idioms, call argot.conventions. PREREQUISITE: the repo must be fitted (argot.fit_status reports readiness). BEHAVIOR: read-only, no side effects. Returns typical_callees_by_cluster, familiar_imports, and the resolved language.",
+            "description": "Passively return fitted local context for one requested path; the host must call this tool. It does not inspect a hunk or complete changeset. Use the full CLI `argot check` for complete changeset checking. Read-only, no side effects, and requires a fitted repo.",
             "inputSchema": json!({
                 "type": "object",
                 "properties": {
@@ -139,12 +139,12 @@ fn tool_definitions() -> Value {
         },
         {
             "name": "argot.fit_status",
-            "description": "Report whether the repo is well-fitted for argot — corpus composition, calibration freshness, and a Ready / Ready-with-notes / Not-recommended verdict. WHEN TO USE: call this FIRST, before relying on the other tools. If it reports Not-recommended (too little history, weak calibration), argot.check / argot.voice_context / argot.conventions results are low-confidence and should be treated as advisory. Takes no arguments. BEHAVIOR: read-only, no side effects. Returns the full inspect report — corpus composition, per-language calibration, the verdict, and its reasons.",
+            "description": "Passively report fitted-model suitability when the host calls it. This read-only status does not inspect code or guarantee other tool invocation. Use the full CLI `argot check` for complete changeset checking.",
             "inputSchema": json!({ "type": "object", "properties": {} }),
         },
         {
             "name": "argot.conventions",
-            "description": "List the repo's own conventions, repo-wide: its internal-API vocabulary (the shared helpers and objects everyone routes through, per language) and its placement conventions (where a kind of code lives — validation in schema files, DB access in migrations, business logic in the service layer, not views). WHEN TO USE: to learn a repo's structure before generating across it, or as the raw material for a custom rule. WHEN NOT / ALTERNATIVES: for one file's local idioms (typical callees + imports) rather than the whole-repo picture, call argot.voice_context; to score or explain a specific hunk, call argot.check / argot.explain. PREREQUISITE: the repo must be fitted (argot.fit_status reports readiness). BEHAVIOR: read-only, no side effects. Returns the per-language vocabulary and the repo-wide placement conventions (each with its home path globs, so a rule can scope to files outside it).",
+            "description": "Passively list fitted repository conventions when the host calls it. It is descriptive, not complete changeset checking, and does not guarantee invocation. Use the full CLI `argot check` for complete changeset checking. Read-only, no side effects, and requires a fitted repo.",
             "inputSchema": json!({ "type": "object", "properties": {} }),
         },
     ])
@@ -354,6 +354,11 @@ mod tests {
         assert!(names.contains(&"argot.voice_context"));
         assert!(names.contains(&"argot.fit_status"));
         assert!(names.contains(&"argot.conventions"));
+        for tool in result["tools"].as_array().unwrap() {
+            let description = tool["description"].as_str().unwrap();
+            assert!(description.contains("Passively"));
+            assert!(description.contains("complete changeset checking"));
+        }
     }
 
     #[test]
@@ -400,6 +405,8 @@ mod tests {
         assert!(f.contains("/x"));
         assert!(f.contains("stdio"));
         assert!(f.contains("model: fitted"));
+        assert!(f.contains("passive: a client must invoke tools"));
+        assert!(f.contains("argot check` for complete changeset checking"));
         let u = startup_banner(Path::new("."), false);
         assert!(u.contains("not fitted"));
         assert!(u.contains("argot init"));
