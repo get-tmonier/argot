@@ -70,8 +70,8 @@ const updated = '17 July 2026';
       <div>
         <h2 class="text-xl font-semibold tracking-tight">Network activity</h2>
         <p class="mt-3 leading-relaxed text-ink-dim text-pretty">
-          argot works fully offline. It makes an outbound request in only these cases — none of which
-          send your code:
+          The analysis path works fully offline. The binary can make outbound requests in the
+          following cases — none upload your code, git history, findings, or usage data:
         </p>
         <ul class="mt-3 flex flex-col gap-3 text-ink-dim">
           <li class="flex gap-2.5">
@@ -87,7 +87,7 @@ const updated = '17 July 2026';
           <li class="flex gap-2.5">
             <span class="text-ember">—</span>
             <span
-              ><strong class="font-medium text-ink">Update check (optional, at most once a day).</strong>
+              ><strong class="font-medium text-ink">Version check (at most once a day).</strong>
               argot fetches a small version file to tell you if a newer release exists — a plain request
               with no code and no identifiers. Turn it off with <code class="text-ink">check = false</code>
               under <code class="text-ink">[update]</code> in <code class="text-ink">argot.toml</code>

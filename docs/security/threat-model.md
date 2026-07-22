@@ -13,8 +13,9 @@ A single statically-linked Rust binary that:
 2. learns a per-repo model (`argot fit`), and
 3. flags diffs that are foreign to that model (`argot check`).
 
-It has no server, no daemon, no background process, and no telemetry. Everything
-runs in-process in one CLI invocation.
+It has no server, no daemon, and no telemetry. Analysis runs in-process in one
+CLI invocation. A detached update check and a first-use semantic-model download
+are separately enumerable outbound paths; neither uploads repository content.
 
 ## Assets
 
@@ -55,9 +56,11 @@ argot is pointed at may have been crafted to make it crash, hang, or misreport.
   rule host has a wall-clock budget. The GitHub Action is non-blocking, so a
   crash degrades the check rather than blocking the merge. Fuzz targets exercise
   the untrusted-byte parsers (`fuzz/`).
-- **Data exfiltration.** No network calls on the core path. The opt-in network
-  paths (model fetch, self-update) send no repository content. `ARGOT_OFFLINE=1`
-  hard-disables all of them.
+- **Data exfiltration.** `extract → fit → check` do not upload repository
+  content. The semantic-model fetch, passive version check, explicit update,
+  installation, and CI's configured GitHub API/release operations are distinct
+  network paths; the binary's model and update requests send no code or
+  findings. `ARGOT_OFFLINE=1` disables those binary requests.
 - **Model / update tampering (supply chain, runtime).** SHA-256 pinning of the
   model (verified in CI before every release *and* at download time); TLS on all
   fetches; the self-update path avoids the mutable GitHub API. `ARGOT_MODEL_URL`
