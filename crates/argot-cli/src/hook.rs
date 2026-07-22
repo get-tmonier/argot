@@ -18,8 +18,10 @@ use std::process::ExitCode;
 use serde_json::{json, Value};
 
 use argot_core::check::RepoScorers;
-use argot_core::config::ArgotConfig;
+use argot_core::config::{ArgotConfig, MigrationKind};
+use argot_core::rules::Severity;
 use argot_core::scoring::evidence::format_evidence;
+use argot_core::suppress::PathScope;
 
 /// Tools whose input carries code we can score before it's written.
 fn is_write_tool(name: &str) -> bool {
@@ -87,8 +89,13 @@ pub fn run_hook(repo: PathBuf) -> ExitCode {
 /// dependency foreign to the repo (the `foreign-import` signal — 98% catch /
 /// 0.29% false-alarm). Everything else stays silent so the hook never nags.
 fn assess(repo: &Path, file_path: &str, content: &str) -> Option<String> {
-    let detect = ArgotConfig::load(repo).detect;
-    let mut scorers = RepoScorers::load(&repo.join(".argot"), &detect).ok()?;
+    let config = ArgotConfig::load(repo);
+    let relative_path = repo_relative_path(repo, file_path)?;
+    if !can_assess(&config, &relative_path, content) {
+        return None;
+    }
+
+    let mut scorers = RepoScorers::load(&repo.join(".argot"), &config.detect).ok()?;
     scorers.language_for(file_path)?;
     let scored = scorers.score(file_path, content, Some(content))?;
     if !scored.flagged
@@ -124,6 +131,61 @@ fn assess(repo: &Path, file_path: &str, content: &str) -> Option<String> {
     })
 }
 
+/// Apply the configuration subset that can be decided before a write. The
+/// hook has no final diff hunk or stable hit hash, so inline and hash mutes are
+/// deliberately unsupported here; treating a proposed partial edit as either
+/// would claim parity the hook cannot provide.
+fn can_assess(config: &ArgotConfig, relative_path: &str, content: &str) -> bool {
+    // Check reports configuration diagnostics to its caller; the hook has no
+    // diagnostic channel that should interrupt an agent, so malformed config
+    // fails open rather than silently falling back to a possibly unwanted ask.
+    if !config.warnings.is_empty() {
+        return false;
+    }
+    let settings = config.rule_settings(&Vec::new());
+    if settings.severity_of_reason("import") == Severity::Off
+        || !settings.covers_path("import", relative_path)
+        || config.path_suppressions().classify(relative_path) != PathScope::InScope
+    {
+        return false;
+    }
+
+    // A declared replacement is attested by full check before voice scoring.
+    // The hook cannot mutate the loaded scorer's private attestation state, so
+    // it suppresses only the same replacement-side import prompt here.
+    !config
+        .migrations()
+        .active
+        .iter()
+        .any(|migration| migration.kind == MigrationKind::Import && content.contains(&migration.to))
+}
+
+/// Normalize a Claude file path to the repository-relative, slash-separated
+/// form used by Argot's path scopes and exclusions. Files outside the repo (or
+/// relative paths escaping it) are not candidates for a pre-write ask.
+fn repo_relative_path(repo: &Path, file_path: &str) -> Option<String> {
+    let path = Path::new(file_path);
+    let candidate = if path.is_absolute() {
+        path.strip_prefix(repo).ok()?.to_path_buf()
+    } else {
+        if path
+            .components()
+            .any(|part| matches!(part, std::path::Component::ParentDir))
+        {
+            return None;
+        }
+        path.to_path_buf()
+    };
+    let parts = candidate
+        .components()
+        .filter_map(|part| match part {
+            std::path::Component::Normal(name) => name.to_str(),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    (!parts.is_empty()).then(|| parts.join("/"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -153,5 +215,151 @@ mod tests {
             "import q"
         );
         assert_eq!(proposed_content(&json!({})), "");
+    }
+
+    fn config_with_rules(rules: Vec<(&str, Severity)>) -> ArgotConfig {
+        let mut config = ArgotConfig::default();
+        config.rules_committed = vec![rules
+            .into_iter()
+            .map(|(name, severity)| (name.to_string(), severity))
+            .collect()];
+        config
+    }
+
+    #[test]
+    fn foreign_import_off_disables_the_hook_but_warn_and_error_still_ask() {
+        for (selector, severity, expected) in [
+            ("foreign-import", Severity::Off, false),
+            ("voice", Severity::Off, false),
+            ("foreign-import", Severity::Warn, true),
+            ("foreign-import", Severity::Error, true),
+        ] {
+            let config = config_with_rules(vec![(selector, severity)]);
+            assert_eq!(
+                can_assess(&config, "src/app.py", "import new_dependency"),
+                expected,
+                "{selector} = {}",
+                severity.as_str()
+            );
+        }
+    }
+
+    #[test]
+    fn path_excludes_and_rule_scopes_skip_pre_write_assessment() {
+        let mut excluded = ArgotConfig::default();
+        excluded.exclude.paths.push("generated/**".to_string());
+        assert!(!can_assess(
+            &excluded,
+            "generated/client.py",
+            "import new_dependency"
+        ));
+
+        let mut scoped = ArgotConfig::default();
+        scoped.rule_scopes.push((
+            "foreign-import".to_string(),
+            argot_core::rules::RuleScope {
+                include: vec!["src/**".to_string()],
+                exclude: vec!["src/legacy/**".to_string()],
+            },
+        ));
+        assert!(can_assess(&scoped, "src/app.py", "import new_dependency"));
+        assert!(!can_assess(
+            &scoped,
+            "src/legacy/app.py",
+            "import new_dependency"
+        ));
+        assert!(!can_assess(&scoped, "lib/app.py", "import new_dependency"));
+    }
+
+    #[test]
+    fn declared_import_replacements_do_not_prompt_and_other_mutes_stay_unsupported() {
+        let config = config_from_toml(
+            r#"
+                [[migration]]
+                from = "legacy_dependency"
+                to = "approved_dependency"
+                reason = "migration fixture"
+
+                [[mute]]
+                path = "src/app.py"
+                reason = "a full-check hash mute cannot apply before write"
+            "#,
+        );
+        assert!(!can_assess(
+            &config,
+            "src/app.py",
+            "import approved_dependency"
+        ));
+        assert!(can_assess(
+            &config,
+            "src/app.py",
+            "import different_dependency"
+        ));
+    }
+
+    #[test]
+    fn malformed_config_fails_open() {
+        let config = config_from_toml("[rules\nforeign-import = \"off\"");
+        assert!(!can_assess(&config, "src/app.py", "import new_dependency"));
+    }
+
+    fn config_from_toml(body: &str) -> ArgotConfig {
+        let dir = std::env::temp_dir().join(format!(
+            "argot-hook-test-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("argot.toml"), body).unwrap();
+        let config = ArgotConfig::load(&dir);
+        std::fs::remove_dir_all(dir).unwrap();
+        config
+    }
+
+    #[test]
+    fn only_repo_relative_paths_are_assessed() {
+        let repo = Path::new("/repo");
+        assert_eq!(
+            repo_relative_path(repo, "/repo/src/app.py"),
+            Some("src/app.py".to_string())
+        );
+        assert_eq!(
+            repo_relative_path(repo, "src/app.py"),
+            Some("src/app.py".to_string())
+        );
+        assert_eq!(repo_relative_path(repo, "/elsewhere/app.py"), None);
+        assert_eq!(repo_relative_path(repo, "../elsewhere/app.py"), None);
+    }
+
+    #[test]
+    fn assessment_failures_are_silent_allows() {
+        let repo = temporary_repo("fail-open");
+
+        // An unfitted repository has no scorers to load.
+        assert_eq!(assess(&repo, "src/app.py", "import new_dependency\n"), None);
+
+        // A malformed configuration and an unsupported file are also no-op
+        // cases; neither must turn a pre-write event into a failed command.
+        std::fs::write(repo.join("argot.toml"), "[rules\nforeign-import = \"off\"").unwrap();
+        assert_eq!(assess(&repo, "src/app.py", "import new_dependency\n"), None);
+        assert_eq!(assess(&repo, "README.md", "new dependency\n"), None);
+
+        std::fs::remove_dir_all(repo).unwrap();
+    }
+
+    fn temporary_repo(name: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "argot-hook-test-{name}-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
     }
 }
