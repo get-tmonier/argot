@@ -1,0 +1,40 @@
+name: Release readiness
+
+on:
+  pull_request:
+    paths:
+      - .github/fixtures/release-journey/**
+      - .github/workflows/release-readiness.yml
+      - scripts/release-journey.sh
+      - scripts/check-release-version.py
+      - scripts/test-check-release-version.py
+      - .github/workflows/release.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  version-consistency:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - run: scripts/check-release-version.py
+      - run: scripts/test-check-release-version.py
+
+  offline-journey:
+    name: Offline audit-to-habit journey (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-14, windows-2025]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build --locked --bin argot
+      - name: Run deterministic offline journey
+        shell: bash
+        env:
+          ARGOT_BIN: ${{ github.workspace }}/target/debug/argot${{ runner.os == 'Windows' && '.exe' || '' }}
+        run: scripts/release-journey.sh
