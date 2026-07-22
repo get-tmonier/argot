@@ -7,3 +7,9 @@ dist/
 # deps — landing is a standalone project with its own lockfile (committed)
 node_modules/
 pnpm-workspace.yaml
+
+# local landing validation reports (uploaded by CI, never committed)
+.lighthouseci/
+lighthouse-report/
+playwright-report/
+test-results/

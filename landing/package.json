@@ -19,7 +19,11 @@
     "format": "oxfmt --check src/lib src/i18n src/content.config.ts astro.config.mjs",
     "format:fix": "oxfmt src/lib src/i18n src/content.config.ts astro.config.mjs",
     "typecheck": "astro check",
-    "check": "bun run lint && bun run format && bun run typecheck"
+    "check": "bun run lint && bun run format && bun run typecheck",
+    "test:routes": "bun test tests/site-gates.test.ts",
+    "test:a11y": "playwright test",
+    "test:performance": "lhci autorun",
+    "test:smoke": "bun run build && bun run test:routes && bun run test:a11y && bun run test:performance"
   },
   "dependencies": {
     "@astrojs/markdown-remark": "7.2.1",
@@ -31,10 +35,14 @@
   },
   "devDependencies": {
     "@astrojs/check": "0.9.9",
+    "@axe-core/playwright": "^4.12.1",
+    "@lhci/cli": "^0.15.1",
+    "@playwright/test": "^1.61.1",
     "@tailwindcss/vite": "4.3.2",
     "katex": "0.17.0",
     "oxfmt": "0.59.0",
     "oxlint": "1.74.0",
+    "playwright": "^1.61.1",
     "rehype-katex": "7",
     "remark-math": "6",
     "tailwindcss": "4.3.2",
