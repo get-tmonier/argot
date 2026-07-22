@@ -156,9 +156,13 @@ runs:
           exit 1
         fi
         echo "Checksum verified: $actual"
-        # bsdtar (the `tar` on GitHub's Windows runners) extracts .zip too, so
-        # one code path serves both archive kinds.
-        tar -xf "$archive" -C "$install_dir" --strip-components=1
+        # cargo-dist wraps Unix archives in a target directory, while the
+        # Windows ZIP stores its files at the archive root.
+        if [ "$ext" = "zip" ]; then
+          tar -xf "$archive" -C "$install_dir"
+        else
+          tar -xf "$archive" -C "$install_dir" --strip-components=1
+        fi
         echo "$install_dir" >> "$GITHUB_PATH"
         "$install_dir/$bin" --version
 

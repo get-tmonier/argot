@@ -1,0 +1,197 @@
+name: Action installation smoke
+
+on:
+  pull_request:
+    paths:
+      - action.yml
+      - .github/workflows/action-smoke.yml
+      - .github/fixtures/action-smoke/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    name: Linux Action ${{ matrix.scenario }} smoke
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: [clean, finding]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Create fixture repository
+        id: fixture
+        shell: bash
+        run: |
+          fixture="${RUNNER_TEMP}/argot-action-${{ matrix.scenario }}"
+          .github/fixtures/action-smoke/create-repo.sh "$fixture" "${{ matrix.scenario }}"
+          echo "path=$fixture" >> "$GITHUB_OUTPUT"
+      - name: Run local Action
+        id: action
+        uses: ./
+        with:
+          path: ${{ steps.fixture.outputs.path }}
+          argot-version: 0.2.82
+          ref: HEAD~1..HEAD
+          # `github` produces workflow commands for a finding, while JSON keeps
+          # the clean case a stable machine-readable result.
+          format: ${{ matrix.scenario == 'finding' && 'github' || 'json' }}
+          output-file: ${{ runner.temp }}/argot-${{ matrix.scenario }}.out
+          cache: false
+          semantic: false
+          upload-sarif: false
+          comment-pr: false
+      - name: Assert install, non-blocking result, and summary
+        shell: bash
+        env:
+          ACTION_EXIT_CODE: ${{ steps.action.outputs.exit-code }}
+          ACTION_OUTCOME: ${{ steps.action.outcome }}
+          SCENARIO: ${{ matrix.scenario }}
+        run: |
+          set -euo pipefail
+          argot --version | grep -Fx 'argot 0.2.82'
+          # A finding is reported through the Action output, but the Action
+          # itself succeeds unless the caller explicitly opts into gating.
+          test "$ACTION_OUTCOME" = success
+          case "$SCENARIO" in
+            clean) test "$ACTION_EXIT_CODE" = 0 ;;
+            finding) test "$ACTION_EXIT_CODE" = 1 ;;
+          esac
+          test -s "$GITHUB_STEP_SUMMARY"
+      - name: Publish finding annotations
+        if: ${{ matrix.scenario == 'finding' }}
+        shell: bash
+        env:
+          RESULTS: ${{ runner.temp }}/argot-finding.out
+        run: |
+          set -euo pipefail
+          # The Action keeps its chosen output format in its declared result
+          # file. Replaying GitHub workflow commands here asserts that the
+          # finding can surface as a hosted-runner annotation without gating.
+          grep -Eq '^::(warning|error)' "$RESULTS"
+          cat "$RESULTS"
+
+  macos:
+    name: macOS ${{ matrix.arch }} Action install smoke
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-13
+            arch: X64
+          - runner: macos-14
+            arch: ARM64
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Confirm expected runner architecture
+        shell: bash
+        run: test "$RUNNER_ARCH" = "${{ matrix.arch }}"
+      - name: Create clean fixture repository
+        id: fixture
+        shell: bash
+        run: |
+          fixture="${RUNNER_TEMP}/argot-action-clean"
+          .github/fixtures/action-smoke/create-repo.sh "$fixture" clean
+          echo "path=$fixture" >> "$GITHUB_OUTPUT"
+      - name: Run local Action
+        uses: ./
+        with:
+          path: ${{ steps.fixture.outputs.path }}
+          argot-version: 0.2.82
+          ref: HEAD~1..HEAD
+          format: json
+          output-file: ${{ runner.temp }}/argot-macos.json
+          cache: false
+          semantic: false
+          upload-sarif: false
+          comment-pr: false
+      - name: Assert installed version
+        shell: bash
+        run: argot --version | grep -Fx 'argot 0.2.82'
+
+  windows:
+    name: Windows Action install smoke
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Create clean fixture repository
+        id: fixture
+        shell: bash
+        run: |
+          fixture="${RUNNER_TEMP}/argot-action-clean"
+          .github/fixtures/action-smoke/create-repo.sh "$fixture" clean
+          echo "path=$fixture" >> "$GITHUB_OUTPUT"
+      - name: Run local Action
+        uses: ./
+        with:
+          path: ${{ steps.fixture.outputs.path }}
+          argot-version: 0.2.82
+          ref: HEAD~1..HEAD
+          format: json
+          output-file: ${{ runner.temp }}/argot-windows.json
+          cache: false
+          semantic: false
+          upload-sarif: false
+          comment-pr: false
+      - name: Assert installed version and temporary ownership
+        shell: pwsh
+        run: |
+          $binary = (Get-Command argot).Source
+          & $binary --version | Select-String -SimpleMatch 'argot 0.2.82'
+          if (-not $binary.StartsWith($env:RUNNER_TEMP, [StringComparison]::OrdinalIgnoreCase)) {
+            throw "Action installed outside RUNNER_TEMP: $binary"
+          }
+          Remove-Item -LiteralPath (Split-Path -Parent $binary) -Recurse -Force
+          if (Test-Path -LiteralPath $binary) {
+            throw "Action temporary install was not removable: $binary"
+          }
+
+  negative-install:
+    name: Action ${{ matrix.mode }} failure smoke
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [missing, checksum-mismatch]
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install fixture curl
+        shell: bash
+        run: |
+          fixture_bin="${RUNNER_TEMP}/argot-action-fixture-bin"
+          mkdir -p "$fixture_bin"
+          cp .github/fixtures/action-smoke/curl "$fixture_bin/curl"
+          chmod +x "$fixture_bin/curl"
+          echo "$fixture_bin" >> "$GITHUB_PATH"
+      - name: Run local Action with invalid release asset
+        id: action
+        continue-on-error: true
+        uses: ./
+        env:
+          ARGOT_ACTION_FIXTURE_MODE: ${{ matrix.mode }}
+        with:
+          argot-version: 0.2.82
+          cache: false
+          semantic: false
+          upload-sarif: false
+          comment-pr: false
+      - name: Assert safe installation failure
+        shell: bash
+        env:
+          ACTION_OUTCOME: ${{ steps.action.outcome }}
+          MODE: ${{ matrix.mode }}
+        run: |
+          test "$ACTION_OUTCOME" = failure
+          case "$MODE" in
+            missing) echo "Missing release asset stopped installation." ;;
+            checksum-mismatch) echo "Checksum mismatch stopped installation." ;;
+          esac
