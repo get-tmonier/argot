@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+"""Smoke-test the assets published together by the Claude Code plugin."""
 
 import json
 import os
@@ -7,40 +8,120 @@ import subprocess
 from pathlib import Path
 
 
-root = Path(__file__).resolve().parent.parent
-plugin = json.loads((root / ".claude-plugin/plugin.json").read_text())
-marketplace = json.loads((root / ".claude-plugin/marketplace.json").read_text())
-cargo_version = re.search(r'^version = "([^"]+)"', (root / "Cargo.toml").read_text(), re.M)
-skills = ["argot-setup", "argot-check", "argot-review-pr", "argot-setup-ci", "argot-write-rule", "argot-suggest-rules"]
-
-assert cargo_version and plugin["version"] == cargo_version.group(1)
-assert len(marketplace["plugins"]) == 1
-assert marketplace["plugins"][0]["name"] == plugin["name"] == "argot"
-assert marketplace["plugins"][0]["source"] == "./"
-assert plugin["mcpServers"]["argot"] == {"command": "argot", "args": ["mcp", "--repo", "."]}
-for skill in skills:
-    content = (root / "skills" / skill / "SKILL.md").read_text()
-    assert f"name: {skill}" in content
-readme = (root / "skills/README.md").read_text()
-assert "Six skills" in readme
-for skill in skills:
-    assert f"`{skill}`" in readme and f"/argot:{skill}" in readme
-
-hooks = json.loads((root / "hooks/hooks.json").read_text())
-assert len(hooks["hooks"]["PreToolUse"]) == 1
-assert hooks["hooks"]["PreToolUse"][0]["matcher"] == "Write|Edit|MultiEdit"
-assert "Stop" not in json.dumps(hooks)
-pre_commit = (root / ".pre-commit-hooks.yaml").read_text()
-assert "- id: argot-check\n" in pre_commit and "- id: argot-check-gate\n" in pre_commit
-assert 'entry: "sh -c' in pre_commit and "entry: argot check --staged" in pre_commit
-
-binary = os.environ.get("ARGOT_BIN")
-assert binary, "set ARGOT_BIN to the checkout-built argot binary"
-version = subprocess.run([binary, "--version"], capture_output=True, text=True, check=True).stdout.strip()
-assert version == f"argot {plugin['version']}"
-mcp = subprocess.run(
-    [binary, "mcp", "--repo", str(root)],
-    input='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n',
-    capture_output=True, text=True, timeout=10, check=True,
+ROOT = Path(__file__).resolve().parent.parent
+SKILLS = (
+    "argot-setup",
+    "argot-check",
+    "argot-review-pr",
+    "argot-setup-ci",
+    "argot-write-rule",
+    "argot-suggest-rules",
 )
-assert '"id":1' in mcp.stdout and '"result"' in mcp.stdout
+
+
+def load_json(path: Path) -> dict:
+    return json.loads(path.read_text())
+
+
+def workspace_version() -> str:
+    cargo = (ROOT / "Cargo.toml").read_text()
+    match = re.search(r'^version = "([^"]+)"', cargo, re.MULTILINE)
+    assert match, "Cargo.toml must declare the workspace version"
+    return match.group(1)
+
+
+def skill_name(path: Path) -> str:
+    content = path.read_text()
+    parts = content.split("---", 2)
+    assert len(parts) == 3 and not parts[0].strip(), f"{path} has no YAML front matter"
+    name = re.search(r"^name:\s*(\S+)\s*$", parts[1], re.MULTILINE)
+    assert name, f"{path} front matter has no name"
+    return name.group(1)
+
+
+def assert_versions(plugin: dict) -> None:
+    expected = workspace_version()
+    server = load_json(ROOT / "server.json")
+    release = load_json(ROOT / "landing/src/data/release.json")
+
+    assert plugin["version"] == expected
+    assert server["version"] == expected
+    assert len(server["packages"]) == 1
+    assert server["packages"][0]["version"] == expected
+    assert release["version"] == expected
+
+
+def assert_skills() -> None:
+    skill_directories = {path.name for path in (ROOT / "skills").iterdir() if path.is_dir()}
+    assert skill_directories == set(SKILLS)
+
+    readme = (ROOT / "skills/README.md").read_text()
+    assert "Six skills" in readme
+    for skill in SKILLS:
+        assert skill_name(ROOT / "skills" / skill / "SKILL.md") == skill
+        assert f"`{skill}`" in readme
+        assert f"/argot:{skill}" in readme
+
+
+def assert_plugin_layout(plugin: dict) -> None:
+    marketplace = load_json(ROOT / ".claude-plugin/marketplace.json")
+    assert plugin["name"] == "argot"
+    assert len(marketplace["plugins"]) == 1
+    assert marketplace["plugins"][0]["name"] == plugin["name"]
+    assert marketplace["plugins"][0]["source"] == "./"
+
+    assert plugin["mcpServers"] == {
+        "argot": {"command": "argot", "args": ["mcp", "--repo", "."]}
+    }
+
+    hook_paths = list(ROOT.glob("**/hooks.json"))
+    assert hook_paths == [ROOT / "hooks/hooks.json"]
+    hooks = load_json(hook_paths[0])
+    assert set(hooks["hooks"]) == {"PreToolUse"}
+    pre_tool_use = hooks["hooks"]["PreToolUse"]
+    assert len(pre_tool_use) == 1
+    assert pre_tool_use[0]["matcher"] == "Write|Edit|MultiEdit"
+    declarations = pre_tool_use[0]["hooks"]
+    assert len(declarations) == 1
+    assert declarations[0]["type"] == "command"
+    assert "argot hook --repo" in declarations[0]["command"]
+    assert "argot check" not in declarations[0]["command"]
+
+    # The package ships one pre-write ask, not a second copy or a lifecycle hook.
+    assert "hooks" not in plugin
+    assert "Stop" not in json.dumps(hooks)
+
+
+def assert_mcp_starts(plugin: dict) -> None:
+    binary = os.environ.get("ARGOT_BIN")
+    assert binary, "set ARGOT_BIN to the checkout-built argot binary"
+
+    version = subprocess.run(
+        [binary, "--version"], capture_output=True, text=True, check=True
+    ).stdout.strip()
+    assert version == f"argot {plugin['version']}"
+
+    command = plugin["mcpServers"]["argot"]
+    mcp = subprocess.run(
+        [binary, *command["args"][:-1], str(ROOT)],
+        input='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n',
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=True,
+    )
+    responses = [json.loads(line) for line in mcp.stdout.splitlines() if line]
+    response = next(response for response in responses if response.get("id") == 1)
+    assert "result" in response
+
+
+def main() -> None:
+    plugin = load_json(ROOT / ".claude-plugin/plugin.json")
+    assert_versions(plugin)
+    assert_skills()
+    assert_plugin_layout(plugin)
+    assert_mcp_starts(plugin)
+
+
+if __name__ == "__main__":
+    main()

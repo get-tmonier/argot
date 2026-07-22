@@ -8,6 +8,15 @@ on:
       - scripts/release-journey.sh
       - scripts/check-release-version.py
       - scripts/test-check-release-version.py
+      - .claude-plugin/**
+      - hooks/hooks.json
+      - hooks/test-package-contract.py
+      - skills/**
+      - server.json
+      - Cargo.toml
+      - Cargo.lock
+      - crates/argot-cli/**
+      - landing/src/data/release.json
       - .github/workflows/release.yml
   workflow_dispatch:
 
@@ -40,3 +49,16 @@ jobs:
         env:
           ARGOT_BIN: ${{ runner.temp }}/argot-install/bin/argot${{ runner.os == 'Windows' && '.exe' || '' }}
         run: scripts/release-journey.sh
+
+  plugin-package-contract:
+    name: Plugin package contract
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+      - name: Install the candidate binary into an isolated prefix
+        run: cargo install --locked --path crates/argot-cli --root "$RUNNER_TEMP/argot-install"
+      - name: Smoke-test the published Claude Code package
+        env:
+          ARGOT_BIN: ${{ runner.temp }}/argot-install/bin/argot
+        run: python3 hooks/test-package-contract.py
