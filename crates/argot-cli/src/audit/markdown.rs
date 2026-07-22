@@ -2,7 +2,7 @@
 //! same content order as the terminal card: headline, groups, worst
 //! offender, the rest under `<details>`, honest framing.
 
-use super::report::{AuditReport, Finding, GroupStatus, RequestedWindow};
+use super::report::{AuditReport, Finding, GroupStatus, RequestedWindow, METHOD_NOTE};
 
 fn span(f: &Finding) -> String {
     if f.line_start == f.line_end {
@@ -34,10 +34,7 @@ pub fn render(report: &AuditReport) -> String {
     let verdict = if report.hunks_scanned == 0 {
         "no supported source changed".to_string()
     } else if n == 0 {
-        format!(
-            "**0 findings** in {} hunks — all in voice",
-            report.hunks_scanned
-        )
+        format!("**0 findings** in {} hunks", report.hunks_scanned)
     } else {
         format!(
             "**{n} finding{}** argot would have raised before merge",
@@ -90,7 +87,7 @@ pub fn render(report: &AuditReport) -> String {
         ));
     } else if report.findings.is_empty() {
         out.push_str(
-            "A quiet audit is a good sign: your recent history speaks the repo's language.\n\n",
+            "A quiet audit is a bounded result, not proof that every change is ready to accept.\n\n",
         );
     } else {
         let worst = &report.findings[0];
@@ -136,12 +133,12 @@ pub fn render(report: &AuditReport) -> String {
         }
     }
 
-    out.push_str(
+    out.push_str(&format!(
         "Merged code is accepted code — read each finding as \"would have prompted \
-         review before merge\", not a bug list. \"human\" means no AI markers were \
-         found; the AI share is a floor, not a census.\n\n\
+         review before merge\", not a bug list.\n\n\
+         {METHOD_NOTE}\n\n\
          Next: `argot init` fits today's voice so `argot check` raises these before they merge.\n",
-    );
+    ));
     out
 }
 
@@ -217,6 +214,7 @@ mod tests {
     fn quiet_markdown_is_positive() {
         let md = render(&report(vec![]));
         assert!(md.contains("**0 findings** in 500 hunks"));
-        assert!(md.contains("quiet audit is a good sign"));
+        assert!(md.contains("quiet audit is a bounded result"));
+        assert!(md.contains(METHOD_NOTE));
     }
 }

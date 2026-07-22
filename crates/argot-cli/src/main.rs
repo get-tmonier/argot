@@ -19,7 +19,7 @@ mod update_check;
 mod voice_diff;
 mod worktree;
 
-use clap::{Args, Parser, Subcommand};
+use clap::{Args, CommandFactory, Parser, Subcommand};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fs;
@@ -151,7 +151,7 @@ fn fit_timestamp(argot_dir: &Path) -> Option<String> {
 #[command(
     name = "argot",
     version,
-    about = "Voice linter that learns a repo's voice from git history."
+    about = "Surface repository-grounded divergence before code is accepted."
 )]
 struct Cli {
     #[command(subcommand)]
@@ -160,6 +160,10 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Audit recent history for patterns that would have prompted review.
+    /// It scores the surviving base-to-head change and classifies only
+    /// explicit AI markers; informational, exits 0.
+    Audit(AuditCmd),
     /// Set up argot for this repo: fit the voice model and report its health
     /// (`--suggest` lists directories you may want to exclude first).
     Init(InitCmd),
@@ -184,10 +188,6 @@ enum Command {
     Model(ModelCmd),
     /// Score a PR (or diff range) against the local voice without checking it out.
     Review(ReviewCmd),
-    /// Audit your recent history: score it against the voice fitted just
-    /// before it and attribute each finding to its introducing commit
-    /// (ai-assisted / human / unknown). Informational; exits 0.
-    Audit(AuditCmd),
     /// PR-level out-of-voice metric plus ranked hot-spots for a ref/range.
     /// Informational: always exits 0 (use `check`/`review` to gate).
     #[command(name = "voice-diff")]
@@ -785,10 +785,11 @@ fn freshness_hook() {
 }
 
 fn print_help_banner() {
-    let version = env!("CARGO_PKG_VERSION");
-    println!(
-        "argot v{version}\n\nCOMMANDS\n  init          Set up argot for this repo (fit + health check; --suggest lists dirs to exclude)\n  fit           Fit the voice model to this repo (= train + calibrate, one-shot)\n  check         Check changes against the fitted voice\n  rules         List every rule with its group and effective severity\n  review        Score a PR (or diff range) against the local voice, no checkout\n  audit         History scorecard: what argot would have caught, and who wrote it\n  voice-diff    PR-level out-of-voice metric + hot-spots for a ref/range\n  inspect       Report corpus composition, calibration health, and suitability\n  mute          Mute a hit by hash (appends a [[mute]] to argot.toml)\n  list-mutes    List active suppressions across all surfaces\n  review-mutes  Report (and --prune) hash-scoped mutes whose file is gone\n  model         Manage the local embedding model (fetch / status / clean)\n  status        Show current repository's argot state\n  list          List all registered repositories\n  update        Update the argot CLI\n  mcp           Run an MCP server for LLM coding agents (stdio)\n  describe-voice  Generate a STYLE.md describing the repo's learned voice\n\nTypical first run: argot init && argot check\nRun `argot <command> --help` for details on any command."
-    );
+    print!("{}", root_help());
+}
+
+fn root_help() -> String {
+    Cli::command().render_help().to_string()
 }
 
 #[derive(Args)]
@@ -2676,8 +2677,9 @@ fn main() -> ExitCode {
 mod tests {
     use super::{
         days_since_fit, ensure_local_config_gitignored, ensure_model_gitignored, fit_repo,
-        is_npm_install, resolve_argot_dir, wants_json,
+        is_npm_install, resolve_argot_dir, root_help, wants_json, Cli,
     };
+    use clap::CommandFactory;
 
     /// `argot fit` must be side-effect-free on the user's tracked tree — it may
     /// write only inside the gitignored `.argot/`. Scaffolding `argot.toml` or
@@ -2814,5 +2816,45 @@ mod tests {
             "/Users/x/.cargo/bin/argot"
         ))));
         assert!(!is_npm_install(None));
+    }
+
+    #[test]
+    fn root_help_lists_the_audit_first_public_command_registry() {
+        let command = Cli::command();
+        let command_ids: Vec<_> = command
+            .get_subcommands()
+            .filter(|command| !command.is_hide_set())
+            .map(|command| command.get_name())
+            .collect();
+
+        assert_eq!(command_ids[0], "audit");
+        for command in [
+            "audit",
+            "init",
+            "fit",
+            "check",
+            "rules",
+            "review",
+            "voice-diff",
+            "inspect",
+            "mute",
+            "list-mutes",
+            "review-mutes",
+            "status",
+            "list",
+            "update",
+            "cache",
+            "uninstall",
+            "mcp",
+            "describe-voice",
+            "conventions",
+        ] {
+            assert!(command_ids.contains(&command), "missing {command}");
+        }
+
+        let root = root_help();
+        assert!(root.starts_with("Surface repository-grounded divergence"));
+        assert!(root.contains("  audit           Audit recent history"));
+        assert!(root.contains("  conventions     List the conventions"));
     }
 }

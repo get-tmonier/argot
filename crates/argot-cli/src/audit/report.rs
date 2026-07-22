@@ -122,6 +122,11 @@ pub struct AuditReport {
 
 pub const SCHEMA_VERSION: u32 = 1;
 
+/// Shared human-renderer boundary: audit scores the net change that survives
+/// between its historical base and HEAD, and markers are evidence, not a full
+/// authorship census.
+pub const METHOD_NOTE: &str = "Method: findings are patterns that survive the audited base-to-head change. AI-marker attribution is a floor, not a census; \"human\" means no marker was found.";
+
 impl AuditReport {
     pub fn to_json(&self) -> String {
         let mut s = serde_json::to_string_pretty(self).expect("audit report serializes");
@@ -171,13 +176,13 @@ pub fn share_caption(report: &AuditReport) -> Option<String> {
     let n = report.findings.len();
     Some(if n == 0 {
         format!(
-            "argot audited my last {commits} commits — 0 patterns foreign to this \
-             repo's own style ({share}% of commits carried AI markers)."
+            "argot audited my last {commits} commits — 0 patterns it would have raised \
+             for review ({share}% of commits carried AI markers)."
         )
     } else {
         format!(
-            "argot audited my last {commits} commits: {n} pattern{} foreign to this \
-             repo's own style, {share}% of commits carried AI markers.",
+            "argot audited my last {commits} commits: {n} pattern{} it would have raised \
+             for review, {share}% of commits carried AI markers.",
             if n == 1 { "" } else { "s" }
         )
     })
@@ -304,13 +309,16 @@ mod tests {
             900,
         );
         let cap = share_caption(&report).unwrap();
-        assert!(cap.contains("1 pattern foreign"), "{cap}");
+        assert!(
+            cap.contains("1 pattern it would have raised for review"),
+            "{cap}"
+        );
         assert!(cap.contains("33% of commits carried AI markers"), "{cap}");
         // A quiet audit brags positively rather than going silent.
         report.findings.clear();
         assert!(share_caption(&report)
             .unwrap()
-            .contains("0 patterns foreign"));
+            .contains("0 patterns it would have raised for review"));
         // A docs-only window has nothing to share.
         report.hunks_scanned = 0;
         assert!(share_caption(&report).is_none());
