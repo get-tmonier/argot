@@ -140,7 +140,7 @@ const next = idx >= 0 && idx < flat.length - 1 ? flat[idx + 1] : null;
       </details>
     </aside>
 
-    <article class="doc-prose min-w-0">
+    <main id="main-content" tabindex="-1" class="doc-prose min-w-0">
       <h1>{title}</h1>
       <p class="lead">{description}</p>
       <slot />
@@ -165,7 +165,7 @@ const next = idx >= 0 && idx < flat.length - 1 ? flat[idx + 1] : null;
           )
         }
       </nav>
-    </article>
+    </main>
   </div>
 </Base>
 
@@ -244,6 +244,9 @@ const next = idx >= 0 && idx < flat.length - 1 ? flat[idx + 1] : null;
     overflow-x: auto;
     font-size: 0.85rem;
     line-height: 1.7;
+  }
+  .doc-prose pre span[style*='8B8B8B94'] {
+    color: #b7b4ad !important;
   }
   .doc-prose pre code {
     font-family: var(--font-mono);

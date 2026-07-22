@@ -23,7 +23,7 @@ const { content, locale } = Astro.props;
 
 <Base title={content.meta.title} description={content.meta.description} locale={locale} snap>
   <Nav content={content} locale={locale} />
-  <main>
+  <main id="main-content" tabindex="-1">
     <Hero content={content} locale={locale} />
     <Demo content={content} />
     <Audit content={content} />
