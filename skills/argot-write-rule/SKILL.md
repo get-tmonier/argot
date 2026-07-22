@@ -19,7 +19,9 @@ same severities, same suppressions, same output formats, one more group,
 
 Rule authoring is a later, explicit workflow: use audit and ordinary checks to
 establish current behavior first. A custom rule must never turn a probabilistic
-finding into an unreviewed default gate.
+finding into an unreviewed default gate. Writing or installing this skill does
+not schedule a check; a repository may choose to run its committed custom rules
+through an explicit local or CI workflow.
 
 ## The gate: `argot rules test <name>` must be green
 
