@@ -32,6 +32,39 @@ fn assert_check_json_v1(doc: &Value) {
     }
 }
 
+#[test]
+fn check_json_v1_accepts_unknown_consumer_fields() {
+    let schema: Value =
+        serde_json::from_str(include_str!("../../../docs/schema/check-v1.schema.json"))
+            .expect("valid check JSON schema");
+    let validator = jsonschema::JSONSchema::compile(&schema).expect("compile check JSON schema");
+    let mut doc = serde_json::json!({
+        "schema_version": 1,
+        "tool": { "name": "argot", "version": "0.0.0-test" },
+        "model": "test-model",
+        "repo": "/tmp/repo",
+        "scanned": "workdir",
+        "hunks_scanned": 0,
+        "files_scanned": [],
+        "result": {
+            "exit_code": 0,
+            "unsuppressed_hits": 0,
+            "visible_hits": 0,
+            "hidden_hits": 0,
+            "suppressed_hits": 0,
+            "error_hits": 0,
+            "warn_hits": 0,
+            "gating_hits": 0
+        },
+        "hits": []
+    });
+    doc["consumer_extension"] = serde_json::json!({ "future": true });
+    assert!(
+        validator.is_valid(&doc),
+        "v1 consumers must tolerate additive unknown fields"
+    );
+}
+
 fn fixture_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/check")
 }

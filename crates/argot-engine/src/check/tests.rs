@@ -49,6 +49,42 @@ fn hidden_findings_keep_their_gate_and_are_counted() {
 }
 
 #[test]
+fn status_uses_all_unsuppressed_findings_not_the_displayed_tier() {
+    let error = finding("import", None);
+    let warn = finding("test_weakened", None);
+    let suppressed = finding("import", Some(crate::finding::SuppressedBy::Mute));
+    let settings = rules::RuleSettings::resolve(&[]);
+
+    // The three confidence tiers select presentation only. No displayed hit,
+    // the warn hit only, and every hit must retain the same error status.
+    for visible in [&[][..], &[&warn][..], &[&error, &warn][..]] {
+        let summary =
+            super::orchestrate::result_summary(&[&error, &warn], visible, 0, &settings, false);
+        assert_eq!(summary.exit_code, 1);
+    }
+
+    let warn_default = super::orchestrate::result_summary(&[&warn], &[], 0, &settings, false);
+    assert_eq!(
+        warn_default.exit_code, 0,
+        "warn-only is advisory by default"
+    );
+    let warn_strict = super::orchestrate::result_summary(&[&warn], &[], 0, &settings, true);
+    assert_eq!(
+        warn_strict.exit_code, 1,
+        "strict warnings still gate when hidden"
+    );
+    let suppressed_only = super::orchestrate::result_summary(
+        &[],
+        &[],
+        usize::from(suppressed.suppressed_by.is_some()),
+        &settings,
+        true,
+    );
+    assert_eq!(suppressed_only.exit_code, 0);
+    assert_eq!(suppressed_only.suppressed_hits, 1);
+}
+
+#[test]
 fn insert_ignore_comments_bottom_up_with_indentation() {
     let src = "def a():\n    x = 1\n    y = 2\n\ndef b():\n    z = 3\n";
     let out = insert_ignore_comments(
