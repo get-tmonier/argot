@@ -327,7 +327,12 @@ mod tests {
                 unknown: 0,
             },
             hunks_scanned: 200,
-            groups: vec![],
+            groups: vec![GroupReport {
+                group: "semantic",
+                status: GroupStatus::Skipped,
+                findings: 0,
+                skip_reason: Some("embedding model not available (offline?)".into()),
+            }],
             findings: vec![f],
         };
         let html = render(&report);
@@ -351,6 +356,7 @@ mod tests {
         assert!(html.contains("GitHub Action runs automatically in CI once configured"));
         assert!(html.contains(CI_GUIDE_URL));
         assert!(html.contains(&format!("href=\"{CI_GUIDE_URL}\"")));
+        assert!(html.contains("embedding model not available (offline?)"));
         assert!(!html.contains("og:image"));
     }
 }
