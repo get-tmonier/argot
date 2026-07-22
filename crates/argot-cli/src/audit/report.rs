@@ -326,4 +326,58 @@ mod tests {
         report.hunks_scanned = 0;
         assert!(share_caption(&report).is_none());
     }
+
+    #[test]
+    fn renderer_contract_keeps_method_attribution_and_next_actions_in_sync() {
+        let report = report_with(
+            vec![finding(
+                "foreign-import",
+                "foreign",
+                "error",
+                "src/client.ts",
+            )],
+            900,
+        );
+        let terminal = super::super::term::render(&report, false);
+        let markdown = super::super::markdown::render(&report);
+        let html = super::super::html::render(&report);
+        let json: serde_json::Value = serde_json::from_str(&report.to_json()).unwrap();
+
+        for rendered in [&terminal, &markdown, &html] {
+            assert!(
+                rendered.contains("audited base-to-head change"),
+                "{rendered}"
+            );
+            assert!(
+                rendered.contains("attribution is a floor, not a census"),
+                "{rendered}"
+            );
+            assert!(rendered.contains("no marker was found"), "{rendered}");
+            assert!(rendered.contains("argot init"), "{rendered}");
+            assert!(rendered.contains("pre-commit"), "{rendered}");
+            assert!(rendered.contains("GitHub Action"), "{rendered}");
+            assert!(rendered.contains(CI_GUIDE_URL), "{rendered}");
+        }
+        assert_eq!(json["schema_version"], SCHEMA_VERSION);
+        assert_eq!(json["findings"][0]["commit"]["attribution"], "human");
+        assert!(share_caption(&report)
+            .unwrap()
+            .contains("would have raised for review"));
+    }
+
+    #[test]
+    fn transient_change_absent_from_net_diff_has_no_shareable_finding() {
+        // A source change added and then removed has no surviving base-to-head
+        // hunk. Every renderer must present that net-diff outcome consistently.
+        let report = report_with(vec![], 0);
+        let terminal = super::super::term::render(&report, false);
+        let markdown = super::super::markdown::render(&report);
+        let html = super::super::html::render(&report);
+
+        for rendered in [&terminal, &markdown, &html] {
+            assert!(rendered.contains("no supported source"), "{rendered}");
+            assert!(!rendered.contains("Worst offender"), "{rendered}");
+        }
+        assert!(share_caption(&report).is_none());
+    }
 }
