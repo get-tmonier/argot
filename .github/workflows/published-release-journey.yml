@@ -1,6 +1,10 @@
 name: Published release installer journey
 
 on:
+  pull_request:
+    paths:
+      - .github/workflows/published-release-journey.yml
+      - scripts/published-release-journey.sh
   release:
     types: [published]
   workflow_dispatch:
