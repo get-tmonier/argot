@@ -23,7 +23,10 @@ into a real scripted rule — same manifest + Rhai + fixture-gate shape as
 <https://argot.tmonier.com/docs/custom-rules/>.
 
 This is a deliberate later workflow after audit and ordinary check activation;
-it does not make a discovered convention a default CI or commit gate.
+it does not make a discovered convention a default CI or commit gate. It is
+assisted authoring, not rule generation or lifecycle wiring: a user still
+chooses the convention, reviews the rule, and configures any workflow that runs
+it.
 
 ## Preconditions
 

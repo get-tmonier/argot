@@ -8,7 +8,9 @@ description: Wire argot into a repository's GitHub Actions as a non-blocking con
 Add argot to a repository's CI as a **non-blocking** pattern check on every
 pull request. You do **not** need to set argot up locally first — the Action
 installs argot and fits the model in CI. Never make it block the merge unless
-the user explicitly asks for a gate.
+the user explicitly asks for a gate. This is user-wired automation: the Action
+runs only at the GitHub event in the workflow the repository commits; it does
+not install or claim an agent end-of-turn or acceptance lifecycle.
 
 ## Steps
 
@@ -85,5 +87,8 @@ the user explicitly asks for a gate.
 - **Self-contained.** The Action installs argot, fits the model on the PR's
   **base** branch, and scores the PR against it — a dependency or idiom the PR
   introduces is judged as new, not self-certified. No local argot needed.
+- **Workflow-scoped.** The Action can run automatically after its workflow is
+  committed, but no skill or plugin installation schedules CI or a full local
+  check by itself.
 - Full options and the copy-paste workflow: the
   [CI guide](https://argot.tmonier.com/docs/ci/).

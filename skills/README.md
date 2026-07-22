@@ -12,6 +12,10 @@ alongside a production change (`test-weakened`, `test-disabled`,
 `test-deleted`) — plus whatever custom rules a repo has written for itself.
 Pick the local path, the CI path, or both.
 
+Skills are selected, on-demand workflows: installing them does not schedule an
+Argot check. The GitHub Action is separate and runs only after a repository
+adds a workflow for a GitHub event.
+
 | Skill | Path | When it runs |
 |---|---|---|
 | [`argot-setup`](./argot-setup/SKILL.md) | local | Once per repo — fit the model, build the semantic index, and decide what shouldn't shape the repo's voice (writes `argot.toml`). |
