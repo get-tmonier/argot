@@ -5,6 +5,7 @@ import json
 import os
 import re
 import subprocess
+import tempfile
 from pathlib import Path
 
 
@@ -84,12 +85,45 @@ def assert_plugin_layout(plugin: dict) -> None:
     declarations = pre_tool_use[0]["hooks"]
     assert len(declarations) == 1
     assert declarations[0]["type"] == "command"
-    assert "argot hook --repo" in declarations[0]["command"]
-    assert "argot check" not in declarations[0]["command"]
+    declaration = declarations[0]
+    assert declaration["timeout"] == 5
+    assert "argot hook --repo" in declaration["command"]
+    assert "argot check" not in declaration["command"]
+    assert_hook_fails_open_silently(declaration["command"])
 
     # The package ships one pre-write ask, not a second copy or a lifecycle hook.
     assert "hooks" not in plugin
     assert "Stop" not in json.dumps(hooks)
+
+
+def assert_hook_fails_open_silently(command: str) -> None:
+    """The manifest wrapper must not turn a hook failure into coding friction."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp = Path(temp_dir)
+        project = temp / "project"
+        (project / ".argot").mkdir(parents=True)
+        (project / ".argot/scorer-config.json").write_text("not valid json")
+
+        bin_dir = temp / "bin"
+        bin_dir.mkdir()
+        argot = bin_dir / "argot"
+        argot.write_text("#!/bin/sh\nexit 1\n")
+        argot.chmod(0o755)
+
+        result = subprocess.run(
+            ["sh", "-c", command],
+            capture_output=True,
+            text=True,
+            check=False,
+            env={
+                **os.environ,
+                "CLAUDE_PROJECT_DIR": str(project),
+                "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+            },
+        )
+        assert result.returncode == 0
+        assert result.stdout == ""
+        assert result.stderr == ""
 
 
 def assert_mcp_starts(plugin: dict) -> None:
