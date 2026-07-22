@@ -1,4 +1,4 @@
-# README demo GIF
+# Demo and proof receipts
 
 `demo.gif` is the animated demo at the top of the project README. It runs
 `argot check --staged` against a real, calibrated model and shows the colored
@@ -25,3 +25,20 @@ docs/demo/render.sh     # clones FastAPI on first run, then records demo.gif
 
 The hit shown is byte-identical to the sample in the README, because both come
 from the same binary against the same pinned checkout.
+
+## Authored behavioral fixture and audit bundle
+
+`receipts.py` is an **authored fixture**. It is never presented as a real-world
+catch. The deterministic receipt bundle under [`proof/`](proof/) records the
+staged finding, its Argot finding hash, and a one-commit audit in JSON,
+Markdown, and HTML.
+
+```sh
+cargo build --bin argot
+RECORD_AUDIT=1 docs/demo/rebuild-proof.sh
+docs/demo/check-proof.sh
+```
+
+The proof README documents the pinned version, fixture history, semantic-off
+status, and byte-for-byte checksum gate. The existing README GIF remains a
+separate check-output recording; its consumer owns any public copy changes.
