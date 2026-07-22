@@ -255,7 +255,7 @@ pub fn render(report: &AuditReport) -> String {
     body.push_str(&format!(
         "<p class=\"frame\">Merged code is accepted code — read each finding as \
          &ldquo;would have prompted review before merge&rdquo;, not a bug list.<br>{method_note}<br>Next: <code>argot init</code> fits today's voice so \
-         <code>argot check</code> raises these before they merge.<br>Then choose a recurring path you configure: pre-commit runs automatically at commit time once configured; the GitHub Action runs automatically in CI once configured. <code>{ci_guide_url}</code></p>\n",
+         <code>argot check</code> raises these before they merge.<br>Then choose a recurring path you configure: pre-commit runs automatically at commit time once configured; the GitHub Action runs automatically in CI once configured. <a href=\"{ci_guide_url}\">CI and pre-commit guide</a>.</p>\n",
         method_note = esc(METHOD_NOTE),
         ci_guide_url = CI_GUIDE_URL,
     ));
@@ -332,8 +332,8 @@ mod tests {
         };
         let html = render(&report);
         assert!(html.starts_with("<!doctype html>"));
-        // Self-contained: no external fetches of any kind.
-        for banned in ["http-equiv", "src=\"http", "href=", "@import", "url("] {
+        // Self-contained: no external fetches; the CTA is a user-followed link.
+        for banned in ["http-equiv", "src=\"http", "@import", "url("] {
             assert!(!html.contains(banned), "{banned}");
         }
         assert!(html.contains("prefers-color-scheme: dark"));
@@ -350,6 +350,7 @@ mod tests {
         assert!(html.contains("pre-commit runs automatically at commit time once configured"));
         assert!(html.contains("GitHub Action runs automatically in CI once configured"));
         assert!(html.contains(CI_GUIDE_URL));
+        assert!(html.contains(&format!("href=\"{CI_GUIDE_URL}\"")));
         assert!(!html.contains("og:image"));
     }
 }
