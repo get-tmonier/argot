@@ -174,6 +174,7 @@ fn to_pretty(doc: &Value) -> String {
 /// Render the argot JSON document (`--format json`).
 pub fn render_json(meta: &ReportMeta, hits: &[HitRecord]) -> String {
     let doc = json!({
+        "schema_version": 1,
         "tool": { "name": "argot", "version": meta.tool_version },
         "model": meta.model,
         "repo": meta.repo,

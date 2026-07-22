@@ -1,0 +1,17 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://argot.tmonier.com/schema/check-v1.schema.json",
+  "title": "argot check JSON v1",
+  "description": "The public additive JSON contract emitted by argot check --format json. Consumers must ignore unknown fields and unknown rule identifiers.",
+  "type": "object",
+  "required": ["schema_version", "tool", "model", "repo", "scanned", "hunks_scanned", "files_scanned", "result", "hits"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "tool": { "type": "object", "required": ["name", "version"], "properties": { "name": { "const": "argot" }, "version": { "type": "string" } } },
+    "model": { "type": "string" }, "repo": { "type": "string" }, "scanned": { "type": "string" },
+    "hunks_scanned": { "type": "integer", "minimum": 0 },
+    "files_scanned": { "type": "array", "items": { "type": "object", "required": ["path", "hunks"], "properties": { "path": { "type": "string" }, "hunks": { "type": "integer", "minimum": 0 } } } },
+    "result": { "type": "object", "required": ["exit_code", "unsuppressed_hits", "visible_hits", "hidden_hits", "suppressed_hits", "error_hits", "warn_hits", "gating_hits"], "properties": { "exit_code": { "enum": [0, 1, 2] }, "unsuppressed_hits": { "type": "integer", "minimum": 0 }, "visible_hits": { "type": "integer", "minimum": 0 }, "hidden_hits": { "type": "integer", "minimum": 0 }, "suppressed_hits": { "type": "integer", "minimum": 0 }, "error_hits": { "type": "integer", "minimum": 0 }, "warn_hits": { "type": "integer", "minimum": 0 }, "gating_hits": { "type": "integer", "minimum": 0 } } },
+    "hits": { "type": "array", "items": { "type": "object", "required": ["path", "line_start", "line_end", "score", "threshold", "confidence", "severity", "rule", "rule_label", "source", "hash", "evidence"], "properties": { "path": { "type": "string" }, "line_start": { "type": "integer", "minimum": 1 }, "line_end": { "type": "integer", "minimum": 1 }, "score": { "type": "number" }, "threshold": { "type": "number" }, "confidence": { "type": "string" }, "severity": { "type": "string" }, "rule": { "type": "string" }, "rule_label": { "type": "string" }, "source": { "type": "string" }, "hash": { "type": "string" }, "evidence": { "type": "array", "items": { "type": "string" } }, "symbol": { "type": "string" }, "foreign_specifiers": { "type": "array", "items": { "type": "string" } }, "similarity": { "type": "number" } } } }
+  }
+}
