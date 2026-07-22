@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Regenerate into a temporary copy and compare every committed proof receipt.
+# Regenerate into a temporary copy and compare every committed audit receipt.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

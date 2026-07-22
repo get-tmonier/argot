@@ -1,48 +1,37 @@
-# Demo and proof receipts
+# Audit demo and proof receipts
 
-`demo.gif` is the animated demo consumed at the top of the project README. It runs
-`argot check --staged` against a real, calibrated model and shows the colored
-severity glyph, the `↳` evidence line, and the hunk body — the terminal UX *is*
-the product screenshot, so it's scripted and re-renderable rather than
-hand-recorded.
+`proof/audit.gif` is the rendered terminal recording consumed by the project
+README. It starts with a no-setup `argot audit`, shows the finding in an
+**authored** two-commit fixture, then names the deliberate next step: fit the
+current repository before using `argot check` on new changes.
+
+The final lines mention pre-commit and GitHub Actions as optional routes that
+must be configured separately. This recording does not configure either route,
+schedule a check, or claim an ongoing lifecycle.
 
 ## Files
 
-- **`demo.tape`** — the [VHS](https://github.com/charmbracelet/vhs) script (styling + the typed command).
-- **`receipts.py`** — the out-of-voice hunk: a Django-style class-based view in an all-FastAPI codebase. The foreign `django` import is a **categorical** foreign-dependency hit (score 1.0), so it fires deterministically regardless of how the BPE stage calibrates — the demo can never render "clean". The same hunk the README quotes.
-- **`render.sh`** — reproducible driver: **hard-resets** the checkout (so a prior run's planted hunk can't contaminate the fit), fits argot on the pinned FastAPI benchmark, plants `receipts.py` as a new file, and records the committed GIF.
+- **`audit.tape`** — the [VHS](https://github.com/charmbracelet/vhs) script for the terminal recording.
+- **`receipts.py`** — the introduced Django-style change in the small authored fixture. It exists solely to make the audit result deterministic; it is not presented as a real-world catch.
+- **`rebuild-proof.sh`** — constructs the fixed two-commit repository, records the audit JSON/Markdown/HTML receipts, and optionally records the GIF.
+- **[`proof/`](proof/)** — committed receipts, checksum manifest, and the accessible caption for the visual.
 
-The landing page uses an accessible, live-text terminal component rather than a
-copy of this GIF. The duplicate landing asset was therefore removed; this README
-GIF is the only committed consumer-facing demo recording.
+## Rebuild and verify
 
-## Re-render
-
-Whenever `argot check`'s output format changes, regenerate so the GIF can't
-drift like a hand-written text sample:
-
-```sh
-brew install vhs        # once — pulls ttyd + ffmpeg
-just build              # ensure target/release/argot is current
-docs/demo/render.sh     # clones FastAPI on first run, then records docs/demo/demo.gif
-```
-
-The hit shown is byte-identical to the sample in the README, because both come
-from the same binary against the same pinned checkout.
-
-## Authored behavioral fixture and audit bundle
-
-`receipts.py` is an **authored fixture**. It is never presented as a real-world
-catch. The deterministic receipt bundle under [`proof/`](proof/) records the
-staged finding, its Argot finding hash, and a one-commit audit in JSON,
-Markdown, and HTML.
+The bundle is pinned to the `argot 0.2.100` output contract and rebuilt with a
+local development binary reporting that version. This default build
+intentionally omits the semantic, architecture, and integrity feature layers,
+so the committed receipt records those groups as unavailable rather than making
+a claim about the released full-feature binary.
 
 ```sh
-cargo build --bin argot
+cargo build --bin argot         # produces target/debug/argot 0.2.100
 RECORD_AUDIT=1 docs/demo/rebuild-proof.sh
 docs/demo/check-proof.sh
 ```
 
-The proof README documents the pinned version, fixture history, semantic-off
-status, and byte-for-byte checksum gate. The existing README GIF remains a
-separate check-output recording; its consumer owns any public copy changes.
+Install [VHS](https://github.com/charmbracelet/vhs) first (`brew install vhs`)
+when recording `audit.gif`. JSON, Markdown, and HTML receipts are
+byte-for-byte checked; GIF bytes are intentionally not compared because
+VHS/FFmpeg output is not stable across runners. See [`proof/README.md`](proof/README.md)
+for the fixture history, version/context, checksum gate, and alt/caption.
