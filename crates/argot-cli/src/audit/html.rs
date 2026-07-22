@@ -3,7 +3,7 @@
 //! screenshot-ready: `argot audit --format html > audit.html`.
 
 use super::attribution::Attribution;
-use super::report::{AuditReport, Finding, GroupStatus, RequestedWindow};
+use super::report::{AuditReport, Finding, GroupStatus, RequestedWindow, METHOD_NOTE};
 
 fn esc(s: &str) -> String {
     s.replace('&', "&amp;")
@@ -190,9 +190,8 @@ pub fn render(report: &AuditReport) -> String {
         ));
     } else if report.findings.is_empty() {
         body.push_str(&format!(
-            "<div class=\"quiet\">Nothing argot would have raised — {} hunks audited, \
-             all in voice. A quiet audit is a good sign: your recent history speaks the \
-             repo's language.</div>\n",
+            "<div class=\"quiet\">Nothing argot would have raised — {} hunks audited. \
+             A quiet audit is a bounded result, not proof that every change is ready to accept.</div>\n",
             report.hunks_scanned
         ));
     } else {
@@ -251,15 +250,14 @@ pub fn render(report: &AuditReport) -> String {
         }
     }
 
-    body.push_str(
+    body.push_str(&format!(
         "<p class=\"frame\">Merged code is accepted code — read each finding as \
-         &ldquo;would have prompted review before merge&rdquo;, not a bug list. \
-         &ldquo;human&rdquo; means no AI markers were found; the AI share is a floor, \
-         not a census.<br>Next: <code>argot init</code> fits today's voice so \
+         &ldquo;would have prompted review before merge&rdquo;, not a bug list.<br>{method_note}<br>Next: <code>argot init</code> fits today's voice so \
          <code>argot check</code> raises these before they merge.</p>\n",
-    );
+        method_note = esc(METHOD_NOTE),
+    ));
     body.push_str(
-        "<p class=\"brand\"><b>argot</b> · learns your repo's voice from its git \
+        "<p class=\"brand\"><b>argot</b> · repository-grounded checks from git \
          history · argot.tmonier.com</p>\n",
     );
 
@@ -344,6 +342,8 @@ mod tests {
         // Social preview meta + brand footer, still self-contained (no og:image).
         assert!(html.contains("og:description"));
         assert!(html.contains("class=\"brand\""));
+        assert!(html.contains("findings are patterns that survive the audited base-to-head change"));
+        assert!(html.contains("no marker was found"));
         assert!(!html.contains("og:image"));
     }
 }

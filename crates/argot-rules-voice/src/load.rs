@@ -12,6 +12,9 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::Path;
 
+#[cfg(test)]
+mod tests;
+
 /// One calibrated slice for check-time dispatch: its threshold applies to hunks
 /// whose repo-relative path matches any of `paths`.
 pub(super) struct SliceEntry {
@@ -99,8 +102,14 @@ pub(super) fn load_scorers(
     let config_json = argot_dir.join("scorer-config.json");
 
     for (p, msg) in [
-        (&generic_baseline_json, "run `argot init` first"),
-        (&config_json, "run `argot init` first"),
+        (
+            &generic_baseline_json,
+            "run `argot audit` for a no-setup history check, or `argot init` to set up recurring checks",
+        ),
+        (
+            &config_json,
+            "run `argot audit` for a no-setup history check, or `argot init` to set up recurring checks",
+        ),
     ] {
         if !p.exists() {
             return Err((format!("error: {} not found — {}\n", p.display(), msg), 2));

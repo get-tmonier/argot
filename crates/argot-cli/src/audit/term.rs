@@ -231,15 +231,15 @@ pub fn render(report: &AuditReport, color: bool) -> String {
         push(
             &mut out,
             &format!(
-                "  Nothing argot would have raised — {} hunks audited, all in voice.",
+                "  Nothing argot would have raised — {} hunks audited.",
                 report.hunks_scanned
             ),
         );
         push(
             &mut out,
-            &dim("  A quiet audit is a good sign: your recent history speaks the"),
+            &dim("  A quiet audit is a bounded result, not proof that every change"),
         );
-        push(&mut out, &dim("  repo's language."));
+        push(&mut out, &dim("  is ready to accept."));
     } else {
         render_findings(&mut out, report, color);
     }
@@ -252,11 +252,15 @@ pub fn render(report: &AuditReport, color: bool) -> String {
     );
     push(
         &mut out,
-        &dim("  prompted review before merge\", not a bug list. \"human\" means no AI"),
+        &dim("  prompted review before merge\", not a bug list."),
     );
     push(
         &mut out,
-        &dim("  markers were found; the AI share is a floor, not a census."),
+        &dim("  Method: findings survive the audited base-to-head change. AI-marker"),
+    );
+    push(
+        &mut out,
+        &dim("  attribution is a floor, not a census; \"human\" means no marker was found."),
     );
     push(
         &mut out,
@@ -474,17 +478,25 @@ mod tests {
         assert!(card.contains("argot init"));
         // The share affordance carries the hook and the URL.
         assert!(card.contains("Share this"));
-        assert!(card.contains("2 patterns foreign to this"));
+        assert!(card.contains("2 patterns it would have raised"));
         assert!(card.contains("argot.tmonier.com"));
     }
 
     #[test]
     fn quiet_card_is_a_positive_verdict() {
         let card = render(&base_report(vec![], 1200), false);
-        assert!(card.contains("all in voice"));
-        assert!(card.contains("quiet audit is a good sign"));
+        assert!(card.contains("Nothing argot would have raised"));
+        assert!(card.contains("quiet audit is a bounded result"));
         assert!(card.contains("0 findings in 1200 hunks"));
         assert!(!card.contains("Worst offender"));
+    }
+
+    #[test]
+    fn card_states_the_audit_method_boundary() {
+        let card = render(&base_report(vec![], 1200), false);
+        assert!(card.contains("findings survive the audited base-to-head change"));
+        assert!(card.contains("attribution is a floor, not a census"));
+        assert!(super::super::report::METHOD_NOTE.contains("no marker was found"));
     }
 
     #[test]
