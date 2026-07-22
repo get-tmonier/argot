@@ -18,8 +18,10 @@ use std::process::ExitCode;
 use serde_json::{json, Value};
 
 use argot_core::check::RepoScorers;
-use argot_core::config::ArgotConfig;
+use argot_core::config::{ArgotConfig, MigrationKind};
+use argot_core::rules::Severity;
 use argot_core::scoring::evidence::format_evidence;
+use argot_core::suppress::PathScope;
 
 /// Tools whose input carries code we can score before it's written.
 fn is_write_tool(name: &str) -> bool {
@@ -87,12 +89,18 @@ pub fn run_hook(repo: PathBuf) -> ExitCode {
 /// dependency foreign to the repo (the `foreign-import` signal — 98% catch /
 /// 0.29% false-alarm). Everything else stays silent so the hook never nags.
 fn assess(repo: &Path, file_path: &str, content: &str) -> Option<String> {
-    let detect = ArgotConfig::load(repo).detect;
-    let mut scorers = RepoScorers::load(&repo.join(".argot"), &detect).ok()?;
+    let config = ArgotConfig::load(repo);
+    let relative_path = repo_relative_path(repo, file_path)?;
+    if !can_assess(&config, &relative_path) {
+        return None;
+    }
+
+    let mut scorers = RepoScorers::load(&repo.join(".argot"), &config.detect).ok()?;
     scorers.language_for(file_path)?;
     let scored = scorers.score(file_path, content, Some(content))?;
     if !scored.flagged
         || argot_core::rules::code_for_reason(scored.reason.as_str()) != "foreign-import"
+        || only_declared_replacements(&config, &scored.foreign_import_modules)
     {
         return None;
     }
@@ -124,34 +132,62 @@ fn assess(repo: &Path, file_path: &str, content: &str) -> Option<String> {
     })
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn only_write_family_tools_are_scored() {
-        assert!(is_write_tool("Write"));
-        assert!(is_write_tool("Edit"));
-        assert!(is_write_tool("MultiEdit"));
-        assert!(!is_write_tool("Read"));
-        assert!(!is_write_tool("Bash"));
+/// Apply the configuration subset that can be decided before a write. The
+/// hook has no final diff hunk or stable hit hash, so inline and hash mutes are
+/// deliberately unsupported here; treating a proposed partial edit as either
+/// would claim parity the hook cannot provide.
+fn can_assess(config: &ArgotConfig, relative_path: &str) -> bool {
+    // Check reports configuration diagnostics to its caller; the hook has no
+    // diagnostic channel that should interrupt an agent, so malformed config
+    // fails open rather than silently falling back to a possibly unwanted ask.
+    if !config.warnings.is_empty() {
+        return false;
     }
-
-    #[test]
-    fn proposed_content_reads_write_and_edit_shapes() {
-        assert_eq!(
-            proposed_content(&json!({"content": "import x\n"})),
-            "import x\n"
-        );
-        let edit = json!({"edits": [
-            {"old_string": "a", "new_string": "import y"},
-            {"old_string": "b", "new_string": "z"}
-        ]});
-        assert_eq!(proposed_content(&edit), "import y\nz");
-        assert_eq!(
-            proposed_content(&json!({"new_string": "import q"})),
-            "import q"
-        );
-        assert_eq!(proposed_content(&json!({})), "");
-    }
+    let settings = config.rule_settings(&Vec::new());
+    settings.severity_of_reason("import") != Severity::Off
+        && settings.covers_path("import", relative_path)
+        && config.path_suppressions().classify(relative_path) == PathScope::InScope
 }
+
+/// Full check attests declared replacement imports before scoring. At pre-write
+/// time, retain a prompt when any other foreign import remains in the proposed
+/// content; suppress only when every foreign module is a declared replacement.
+fn only_declared_replacements(config: &ArgotConfig, foreign_modules: &[String]) -> bool {
+    !foreign_modules.is_empty()
+        && foreign_modules.iter().all(|module| {
+            config
+                .migrations()
+                .active
+                .iter()
+                .any(|migration| migration.kind == MigrationKind::Import && module == &migration.to)
+        })
+}
+
+/// Normalize a Claude file path to the repository-relative, slash-separated
+/// form used by Argot's path scopes and exclusions. Files outside the repo (or
+/// relative paths escaping it) are not candidates for a pre-write ask.
+fn repo_relative_path(repo: &Path, file_path: &str) -> Option<String> {
+    let path = Path::new(file_path);
+    let candidate = if path.is_absolute() {
+        path.strip_prefix(repo).ok()?.to_path_buf()
+    } else {
+        if path
+            .components()
+            .any(|part| matches!(part, std::path::Component::ParentDir))
+        {
+            return None;
+        }
+        path.to_path_buf()
+    };
+    let parts = candidate
+        .components()
+        .filter_map(|part| match part {
+            std::path::Component::Normal(name) => name.to_str(),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    (!parts.is_empty()).then(|| parts.join("/"))
+}
+
+#[cfg(test)]
+mod tests;
