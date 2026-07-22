@@ -114,6 +114,32 @@ fn human_brief_leads_with_severity_then_rule_span_and_action() {
 }
 
 #[test]
+fn normal_human_brief_shows_three_priority_findings_then_expansion_hint() {
+    let settings = rules::RuleSettings::resolve(&[]);
+    let findings: Vec<crate::finding::Finding> = (1..=4)
+        .map(|line| {
+            let mut hit = finding("import", None);
+            hit.file_path = format!("{line}.py");
+            hit.line = line;
+            hit.hash = format!("hash{line:08}");
+            hit
+        })
+        .collect();
+    let refs: Vec<&crate::finding::Finding> = findings.iter().collect();
+    let mut out = String::new();
+
+    assert!(!super::render::render_results(
+        &refs,
+        Some(1),
+        false,
+        &settings,
+        &mut out
+    ));
+    assert_eq!(out.matches("argot mute hash").count(), 3);
+    assert!(out.contains("1 more finding is not shown in this brief; pass --verbose (-v)"));
+}
+
+#[test]
 fn insert_ignore_comments_bottom_up_with_indentation() {
     let src = "def a():\n    x = 1\n    y = 2\n\ndef b():\n    z = 3\n";
     let out = insert_ignore_comments(

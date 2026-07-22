@@ -261,7 +261,14 @@ pub(super) fn render_results(
 
     let mut any_truncated = false;
     let n_files = sorted_files.len();
+    // The default decision brief presents the three highest-priority findings;
+    // verbose mode remains the complete evidence view.
+    let display_limit = if hunk_lines.is_some() { 3 } else { usize::MAX };
+    let mut rendered = 0usize;
     for (i, fp) in sorted_files.iter().enumerate() {
+        if rendered == display_limit {
+            break;
+        }
         let mut fhits: Vec<&Finding> = file_hits[fp].clone();
         fhits.sort_by(|left, right| {
             usize::from(settings.severity_of_reason(&left.reason).as_str() != "error")
@@ -275,6 +282,9 @@ pub(super) fn render_results(
         });
 
         for h in &fhits {
+            if rendered == display_limit {
+                break;
+            }
             let sev = confidence(&h.reason, h.score, h.threshold);
             let color = confidence_color(sev);
             let line_str = if h.line == h.line_end {
@@ -345,11 +355,20 @@ pub(super) fn render_results(
                 "  → inspect the evidence, then mute with `argot mute {} --reason \"…\"` only if intentional.\n",
                 h.hash
             ));
+            rendered += 1;
         }
 
         if i < n_files - 1 {
             out.push('\n');
         }
+    }
+
+    if rendered < total {
+        out.push_str(&format!(
+            "\n{} more finding{} not shown in this brief; pass --verbose (-v) for every finding and full hunks.\n",
+            total - rendered,
+            if total - rendered == 1 { " is" } else { "s are" }
+        ));
     }
 
     any_truncated
