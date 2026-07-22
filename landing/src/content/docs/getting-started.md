@@ -1,23 +1,13 @@
 ---
 title: Getting started
-description: Install argot and calibrate it on your repo in a couple of minutes.
+description: Install argot, audit accepted history, then fit a voice you can use in the daily review loop.
 group: Start
 order: 1
 ---
 
-**argot** learns your repo's patterns from its own git history, then flags AI-written code that
-doesn't fit — on six axes: a dependency, API, or construct it has never used (**foreign**); a
-pattern its own migrations left behind (**superseded**); a new
-function that reinvents one you already wrote (**redundant**); the right code filed in the wrong
-place (**misplaced**); an internal import that reverses your module layering (**layering**); and a
-test weakened, disabled, or deleted alongside the production change it covers (**integrity**). All
-valid, typed, and lint-clean — but not how anything here is actually built. The base guardrail is
-model-free; the semantic layer that finds reinventions and misplacements runs a small local code
-embedder — one ~100 MB one-time download, still no cloud, nothing leaves your
-machine.
-
-> **Status: alpha.** argot is a probabilistic style linter — treat every flag as a prompt to look,
-> and verify before you gate CI on it. It ships honest, leak-free benchmarks and a public research log.
+Argot learns patterns from a repository’s Git history and surfaces changes that look foreign to
+that repository. It is a probabilistic review aid: a finding is a prompt to inspect evidence, not
+an instruction to reject a change.
 
 ## Install
 
@@ -46,85 +36,45 @@ npm install -g @tmonier/argot
 All three download the prebuilt `argot` binary for your platform (macOS arm64/Intel, Linux x64/arm64,
 Windows x64). Everything runs locally — no API key, no account, nothing leaves your machine.
 
-## Two ways to run it — pick one, or both
+## Start with accepted history
 
-- **On your machine** — check as you work (and in a pre-commit hook). Install the
-  CLI, `argot init`, then `argot check`. Start below.
-- **In CI** — a non-blocking voice score on every pull request. Just add a GitHub
-  Actions workflow; **you don't need to set argot up locally for this** — the
-  Action installs and fits it for you. See [CI](/docs/ci/).
-
-They're independent: do the local flow, the CI flow, or both. The rest of this
-page is the local flow.
-
-## Set up locally, then check
-
-**argot's accuracy is a function of its setup.** It learns from what it's allowed to see — a fit
-that ingests vendored SDKs, generated stubs, or data files speaks with the wrong voice and flags
-the wrong things. The recommended path is the [setup skill](/docs/setup/) (`npx skills add
-get-tmonier/argot`, then `/argot-setup`): your coding agent reads the tree and makes the
-what-shapes-the-voice calls for you. Going by hand, make them yourself first:
+Run an audit before configuring anything. It creates a temporary worktree, fits a historical base,
+and reports what would have prompted review in the surviving base-to-head changes. It does not
+modify your tree and exits 0 when it completes.
 
 ```bash
 cd your-repo
-argot init --suggest   # which dirs look like they shouldn't shape the voice
-#   → review, add them to argot.toml [exclude].paths, then:
-argot init         # learn your repo's voice, then a health check (Ready / Ready with notes / …)
-argot check        # score uncommitted changes (or pass a ref/range)
-argot audit        # the fun one: what argot would have caught in your last 50 commits, and who wrote it
+argot audit
 ```
 
-The first `init` also downloads the ~100 MB embedding model to a shared local cache — once per
-machine, never per repo. Prefer it explicit? `argot model fetch` pre-downloads it (useful before
-going offline or in CI). And `argot rules` lists every rule with its effective severity — all
-`error` by default, each one yours to downgrade in `argot.toml`
-([Configure](/docs/configure/#rules--rule-severities)).
+Read the result in the [Audit guide](/docs/audit/), then decide whether to set up a local voice.
 
-`argot init` fits the model once and writes a `.argot/.gitignore` so the rebuildable model stays out
-of git. If the health check isn't **Ready**, or your repo has generated / vendored / peripheral code
-(a monorepo's marketing site, playground, or demo apps), spend a minute on [Setup](/docs/setup/) to
-tell argot what shouldn't shape its voice. Then run `check` on every diff.
+## Fit, then review a change
 
-```text
-argot check · 2 hunks above threshold (1 foreign · 1 suspicious)
-note: argot is a probabilistic style linter — verify before action.
+`init` is the portable setup command. It writes a commented `argot.toml` when one is absent,
+gitignores personal `argot.local.toml`, fits the voice, and prints its health. Create that shared
+configuration before reviewing suggestions: `--suggest` only reports evidence and never edits or
+fits configuration.
 
-src/utils/http-helpers.ts
-  !  L42-L48   8.21  foreign     · workdir · foreign-import [a1b2c3d4e5f6]
-     ↳ axios — 0 of 47 module specifiers in repo
-       common here: react (320×), express (88×), pg (47×)
+```bash
+argot init
+argot init --suggest
+# Review and edit argot.toml [exclude].paths if appropriate.
+argot init
+argot check
 ```
 
-## What argot is — and isn't
+Use a clean default-branch checkout for a manual fit whenever possible. A dirty tree or unmerged
+source commits on a feature branch are warned about because manual fitting learns files as they are
+on disk. The [Init and Fit guide](/docs/init-and-fit/) explains the artifacts and refresh behavior.
 
-- It **does not** replace ESLint, ruff, or your type checker. Those answer *"is this valid?"*
-- It **reliably** catches what they can't articulate: a **foreign dependency, API, or paradigm** —
-  something the repo has never used. When the foreign symbol is in the diff, the base voice model
-  catches ~98% of them.
-- It **also** flags a **redundant** function (one you already wrote) and **misplaced** code (filed
-  in the wrong package) via the semantic layer's per-repo code-embedding index, a **layering**
-  break via the architecture graph, and a **test-deleted** / **test-disabled** / **test-weakened**
-  hit when a test is removed, skipped, or loosened alongside the production change it exercises —
-  each its own rule, each downgradable to `warn` or `off`.
-- It is **honest about its limit**: it does *not* reliably flag an *in-vocabulary* choice — a bare
-  `ValueError` where you'd raise `HTTPException`, when every token is already yours. So a clean run
-  means "no foreign pattern found," **not** "this matches every convention." argot never gates on
-  those subtle cases.
-
-If your team ships LLM-assisted code, this is the layer your CI is missing.
-
-> **One setup note:** argot learns from your files *as they are on disk* (anything gitignored is
-> skipped automatically), so fit from your **default branch on a clean tree** — uncommitted or
-> unmerged foreign code would otherwise be learned as normal. `argot init`/`fit` warns you on a
-> dirty tree or a feature branch either way, and the background auto-refresh never makes this
-> mistake: it only ever learns accepted history
-> ([Health & freshness](/docs/health-and-freshness/)).
+`check` scores the change you select. Its exit code is command-specific: 0 means no error-severity
+findings, 1 means review findings, and 2 is a setup or usage error. Read the [Check guide](/docs/check/)
+before configuring any local or CI response to those results.
 
 ## Where to next
 
-- [Setup](/docs/setup/) — configure what argot should (and shouldn't) learn from.
-- [Configure](/docs/configure/) — `argot.toml`, inline comments, and durable `argot mute`.
-- [How it works](/docs/how-it-works/) — the two-phase pipeline, in plain terms.
-- [The commands](/docs/the-commands/) — `init`, `check`, `fit`, `mute`, and the rest in detail.
-- [Reading the output](/docs/reading-the-output/) — rules, confidence tiers, sources, and the evidence line.
-- [What it catches](/docs/what-it-catches/) — real examples every other tool stays silent on.
+- [Audit](/docs/audit/) — inspect recent accepted history first.
+- [Init and Fit](/docs/init-and-fit/) — configure and maintain a local voice.
+- [Check](/docs/check/) — choose a changeset and interpret its output.
+- [CI and pre-commit](/docs/ci/) — user-wired automation at commit or workflow time.
