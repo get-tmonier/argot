@@ -1,6 +1,10 @@
 //! argot-bench library surface — shared by the `argot-bench` binary and the
 //! research scout binaries under `src/bin/`.
 
+/// Frozen accepted-change replay and combined-brief aggregation. This remains
+/// benchmark-only: it calls argot-core's public check facade, whose composition
+/// root is the same one used by the distributed binary.
+pub mod accept_brief;
 /// Architecture-graph floor/gate validation (`--mode arch`). Feature-gated:
 /// drives argot-core's `arch_graph` sense over real corpora + real holdout.
 #[cfg(feature = "arch")]
