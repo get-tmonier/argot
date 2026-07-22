@@ -1178,13 +1178,13 @@ fn run_init_cmd(c: InitCmd) -> ExitCode {
             println!("Voice model fitted → {}", scorer_config.display());
             drift_suggestions_note(&c.repo);
             config_in_voice_note(&c.repo);
-            println!("Next:  argot check          # score your working changes");
+            print_init_next_actions(Verdict::Ready);
         }
         Verdict::ReadyWithNotes => {
             println!("Voice model fitted → {}", scorer_config.display());
             drift_suggestions_note(&c.repo);
             config_in_voice_note(&c.repo);
-            println!("Next:  argot check          # score your working changes");
+            print_init_next_actions(Verdict::ReadyWithNotes);
             println!("The notes above are tuning hints, not blockers. To refine the corpus:");
             println!(
                 "  • argot init --suggest    # directories you may want to exclude from the voice"
@@ -1199,10 +1199,39 @@ fn run_init_cmd(c: InitCmd) -> ExitCode {
                 "  • argot init --suggest    # directories you may want to exclude from the voice"
             );
             println!("  • edit argot.toml [exclude], then re-run  argot init");
-            println!("  • argot check             # score your working changes");
+            println!("  • argot check             # manual smoke check for your working changes");
+            print_init_recurring_actions(Verdict::NotRecommended);
         }
     }
     ExitCode::SUCCESS
+}
+
+fn print_init_next_actions(verdict: Verdict) {
+    println!("Next:  argot check          # manual smoke check for your working changes");
+    print_init_recurring_actions(verdict);
+}
+
+fn print_init_recurring_actions(verdict: Verdict) {
+    for line in init_recurring_actions(verdict) {
+        println!("{line}");
+    }
+}
+
+fn init_recurring_actions(verdict: Verdict) -> [&'static str; 4] {
+    [
+        match verdict {
+            Verdict::Ready => "Then choose a recurring path you configure:",
+            Verdict::ReadyWithNotes => {
+                "After reviewing the notes, choose a recurring path you configure:"
+            }
+            Verdict::NotRecommended => {
+                "After the corpus is ready, choose a recurring path you configure:"
+            }
+        },
+        "  • pre-commit              # runs at commit time after user configuration",
+        "  • GitHub Action           # runs in a user-configured CI workflow",
+        "    https://argot.tmonier.com/docs/ci/",
+    ]
 }
 
 fn run_init_suggest(c: &InitCmd) -> ExitCode {
@@ -2677,7 +2706,8 @@ fn main() -> ExitCode {
 mod tests {
     use super::{
         days_since_fit, ensure_local_config_gitignored, ensure_model_gitignored, fit_repo,
-        is_npm_install, resolve_argot_dir, root_help, wants_json, Cli,
+        init_recurring_actions, is_npm_install, resolve_argot_dir, root_help, wants_json, Cli,
+        Verdict,
     };
     use clap::CommandFactory;
 
@@ -2816,6 +2846,24 @@ mod tests {
             "/Users/x/.cargo/bin/argot"
         ))));
         assert!(!is_npm_install(None));
+    }
+
+    #[test]
+    fn init_recurring_actions_preserve_each_verdict_boundary() {
+        for (verdict, opening) in [
+            (Verdict::Ready, "Then choose"),
+            (Verdict::ReadyWithNotes, "After reviewing the notes"),
+            (Verdict::NotRecommended, "After the corpus is ready"),
+        ] {
+            let actions = init_recurring_actions(verdict).join("\n");
+            assert!(actions.starts_with(opening), "{actions}");
+            assert!(actions.contains("pre-commit"));
+            assert!(actions.contains("runs at commit time after user configuration"));
+            assert!(actions.contains("GitHub Action"));
+            assert!(actions.contains("runs in a user-configured CI workflow"));
+            assert!(actions.contains("https://argot.tmonier.com/docs/ci/"));
+            assert!(!actions.contains("automatic lifecycle"));
+        }
     }
 
     #[test]

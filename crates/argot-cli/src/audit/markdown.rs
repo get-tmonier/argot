@@ -2,7 +2,9 @@
 //! same content order as the terminal card: headline, groups, worst
 //! offender, the rest under `<details>`, honest framing.
 
-use super::report::{AuditReport, Finding, GroupStatus, RequestedWindow, METHOD_NOTE};
+use super::report::{
+    AuditReport, Finding, GroupStatus, RequestedWindow, CI_GUIDE_URL, METHOD_NOTE,
+};
 
 fn span(f: &Finding) -> String {
     if f.line_start == f.line_end {
@@ -137,7 +139,8 @@ pub fn render(report: &AuditReport) -> String {
         "Merged code is accepted code — read each finding as \"would have prompted \
          review before merge\", not a bug list.\n\n\
          {METHOD_NOTE}\n\n\
-         Next: `argot init` fits today's voice so `argot check` raises these before they merge.\n",
+         Next: `argot init` fits today's voice so `argot check` raises these before they merge.\n\n\
+         Then choose a recurring path you configure: [pre-commit]({CI_GUIDE_URL}) runs automatically at commit time once configured; the GitHub Action runs automatically in CI once configured.\n",
     ));
     out
 }
@@ -168,12 +171,20 @@ mod tests {
                 unknown: 0,
             },
             hunks_scanned: 500,
-            groups: vec![GroupReport {
-                group: "voice",
-                status: GroupStatus::Scored,
-                findings: findings.len(),
-                skip_reason: None,
-            }],
+            groups: vec![
+                GroupReport {
+                    group: "voice",
+                    status: GroupStatus::Scored,
+                    findings: findings.len(),
+                    skip_reason: None,
+                },
+                GroupReport {
+                    group: "semantic",
+                    status: GroupStatus::Skipped,
+                    findings: 0,
+                    skip_reason: Some("embedding model not available (offline?)".into()),
+                },
+            ],
             findings,
         }
     }
@@ -207,6 +218,11 @@ mod tests {
         assert!(md.contains("<details>"));
         assert!(md.contains("`ccccccc` (ai-assisted)"));
         assert!(md.contains("argot init"));
+        assert!(md.contains("pre-commit"));
+        assert!(md.contains("runs automatically at commit time once configured"));
+        assert!(md.contains("GitHub Action runs automatically in CI once configured"));
+        assert!(md.contains(CI_GUIDE_URL));
+        assert!(md.contains("embedding model not available (offline?)"));
         assert!(!md.contains('\x1b'));
     }
 
