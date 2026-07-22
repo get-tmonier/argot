@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Rebuild the authored check and audit proof receipts. See README.md.
+# Rebuild the authored audit proof receipts. See README.md.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 ARGOT="${ARGOT_BIN:-$ROOT/target/debug/argot}"
-EXPECTED_VERSION="argot 0.2.89"
+EXPECTED_VERSION="argot 0.2.100"
 OUT="$HERE/proof"
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/argot-proof.XXXXXX")"
 RECORD_AUDIT="${RECORD_AUDIT:-1}"
@@ -38,7 +38,7 @@ GIT_AUTHOR_DATE='2026-01-01T00:00:00Z' GIT_COMMITTER_DATE='2026-01-01T00:00:00Z'
 
 cp "$HERE/receipts.py" "$repo/src/receipt.py"
 git -C "$repo" add src/receipt.py
-(cd "$repo" && "$ARGOT" check --staged --format json > "$WORK/authored-check.json") || check_status=$?
+(cd "$repo" && "$ARGOT" check --staged --format json > /dev/null) || check_status=$?
 if [ "${check_status:-0}" -ne 1 ]; then
   echo "error: authored fixture must return Argot finding exit 1" >&2
   exit 1
@@ -58,7 +58,6 @@ if [ "$RECORD_AUDIT" = 1 ]; then
 fi
 
 mkdir -p "$OUT"
-cp "$WORK/authored-check.json" "$OUT/authored-check.json"
 cp "$WORK/audit.json" "$OUT/audit.json"
 cp "$WORK/audit.md" "$OUT/audit.md"
 cp "$WORK/audit.html" "$OUT/audit.html"
@@ -66,6 +65,6 @@ if [ "$RECORD_AUDIT" = 1 ]; then
   cp "$repo/audit.gif" "$OUT/audit.gif"
   [ -s "$OUT/audit.gif" ] || { echo "error: audit recording is empty" >&2; exit 1; }
 fi
-(cd "$HERE" && sha256sum proof/authored-check.json proof/audit.json proof/audit.md proof/audit.html > proof/checksums.sha256)
+(cd "$HERE" && sha256sum proof/audit.json proof/audit.md proof/audit.html > proof/checksums.sha256)
 
-echo "wrote authored check and audit receipts to $OUT"
+echo "wrote authored audit receipts to $OUT"
