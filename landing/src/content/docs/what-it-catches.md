@@ -196,9 +196,9 @@ module the graph knows as a (near-)sink — is flagged:
 ```
 
 This is the structural cousin of the foreign axis: every token can be repo-familiar, but the
-*edge* is one the codebase has never drawn. On the benchmark — 23 corpora across all 11 supported
-languages — the detector caught **244 of 252 (96.8%)** planted layering violations with **0 of 140**
-false positives on control edits, and a worst-case over-fire of 2.7%. Findings are pinned to the
+*edge* is one the codebase has never drawn. The canonical benchmark result covers 25 corpora across
+12 languages and caught **264 of 272 (97.1%)** authored layering violations. This is a
+detector-specific recall measure, not a product-wide accuracy claim. Findings are pinned to the
 `unusual` confidence tier and fail the check by default (`layering = "warn"` or `"off"` to
 downgrade). The fit-time import resolver covers Python in v1; the graph and benchmark methodology
 are language-agnostic.
@@ -229,12 +229,11 @@ retargeted. All three are pinned to the `suspicious` confidence tier. `test-dele
 `test-disabled` default to `error`; **`test-weakened` ships `warn`** — reported on every run,
 never fails the check on its own, downgradeable or upgradeable per repo.
 
-On the benchmark — 23 corpora across 12 languages — the detector caught **155 of 164 (94.5%)**
+The canonical benchmark result covers 23 corpora / 12 languages and caught **155 of 164 (94.5%)**
 authored gaming tactics, with **0 of 106** legitimate-refactor controls (moves, renames, deletions
-alongside a removed feature, genuine strengthening) fired. Replayed against 5,330 real accepted
-test-touching commits *outside* the fit's calibration window, only **1.13%** were flagged at
-gating (error) severity — the honest cost of running this against real history, not a fixture
-rate. The hardest tactic is expected-value retargeting (16/21, 76%): a bare literal retarget is
+alongside a removed feature, genuine strengthening) fired. In accepted-history replay, **45 of
+3,602 (1.25%)** test-touching commits were flagged at gating (error) severity. These are separate
+detector-specific measures, not a general false-positive rate. The hardest tactic is expected-value retargeting (16/21, 76%): a bare literal retarget is
 statically indistinguishable from a healthy TDD update, so it only fires in repos whose accepted
 history shows zero isolated literal flips — elsewhere the per-repo gate keeps it silent by design,
 a documented limit, not a bug. Full numbers, per-tactic breakdown, and the FP-hardening journey:

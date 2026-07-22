@@ -292,6 +292,9 @@ exactly like a built-in rule:
 See [Configure](/docs/configure/#rules--rule-severities) for the full severity and suppression
 reference — nothing here is a new mechanism.
 
+The optional pre-write hook consults the same effective `[rules]` policy, but it
+does not execute custom rules and has no custom-rule-specific configuration.
+
 One addition worth knowing: a custom rule can be **locked** —
 `"domain-imports-stay-inward" = { severity = "error", locked = true }` in the committed
 `argot.toml`. A locked rule's findings refuse every suppression surface, and a diff that edits

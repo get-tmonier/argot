@@ -2,8 +2,12 @@
 
 argot is a local-first developer tool: a single statically-linked Rust binary
 that learns a repository's "voice" from its git history and flags foreign code.
-It runs entirely on your machine, makes **no network calls by default**, and has
-no server, daemon, or telemetry. Its attack surface is small by design — but we
+The analysis path runs entirely on your machine: `extract`, `fit`, and `check`
+do not upload repository content and have no server, daemon, or telemetry.
+Some separately enumerable operations can make outbound requests (the semantic
+model download, update/version check, installation, and CI's configured GitHub
+operations); `ARGOT_OFFLINE=1` forbids the binary's model and update requests.
+Its attack surface is small by design — but we
 take it seriously, and this document tells you how to report a problem and what
 we treat as in scope.
 
@@ -85,10 +89,12 @@ public disclosure.
 
 ## Security design (summary)
 
-- **Local-first, zero network by default.** `extract → fit → check` never touch
-  the network. The only network paths are opt-in and enumerable: the semantic
-  model fetch, `argot update`, and CI asset downloads. `ARGOT_OFFLINE=1` forbids
-  all of them.
+- **Local-first analysis, explicit egress.** `extract → fit → check` never
+  upload repository content. A missing semantic model may be fetched on first
+  use; the passive version check, explicit `argot update`, installation, and
+  CI's configured GitHub operations are separate outbound paths. The binary
+  sends no code, findings, or telemetry on those paths. `ARGOT_OFFLINE=1`
+  forbids its model and update requests.
 - **Model integrity.** The semantic model is pinned by SHA-256; a download that
   doesn't match is rejected, and CI verifies the pinned asset before every
   release. The `ARGOT_MODEL_URL` override changes *where* the model is fetched

@@ -48,19 +48,14 @@ just verify   # cargo fmt --check + cargo clippy -D warnings + cargo test
 Write tests alongside new logic — behaviour-focused (assert on outputs for given
 inputs, not internal state), enough for a fast feedback loop, not 100% coverage.
 
-## Parity & golden suites
+## Verification and scored-output changes
 
-argot was ported from a Python engine with **verified byte-for-byte parity**.
-The suites under `crates/argot-core/tests/*_parity.rs` compare Rust output to
-fixtures captured from the old engine. Two rules follow:
-
-- **Don't bump the pinned dependencies** (tree-sitter grammars, `tokenizers`,
-  `git2`/libgit2) without re-running the parity suites — the versions are pinned
-  for output stability, not caprice. See the comments in the root `Cargo.toml`.
-- A change that alters scored output is a **research change**, not a refactor.
-  Benchmark it (`just bench` / `just bench-quick`) and record the evidence under
-  `docs/research/evidence/` regardless of outcome. `docs/research/` is the
-  project's ADR — read it before touching the scorer.
+The composed integration/golden suites live under `crates/argot-core/tests/`.
+Do not bump pinned parser, tokenizer, or `git2` dependencies without re-running
+the relevant suites: those pins protect stable output. A change that alters
+scored output is a research change, not routine refactoring; benchmark it with
+the appropriate `just bench…` command and record evidence under
+`docs/research/evidence/`.
 
 ## Proposing a new language or corpus
 
@@ -68,10 +63,9 @@ Language support ships **after** it's benchmarked, never on the promise of a
 tree-sitter parser existing. To add one (this is the shape of issues
 [#42–#49](https://github.com/get-tmonier/argot/labels/help%20wanted)):
 
-1. Add a `LanguageAdapter` implementation under
-   `crates/argot-core/src/scoring/adapters/` (import extraction, callee
-   extraction, prose masking, sampleable-range enumeration) and register its
-   extensions.
+1. Add a `LanguageAdapter` implementation under `crates/argot-lang/` (parsing,
+   tokenization, import/callee extraction, prose masking, and extension routing)
+   and register its extensions through that substrate.
 2. Pin 2–3 real corpora at specific commit shas.
 3. Hand-craft ~15–20 anomaly fixtures per corpus, mirroring the existing
    catalog format under `benchmarks/`.
@@ -85,10 +79,10 @@ language/corpus request issue — it's the most useful thing you can file.
 
 ## Conventions
 
-- **Language- and corpus-agnostic core.** Production code under
-  `crates/argot-core/src/scoring/` must not hardcode a specific language,
-  framework, or corpus. Those literals live only in fixtures, benchmarks, and
-  eval scripts.
+- **Language- and corpus-agnostic engine.** `argot-engine` and `argot-rules-*`
+  must not hardcode a specific language, framework, or corpus. Language-specific
+  parsing belongs in `argot-lang`; corpus literals belong only in fixtures,
+  benchmarks, and evaluation scripts.
 - **Domain names, not research artefacts.** Production symbols and doc-comments
   are named after what the code does — never after research labels (`era`,
   `phase`). Those breadcrumbs belong in `docs/research/`.

@@ -1,39 +1,38 @@
 # argot — Rust workspace
 
-The Rust rewrite of argot: one statically-linked `argot` binary replacing the
-TypeScript/Bun CLI (`cli/src`) and the Python/UV engine (`engine/argot`). No
-Python subprocess, no Bun runtime.
+One Cargo workspace builds the statically-linked `argot` binary. The landing
+site is separate; the CLI has no Python, Node, or runtime subprocess dependency.
 
 ## Crates
 
-- **`argot-core`** — the engine (language- and corpus-agnostic per the root
-  `CLAUDE.md`): git walk, tokenisation, BPE, the statistical scorers,
-  calibration, and `check`. No hardcoded framework/language literals.
-- **`argot-cli`** — the `argot` binary (clap). Subcommands: `extract`, `train`,
-  `calibrate`, `fit` (= train + calibrate), `check`, `status`, `list`,
-  `update`; no subcommand prints the help banner.
+- **`argot-lang`** — language adapters, tree-sitter parsing, tokenization, and
+  extension routing for all 12 shipped languages.
+- **`argot-engine`** — rule-blind orchestration, configuration, artifacts,
+  output, corpus walking, and the detector contract.
+- **`argot-rules-{voice,semantic,arch,integrity,script}`** — independent rule
+  slices; the scripted slice hosts repo-local Rhai rules.
+- **`argot-core`** — facade and composition root (`src/compose.rs`) that
+  registers the enabled slices.
+- **`argot-cli`** — the clap `argot` binary. Run `argot --help` for the live
+  command inventory rather than copying it into contributor docs.
 
 ## Build / test / run
 
 ```sh
-just build-rust      # cargo build --release -p argot-cli  → target/release/argot
-just verify-rust     # cargo fmt --check + clippy -D warnings + cargo test --workspace
-just dogfood-rust    # full pipeline on a repo; asserts both .py/.ts rows + config
+just build           # cargo build --release -p argot → target/release/argot
+just verify          # cargo fmt --check + clippy -D warnings + cargo test
+just dogfood         # end-to-end development-loop signal on a repository
 cargo test --workspace
 ```
 
-## Parity
+## Composition and verification
 
-This is a behaviour-preserving port, gated against the Python engine. Every
-module has golden parity tests (fixtures under `argot-core/tests/fixtures/`):
-extract is byte-identical to `argot-extract`, BPE `encode` is bit-identical to
-the `microsoft/unixcoder-base` tokenizer, and `check` output is byte-identical.
-The full parity story, decisions, and any documented divergences (KMeans,
-calibration RNG) live in `docs/rust-port/PORTING-NOTES.md`; the benchmark AUC
-parity proof is in `docs/research/evidence/rust-port-auc-parity.md`.
+`argot-core/src/compose.rs` is the composition root: it registers the voice
+pass and feature-gated semantic, architecture, integrity, and scripted slices
+in stable execution/merge order. Integration and golden suites live under
+`crates/argot-core/tests/`; run `just verify` for the contributor gate.
 
 ## Toolchain
 
-Stable Rust (see `rust-toolchain.toml`); ≥1.85 required by the git2 → url →
-ICU4X dependency chain (edition2024). Dependency versions are pinned for parity
-(tree-sitter grammars, `tokenizers` 0.22, `git2`/libgit2).
+Stable Rust is pinned by `rust-toolchain.toml`. Dependency versions are pinned
+where stable parser/tokenizer/git output requires it; see root `Cargo.toml`.
