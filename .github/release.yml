@@ -1,0 +1,15 @@
+changelog:
+  categories:
+    - title: User-facing changes
+      labels:
+        - type:feature
+        - type:docs
+    - title: Reliability and validation
+      labels:
+        - type:qa
+    - title: Other changes
+      labels:
+        - "*"
+  exclude:
+    labels:
+      - skip-changelog
