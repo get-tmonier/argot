@@ -32,9 +32,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo build --locked --bin argot
+      - name: Install the candidate binary into an isolated prefix
+        shell: bash
+        run: cargo install --locked --path crates/argot-cli --root "$RUNNER_TEMP/argot-install"
       - name: Run deterministic offline journey
         shell: bash
         env:
-          ARGOT_BIN: ${{ github.workspace }}/target/debug/argot${{ runner.os == 'Windows' && '.exe' || '' }}
+          ARGOT_BIN: ${{ runner.temp }}/argot-install/bin/argot${{ runner.os == 'Windows' && '.exe' || '' }}
         run: scripts/release-journey.sh

@@ -30,6 +30,16 @@ ARGOT_OFFLINE=1 "$binary" init --repo "$repo" > "$work/init.txt"
 test -f "$repo/.argot/scorer-config.json"
 printf 'mutation: init created .argot/scorer-config.json\n' >> "$receipt"
 
+# The candidate is intentionally a locally installed binary in CI, not the
+# developer's copy. Inspecting the uninstall plan in an empty user home proves
+# that this journey never takes ownership of the runner's existing state.
+home="$work/home"
+mkdir -p "$home"
+HOME="$home" XDG_CONFIG_HOME="$home/.config" XDG_CACHE_HOME="$home/.cache" \
+  "$binary" uninstall --dry-run > "$work/uninstall.txt"
+grep -F 'raw binary (no receipt, not npm)' "$work/uninstall.txt" > /dev/null
+printf 'ownership: uninstall dry run leaves authored source untouched\n' >> "$receipt"
+
 printf '\nimport requests\n' >> "$repo/app.py"
 set +e
 ARGOT_OFFLINE=1 "$binary" check --repo "$repo" --format json > "$work/finding.json"
