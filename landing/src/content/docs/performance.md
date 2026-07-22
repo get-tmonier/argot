@@ -70,26 +70,13 @@ working set, so lowering `ARGOT_THREADS` also lowers peak memory.
 
 ## Measured numbers
 
-Everyday repo — FastAPI (1,100 files, laptop CPU): `check` ~0.2 s per diff
-(~0.6 s when the diff defines new functions), first `fit` ~25 s, background
-refresh ~4 s.
-
-Large monorepo — rocksdb (~30k functions, a 50-commit `audit` window of 840
-hunks). This is where the cache and the multi-core phases earn their keep;
-all solo, laptop CPU, findings **byte-identical** across every row:
-
-| scenario | before | now |
-|---|--:|--:|
-| `audit` — repo seen before (warm cache) | 19 min | **2.6 min** |
-| `audit` — seeded (the usual case, after `init`) | 6.5 min | **2.3 min** |
-| `fit` — warm cache | 16.7 min | **2.7 min** |
-| `audit` — first ever, cold cache (embed-bound) | 19.1 min | 16.9 min |
-
-The first cold encounter of a giant repo is dominated by embedding every
-function once — that cost is paid a single time, then the machine-wide cache
-makes every later fit, audit, or re-clone of it fast. A smaller monorepo
-(guava) lands at 4.7 min cold, 51 s warm. Full phase-split methodology and
-raw runs: [research log](/docs/research/).
+No released, canonical timing dataset is currently approved for public
+performance claims. Hardware, repository shape, history depth, changed range,
+and whether the embedding cache is warm materially affect `fit`, `check`, and
+`audit` time. Use `ARGOT_TIMING=1` on the repository and command you care about,
+and retain the command, revision, hardware, cache state, and range with any
+comparison. Benchmark methodology and result provenance belong in the
+[research evidence](https://github.com/get-tmonier/argot/tree/main/docs/research/evidence).
 
 ## Diagnostics
 
