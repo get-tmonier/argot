@@ -1,0 +1,360 @@
+===== root =====
+Surface repository-grounded divergence before code is accepted.
+
+Usage: argot [COMMAND]
+
+Commands:
+  audit           Audit recent history for patterns that would have prompted review. It scores the surviving base-to-head change and classifies only explicit AI markers; informational, exits 0
+  init            Set up argot for this repo: fit the voice model and report its health (`--suggest` lists directories you may want to exclude first)
+  fit             Fit the voice model to this repo (train + calibrate, one-shot)
+  check           Check code changes against the calibrated scorers
+  rules           List every rule with its group and effective severity for this repo
+  review          Score a PR (or diff range) against the local voice without checking it out
+  voice-diff      PR-level out-of-voice metric plus ranked hot-spots for a ref/range. Informational: always exits 0 (use `check`/`review` to gate)
+  inspect         Report corpus composition, calibration health, and repo suitability
+  mute            Mute a hit by hash (appends a [[mute]] to argot.toml)
+  list-mutes      List active suppressions across argot.toml [exclude], inline comments, and argot.toml [[mute]]
+  review-mutes    Re-score muted files and report which suppressions no longer fire
+  status          Show the current repository's argot state
+  list            List all registered repositories
+  update          Update the argot CLI to the latest release
+  cache           Inspect or clear the machine-wide cache (`~/.cache/argot`): the downloaded model and the embedding cache
+  uninstall       Remove argot from this machine: every repo's artifacts, the model cache, global state, and the binary (shows the full list first)
+  mcp             Run a Model Context Protocol server for LLM coding agents (stdio)
+  describe-voice  Generate a STYLE.md describing the repo's learned voice
+  conventions     List the conventions this repo already follows — naming, syntax idioms, familiar imports, and typical calls by area — from the fitted model
+  help            Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help     Print help
+  -V, --version  Print version
+
+===== root-semantic =====
+Surface repository-grounded divergence before code is accepted.
+
+Usage: argot [COMMAND]
+
+Commands:
+  audit           Audit recent history for patterns that would have prompted review. It scores the surviving base-to-head change and classifies only explicit AI markers; informational, exits 0
+  init            Set up argot for this repo: fit the voice model and report its health (`--suggest` lists directories you may want to exclude first)
+  fit             Fit the voice model to this repo (train + calibrate, one-shot)
+  check           Check code changes against the calibrated scorers
+  rules           List every rule with its group and effective severity for this repo
+  model           Manage the local embedding model behind the semantic rules
+  review          Score a PR (or diff range) against the local voice without checking it out
+  voice-diff      PR-level out-of-voice metric plus ranked hot-spots for a ref/range. Informational: always exits 0 (use `check`/`review` to gate)
+  inspect         Report corpus composition, calibration health, and repo suitability
+  mute            Mute a hit by hash (appends a [[mute]] to argot.toml)
+  list-mutes      List active suppressions across argot.toml [exclude], inline comments, and argot.toml [[mute]]
+  review-mutes    Re-score muted files and report which suppressions no longer fire
+  status          Show the current repository's argot state
+  list            List all registered repositories
+  update          Update the argot CLI to the latest release
+  cache           Inspect or clear the machine-wide cache (`~/.cache/argot`): the downloaded model and the embedding cache
+  uninstall       Remove argot from this machine: every repo's artifacts, the model cache, global state, and the binary (shows the full list first)
+  mcp             Run a Model Context Protocol server for LLM coding agents (stdio)
+  describe-voice  Generate a STYLE.md describing the repo's learned voice
+  conventions     List the conventions this repo already follows — naming, syntax idioms, familiar imports, and typical calls by area — from the fitted model
+  help            Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help     Print help
+  -V, --version  Print version
+
+===== model =====
+Manage the local embedding model behind the semantic rules
+
+Usage: argot model <COMMAND>
+
+Commands:
+  fetch   Download and verify the model now (instead of on first use)
+  status  Show whether the model is present, where, and its size
+  clean   Delete the model cache (re-fetched on next use)
+  help    Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help  Print help
+
+===== model-fetch =====
+Download and verify the model now (instead of on first use)
+
+Usage: argot model fetch
+
+Options:
+  -h, --help  Print help
+
+===== model-status =====
+Show whether the model is present, where, and its size
+
+Usage: argot model status
+
+Options:
+  -h, --help  Print help
+
+===== model-clean =====
+Delete the model cache (re-fetched on next use)
+
+Usage: argot model clean
+
+Options:
+  -h, --help  Print help
+
+===== audit =====
+Audit recent history for patterns that would have prompted review. It scores the surviving base-to-head change and classifies only explicit AI markers; informational, exits 0
+
+Usage: argot audit [OPTIONS]
+
+Options:
+      --commits <COMMITS>  How many commits back to audit (first-parent line) [default: 50]
+      --since <SINCE>      Audit everything since a date (YYYY-MM-DD) or a duration (90d, 12w, 6m, 1y)
+      --format <FORMAT>    Output format: terminal, json, markdown, or html [default: terminal]
+      --repo <REPO>        Path to the repository [default: .]
+  -h, --help               Print help
+
+===== init =====
+Set up argot for this repo: fit the voice model and report its health (`--suggest` lists directories you may want to exclude first)
+
+Usage: argot init [OPTIONS]
+
+Options:
+      --repo <REPO>      Path to the repository [default: .]
+      --suggest          Don't fit — instead list directories you may want to add to `argot.toml [exclude].paths` first (statistical evidence only; you decide)
+      --format <FORMAT>  Output format for `--suggest`: human (terminal) or json (stable, machine-readable — consumed by the setup skill) [default: human] [possible values: human, json]
+  -h, --help             Print help
+
+===== fit =====
+Fit the voice model to this repo (train + calibrate, one-shot)
+
+Usage: argot fit [OPTIONS]
+
+Options:
+      --repo <REPO>   Path to the target repository [default: .]
+      --slice <SPEC>  Calibrate an extra threshold for a slice of the repo (repeatable): `path:<prefix>` (a subdirectory), `author:<email>`, or `auto` (one per top-level directory). Hunks in a slice are judged against its threshold
+  -h, --help          Print help
+
+===== check =====
+Check code changes against the calibrated scorers
+
+Usage: argot check [OPTIONS] [REFERENCE]
+
+Arguments:
+  [REFERENCE]  Optional git ref or range (e.g. abc1234 or a..b). Empty = workdir [default: ""]
+
+Options:
+      --repo <REPO>
+          Path to git repository [default: .]
+      --staged
+          Check staged changes only
+      --unstaged
+          Check unstaged changes only
+      --commit <SHA>
+          Check a single commit
+      --only <GLOB>
+          Restrict to matching files (glob, repeatable)
+      --exclude <GLOB>
+          Drop matching files (glob, repeatable)
+      --argot-dir <ARGOT_DIR>
+          Directory containing argot artifacts [default: .argot]
+      --hunk-lines <N>
+          Hunk-body lines shown under each above-threshold hit (0 to suppress) [default: 6]
+  -v, --verbose
+          Show full hunk contents (no truncation; overrides --hunk-lines)
+      --min-confidence <MIN_CONFIDENCE>
+          Only show hits at or above this confidence tier [default: unusual] [possible values: unusual, suspicious, foreign]
+      --rule <NAME=SEVERITY>
+          Override a rule's severity for this run: `--rule <name>=<error|warn|off>` (repeatable; accepts rule or group names — see `argot rules`)
+      --error-on-warnings
+          Exit non-zero when `warn`-severity findings are present (CI strictness)
+      --add-ignores
+          Insert an inline ignore comment above every current finding instead of reporting (adopting argot on an existing codebase). Working-tree only
+      --format <FORMAT>
+          Output format: human (terminal), json (stable machine-readable), sarif (SARIF 2.1.0 for code-scanning uploads), or github (Actions workflow commands → inline PR annotations). Machine formats write nothing but the document to stdout [default: human] [possible values: human, json, sarif, github]
+  -q, --quiet
+          Suppress informational stderr notes (model line, staleness nudges, suppression counts). Errors still print
+  -h, --help
+          Print help
+
+===== rules =====
+List every rule with its group and effective severity for this repo
+
+Usage: argot rules [OPTIONS] [COMMAND]
+
+Commands:
+  test  Run the fixture tests of this repo's custom rules (`.argot/rules/<name>/tests/<case>/{input.<ext>, expected.json}`)
+  help  Print this message or the help of the given subcommand(s)
+
+Options:
+      --repo <REPO>      Path to the repository (its argot.toml decides the effective severities) [default: .]
+      --format <FORMAT>  Output format: human or json [default: human] [possible values: human, json]
+  -h, --help             Print help
+
+===== rules-test =====
+Run the fixture tests of this repo's custom rules (`.argot/rules/<name>/tests/<case>/{input.<ext>, expected.json}`)
+
+Usage: argot rules test [OPTIONS] [NAME]
+
+Arguments:
+  [NAME]  Test one rule by name (default: every discovered rule)
+
+Options:
+      --repo <REPO>  Path to the repository (its argot.toml decides the effective severities) [default: .]
+  -h, --help         Print help
+
+===== review =====
+Score a PR (or diff range) against the local voice without checking it out
+
+Usage: argot review [OPTIONS] <TARGET>
+
+Arguments:
+  <TARGET>  A PR URL, `#number` / `number`, a `base..head` range, or a commit sha
+
+Options:
+      --repo <REPO>      Path to the local repository (whose fitted voice scores the PR) [default: .]
+      --format <FORMAT>  Output format: human, json, sarif, or github (PR annotations) [default: human] [possible values: human, json, sarif, github]
+  -h, --help             Print help
+
+===== voice-diff =====
+PR-level out-of-voice metric plus ranked hot-spots for a ref/range. Informational: always exits 0 (use `check`/`review` to gate)
+
+Usage: argot voice-diff [OPTIONS] <TARGET>
+
+Arguments:
+  <TARGET>  A ref or `base..head` range to summarize (e.g. `main..HEAD`)
+
+Options:
+      --repo <REPO>      Path to the repository [default: .]
+      --format <FORMAT>  Output format: human, json, markdown (a PR-comment / job-summary score card), shields (shields.io endpoint JSON for a README badge), or svg (a self-contained badge) [default: human] [possible values: human, json, markdown, shields, svg]
+      --top <N>          Hot-spots to list [default: 10]
+  -h, --help             Print help
+
+===== inspect =====
+Report corpus composition, calibration health, and repo suitability
+
+Usage: argot inspect [OPTIONS] [PATH]
+
+Arguments:
+  [PATH]  Path to the repository to inspect [default: .]
+
+Options:
+      --model            Inspect the fitted model artifact (hashes, provenance, and the typical callees per cluster) instead of repo suitability
+      --top <N>          Typical callees shown per cluster under `--model` [default: 8]
+      --format <FORMAT>  Output format: human (terminal) or json (stable machine-readable) [default: human] [possible values: human, json]
+  -h, --help             Print help
+
+===== mute =====
+Mute a hit by hash (appends a [[mute]] to argot.toml)
+
+Usage: argot mute [OPTIONS] <HASH>
+
+Arguments:
+  <HASH>  Hit hash from `argot check` output (the `[abc123def456]` on a hit line)
+
+Options:
+      --reason <REASON>  Why this hit is muted (recorded in argot.toml [[mute]])
+      --expires <DAYS>   Auto-expire the mute after N days (e.g. `30d`)
+  -h, --help             Print help
+
+===== list-mutes =====
+List active suppressions across argot.toml [exclude], inline comments, and argot.toml [[mute]]
+
+Usage: argot list-mutes
+
+Options:
+  -h, --help  Print help
+
+===== review-mutes =====
+Re-score muted files and report which suppressions no longer fire
+
+Usage: argot review-mutes [OPTIONS]
+
+Options:
+      --prune  Remove the dead mutes — those whose file is gone (rewrites argot.toml [[mute]])
+  -h, --help   Print help
+
+===== status =====
+Show the current repository's argot state
+
+Usage: argot status [OPTIONS]
+
+Options:
+      --format <FORMAT>  Output format: human (terminal) or json (stable machine-readable) [default: human] [possible values: human, json]
+  -h, --help             Print help
+
+===== list =====
+List all registered repositories
+
+Usage: argot list [OPTIONS]
+
+Options:
+      --format <FORMAT>  Output format: human (terminal) or json (stable machine-readable) [default: human] [possible values: human, json]
+  -h, --help             Print help
+
+===== update =====
+Update the argot CLI to the latest release
+
+Usage: argot update
+
+Options:
+  -h, --help  Print help
+
+===== cache =====
+Inspect or clear the machine-wide cache (`~/.cache/argot`): the downloaded model and the embedding cache
+
+Usage: argot cache [COMMAND]
+
+Commands:
+  clear  Delete the embedding cache (and, with --all, the downloaded model)
+  help   Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help  Print help
+
+===== cache-clear =====
+Delete the embedding cache (and, with --all, the downloaded model)
+
+Usage: argot cache clear [OPTIONS]
+
+Options:
+      --all   Also remove the downloaded embedding model (re-fetched on next use)
+  -h, --help  Print help
+
+===== uninstall =====
+Remove argot from this machine: every repo's artifacts, the model cache, global state, and the binary (shows the full list first)
+
+Usage: argot uninstall [OPTIONS]
+
+Options:
+      --dry-run  Show everything that would be removed, remove nothing
+      --yes      Skip the confirmation prompt (required when not on a terminal)
+  -h, --help     Print help
+
+===== mcp =====
+Run a Model Context Protocol server for LLM coding agents (stdio)
+
+Usage: argot mcp [OPTIONS]
+
+Options:
+      --repo <REPO>  Path to the repository whose fitted voice the server scores against [default: .]
+  -h, --help         Print help
+
+===== describe-voice =====
+Generate a STYLE.md describing the repo's learned voice
+
+Usage: argot describe-voice [OPTIONS]
+
+Options:
+      --repo <REPO>  Path to the repository [default: .]
+      --top <N>      Typical callees listed per cluster [default: 8]
+      --out <FILE>   Write to this file instead of stdout (e.g. `STYLE.md`)
+  -h, --help         Print help
+
+===== conventions =====
+List the conventions this repo already follows — naming, syntax idioms, familiar imports, and typical calls by area — from the fitted model
+
+Usage: argot conventions [OPTIONS]
+
+Options:
+      --repo <REPO>      Path to the repository [default: .]
+      --format <FORMAT>  Output format: human (terminal) or json (stable machine-readable) [default: human] [possible values: human, json]
+      --top <N>          Callees listed per cluster and idioms listed per language [default: 8]
+  -h, --help             Print help
