@@ -176,6 +176,12 @@ Precedence, ascending: built-in defaults → `argot.toml` → `argot.local.toml`
 CLI (`argot check --rule <name|group>=<severity>`, repeatable). An unknown rule
 name or severity is a warning on stderr, never a failed run.
 
+The optional Claude Code pre-write hook has no separate configuration format. It
+reads this same effective `[rules]` resolution: a foreign-import rule set to
+`off` does not ask, while `warn` and `error` retain the hook's non-blocking
+prompt. Configure the hook itself through the plugin/setup flow; configure its
+rule policy here.
+
 Two companions on the CLI:
 
 - **`argot rules`** (`--format json` for machines) lists every rule with its
