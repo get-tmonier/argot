@@ -1178,13 +1178,13 @@ fn run_init_cmd(c: InitCmd) -> ExitCode {
             println!("Voice model fitted → {}", scorer_config.display());
             drift_suggestions_note(&c.repo);
             config_in_voice_note(&c.repo);
-            println!("Next:  argot check          # score your working changes");
+            print_init_next_actions();
         }
         Verdict::ReadyWithNotes => {
             println!("Voice model fitted → {}", scorer_config.display());
             drift_suggestions_note(&c.repo);
             config_in_voice_note(&c.repo);
-            println!("Next:  argot check          # score your working changes");
+            print_init_next_actions();
             println!("The notes above are tuning hints, not blockers. To refine the corpus:");
             println!(
                 "  • argot init --suggest    # directories you may want to exclude from the voice"
@@ -1199,10 +1199,31 @@ fn run_init_cmd(c: InitCmd) -> ExitCode {
                 "  • argot init --suggest    # directories you may want to exclude from the voice"
             );
             println!("  • edit argot.toml [exclude], then re-run  argot init");
-            println!("  • argot check             # score your working changes");
+            println!("  • argot check             # manual smoke check for your working changes");
+            print_init_recurring_actions();
         }
     }
     ExitCode::SUCCESS
+}
+
+fn print_init_next_actions() {
+    println!("Next:  argot check          # manual smoke check for your working changes");
+    print_init_recurring_actions();
+}
+
+fn print_init_recurring_actions() {
+    for line in init_recurring_actions() {
+        println!("{line}");
+    }
+}
+
+fn init_recurring_actions() -> [&'static str; 4] {
+    [
+        "Then choose a recurring path you configure:",
+        "  • pre-commit              # runs at commit time after user configuration",
+        "  • GitHub Action           # runs in a user-configured CI workflow",
+        "    https://argot.tmonier.com/docs/ci/",
+    ]
 }
 
 fn run_init_suggest(c: &InitCmd) -> ExitCode {
@@ -2677,7 +2698,7 @@ fn main() -> ExitCode {
 mod tests {
     use super::{
         days_since_fit, ensure_local_config_gitignored, ensure_model_gitignored, fit_repo,
-        is_npm_install, resolve_argot_dir, root_help, wants_json, Cli,
+        init_recurring_actions, is_npm_install, resolve_argot_dir, root_help, wants_json, Cli,
     };
     use clap::CommandFactory;
 
@@ -2816,6 +2837,17 @@ mod tests {
             "/Users/x/.cargo/bin/argot"
         ))));
         assert!(!is_npm_install(None));
+    }
+
+    #[test]
+    fn init_recurring_actions_offer_only_configured_tested_paths() {
+        let actions = init_recurring_actions().join("\n");
+        assert!(actions.contains("pre-commit"));
+        assert!(actions.contains("runs at commit time after user configuration"));
+        assert!(actions.contains("GitHub Action"));
+        assert!(actions.contains("runs in a user-configured CI workflow"));
+        assert!(actions.contains("https://argot.tmonier.com/docs/ci/"));
+        assert!(!actions.contains("automatic lifecycle"));
     }
 
     #[test]
