@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-22",
+  "claims": [
+    {
+      "key": "integrity.original",
+      "status": "candidate",
+      "source": "docs/research/evidence/test-integrity-capstone.md",
+      "revision": "2026-07-10 original run",
+      "observedAt": "2026-07-10",
+      "scope": "22 corpora / 11 languages; production fit→check fixtures",
+      "qualifier": "superseded candidate; not approved for public use",
+      "numerator": 144,
+      "denominator": 153,
+      "percentage": 94.11764705882352,
+      "supersedes": []
+    },
+    {
+      "key": "integrity.extended",
+      "status": "candidate",
+      "source": "docs/research/evidence/test-integrity-capstone.md",
+      "revision": "2026-07-20 Pascal extension",
+      "observedAt": "2026-07-20",
+      "scope": "23 corpora / 12 languages; production fit→check fixtures",
+      "qualifier": "candidate only; DR-09 selection required",
+      "numerator": 155,
+      "denominator": 164,
+      "percentage": 94.51219512195122,
+      "supersedes": ["integrity.original"]
+    },
+    {
+      "key": "integrity.original.controls",
+      "status": "candidate",
+      "source": "docs/research/evidence/test-integrity-capstone.md",
+      "revision": "2026-07-10 original run",
+      "observedAt": "2026-07-10",
+      "scope": "authored legitimate controls",
+      "qualifier": "candidate control result",
+      "numerator": 0,
+      "denominator": 102,
+      "percentage": 0,
+      "supersedes": []
+    },
+    {
+      "key": "integrity.extended.controls",
+      "status": "candidate",
+      "source": "docs/research/evidence/test-integrity-capstone.md",
+      "revision": "2026-07-20 Pascal extension",
+      "observedAt": "2026-07-20",
+      "scope": "authored legitimate controls",
+      "qualifier": "candidate control result",
+      "numerator": 0,
+      "denominator": 106,
+      "percentage": 0,
+      "supersedes": ["integrity.original.controls"]
+    },
+    {
+      "key": "integrity.extended.accepted_history",
+      "status": "candidate",
+      "source": "docs/research/evidence/test-integrity-capstone.md",
+      "revision": "2026-07-20 Pascal extension",
+      "observedAt": "2026-07-20",
+      "scope": "accepted-history gating-severity test-touching commits",
+      "qualifier": "candidate false-fire result",
+      "numerator": 45,
+      "denominator": 3602,
+      "percentage": 1.249305941143809,
+      "supersedes": []
+    }
+  ]
+}
