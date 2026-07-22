@@ -21,6 +21,7 @@ serde.workspace = true
 serde_json.workspace = true
 # YAML parsing for benchmarks/targets.yaml + catalog manifests (bench-only dep).
 serde_yaml = "0.9"
+sha2.workspace = true
 # integrity-fp mode replays accepted history directly (feature-gated;
 # already compiled via argot-core).
 git2 = { workspace = true, optional = true }
@@ -39,6 +40,10 @@ arch = ["argot-core/arch"]
 # drives argot-core's feature-gated test-gaming detector over authored gaming
 # fixtures + replayed accepted history.
 integrity = ["argot-core/integrity", "dep:git2"]
+
+# The explicit release-composition benchmark build. Kept opt-in so normal
+# deterministic aggregation tests do not download the semantic model.
+release-composition = ["argot-core/semantic", "argot-core/arch", "argot-core/integrity", "argot-core/script", "integrity"]
 
 [lints]
 workspace = true

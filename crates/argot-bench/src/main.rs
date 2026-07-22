@@ -7,7 +7,7 @@
 
 use anyhow::{Context, Result};
 use argot_bench::scorer::BenchKnobs;
-use argot_bench::{holdout, pool, production, report, run, targets};
+use argot_bench::{accept_brief, holdout, pool, production, report, run, targets};
 
 /// Current time as an ISO-8601 UTC string (dashboard metadata only).
 fn iso_utc_now() -> String {
@@ -84,6 +84,15 @@ struct Cli {
 
     #[arg(long, default_value = "benchmarks/results/latest")]
     results_dir: PathBuf,
+
+    /// Pinned raw records to aggregate in `--mode accept-brief`.
+    #[arg(long)]
+    accept_brief_records: Option<PathBuf>,
+
+    /// Pinned accepted-change manifest to replay in `--mode accept-brief`.
+    /// Requires the repositories named in the manifest to already be present.
+    #[arg(long)]
+    accept_brief_manifest: Option<PathBuf>,
 
     /// Reservoir-free deterministic control subsample per PR snapshot.
     #[arg(long)]
@@ -180,6 +189,41 @@ fn main() -> ExitCode {
 
 fn real_main() -> Result<ExitCode> {
     let cli = Cli::parse();
+
+    if cli.mode == "accept-brief" {
+        let records = match (&cli.accept_brief_records, &cli.accept_brief_manifest) {
+            (Some(records), None) => accept_brief::load_records(records)?,
+            (None, Some(manifest)) => {
+                let raw = std::fs::read_to_string(manifest)
+                    .with_context(|| format!("reading {}", manifest.display()))?;
+                let manifest: accept_brief::ReplayManifest = serde_json::from_str(&raw)
+                    .context("accept-brief manifest must be JSON")?;
+                let output = cli.results_dir.join("raw");
+                let records = accept_brief::replay_manifest(&manifest, &output)?;
+                std::fs::create_dir_all(&cli.results_dir)?;
+                let jsonl = records
+                    .iter()
+                    .map(serde_json::to_string)
+                    .collect::<Result<Vec<_>, _>>()?
+                    .join("\n");
+                std::fs::write(cli.results_dir.join("records.jsonl"), format!("{jsonl}\n"))?;
+                records
+            }
+            _ => anyhow::bail!(
+                "accept-brief needs exactly one of --accept-brief-records or --accept-brief-manifest"
+            ),
+        };
+        let aggregate = accept_brief::aggregate(&records)?;
+        std::fs::create_dir_all(&cli.results_dir)?;
+        std::fs::write(
+            cli.results_dir.join("combined.json"),
+            format!("{}\n", serde_json::to_string_pretty(&aggregate)?),
+        )?;
+        println!("accept-brief records: {}", aggregate.accepted_changes);
+        eprintln!("results → {}", cli.results_dir.display());
+        return Ok(ExitCode::SUCCESS);
+    }
+
     let all_targets = targets::load_targets(&cli.targets)?;
 
     if cli.list_corpora {
