@@ -60,6 +60,14 @@ jobs:
         with:
           persist-credentials: false
           submodules: recursive
+      - name: Verify release version metadata
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = push ]; then
+            scripts/check-release-version.py --tag "${{ github.ref_name }}"
+          else
+            scripts/check-release-version.py
+          fi
       - name: Install dist
         # we specify bash to get pipefail; it guards against the `curl` command
         # failing. otherwise `sh` won't catch that `curl` returned non-0
