@@ -24,9 +24,10 @@ git -C "$repo" add README.md
 git -C "$repo" commit -qm 'fixture history'
 
 printf 'network: offline (ARGOT_OFFLINE=1; no model download)\n' > "$receipt"
+export ARGOT_OFFLINE=1
 test ! -e "$repo/.argot"
 "$binary" audit --repo "$repo" --commits 1 --format json > "$work/audit.json"
-ARGOT_OFFLINE=1 "$binary" init --repo "$repo" > "$work/init.txt"
+"$binary" init --repo "$repo" > "$work/init.txt"
 test -f "$repo/.argot/scorer-config.json"
 printf 'mutation: init created .argot/scorer-config.json\n' >> "$receipt"
 
@@ -42,7 +43,7 @@ printf 'ownership: uninstall dry run leaves authored source untouched\n' >> "$re
 
 printf '\nimport requests\n' >> "$repo/app.py"
 set +e
-ARGOT_OFFLINE=1 "$binary" check --repo "$repo" --format json > "$work/finding.json"
+"$binary" check --repo "$repo" --format json > "$work/finding.json"
 check_status=$?
 set -e
 test "$check_status" -eq 1
@@ -56,7 +57,7 @@ printf 'exit: finding check=%s\n' "$check_status" >> "$receipt"
 )
 test -f "$repo/argot.toml"
 printf 'mutation: mute appended an auditable reason to argot.toml\n' >> "$receipt"
-ARGOT_OFFLINE=1 "$binary" check --repo "$repo" --format json > "$work/suppressed.json"
+"$binary" check --repo "$repo" --format json > "$work/suppressed.json"
 python3 -c '
 import json, sys
 result = json.load(open(sys.argv[1]))["result"]
