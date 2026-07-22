@@ -118,4 +118,8 @@ jobs:
           git add Cargo.toml Cargo.lock landing/src/data/release.json server.json .claude-plugin/plugin.json skills/VERSION
           git commit -m "chore: release v$VERSION"
           git tag "v$VERSION"
-          git push origin main "v$VERSION"
+          # actions/checkout leaves this job detached at the triggering commit.
+          # Pushing `main` here therefore re-pushes its stale local branch rather
+          # than the release commit. Push HEAD explicitly, atomically with its
+          # tag, so the release data reaches Pages before the tag can publish.
+          git push --atomic origin HEAD:refs/heads/main "v$VERSION"
