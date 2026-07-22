@@ -1,0 +1,45 @@
+{
+  "files_scanned": [
+    {
+      "hunks": 1,
+      "path": "src/receipt.py"
+    }
+  ],
+  "hits": [
+    {
+      "confidence": "foreign",
+      "evidence": [
+        "↳ import (0×), class (0×), def (0×) (+4 more)"
+      ],
+      "hash": "99dd5fdc5590",
+      "line_end": 10,
+      "line_start": 1,
+      "path": "src/receipt.py",
+      "rule": "rare-tokens",
+      "rule_label": "rare token sequence",
+      "score": 12.513468288870405,
+      "severity": "error",
+      "source": "staged",
+      "threshold": 0.0
+    }
+  ],
+  "hunks_scanned": 1,
+  "model": "649c126c3027",
+  "repo": ".",
+  "result": {
+    "error_hits": 1,
+    "exit_code": 1,
+    "gating_hits": 1,
+    "hidden_hits": 0,
+    "suppressed_hits": 0,
+    "unsuppressed_hits": 1,
+    "visible_hits": 1,
+    "warn_hits": 0
+  },
+  "scanned": "staged changes",
+  "schema_version": 1,
+  "tool": {
+    "name": "argot",
+    "version": "0.2.89"
+  }
+}

@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "generated_by": "argot v0.2.89",
+  "window": {
+    "requested": {
+      "commits": 1
+    },
+    "effective_commits": 1,
+    "clamp": null,
+    "clamp_note": null,
+    "base": "0ef1efad35a6996708d94c52e459c3751e6ee46b",
+    "head": "705db9cd422d4f04a2f9d9005fc54806c1eea612",
+    "base_date": "2026-01-01",
+    "head_date": "2026-01-02"
+  },
+  "commits": {
+    "total": 1,
+    "ai_assisted": 0,
+    "human": 1,
+    "unknown": 0
+  },
+  "hunks_scanned": 1,
+  "groups": [
+    {
+      "group": "voice",
+      "status": "scored",
+      "findings": 1,
+      "skip_reason": null
+    },
+    {
+      "group": "semantic",
+      "status": "skipped",
+      "findings": 0,
+      "skip_reason": "not compiled into this build"
+    },
+    {
+      "group": "architecture",
+      "status": "skipped",
+      "findings": 0,
+      "skip_reason": "not compiled into this build"
+    },
+    {
+      "group": "integrity",
+      "status": "skipped",
+      "findings": 0,
+      "skip_reason": "not compiled into this build"
+    },
+    {
+      "group": "governance",
+      "status": "scored",
+      "findings": 0,
+      "skip_reason": null
+    }
+  ],
+  "findings": [
+    {
+      "rule": "rare-tokens",
+      "rule_label": "rare token sequence",
+      "group": "voice",
+      "confidence": "foreign",
+      "severity": "error",
+      "path": "src/receipt.py",
+      "line_start": 1,
+      "line_end": 10,
+      "evidence": "↳ import (0×), class (0×), def (0×) (+4 more)",
+      "commit": {
+        "sha": "705db9cd422d4f04a2f9d9005fc54806c1eea612",
+        "short": "705db9c",
+        "subject": "add authored foreign import",
+        "attribution": "human",
+        "markers": []
+      }
+    }
+  ]
+}
