@@ -1,8 +1,9 @@
-//! `argot voice-diff <target>` — a single PR-level out-of-voice number plus a
-//! ranked hot-spots list. Pure aggregation over the per-hunk scores `check`
+//! `argot voice-diff <target>` — an observed-findings summary with selected
+//! locations. Pure aggregation over the per-hunk scores `check`
 //! already produces (consumed via its stable `--format json` contract), so it
 //! adds no new modeling.
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
@@ -19,14 +20,11 @@ pub struct HitScore {
     pub line_end: usize,
     pub score: f64,
     pub confidence: String,
+    pub severity: String,
+    pub rule: String,
     /// Content-based hit hash — `argot mute <hash>` accepts the hunk.
     pub hash: String,
 }
-
-/// Additive-smoothing denominator: pulls tiny diffs toward 0% so a lone
-/// anomalous hunk in a 5-line PR doesn't read 100% out of voice. Large diffs are
-/// barely affected (10/105 ≈ 10%).
-const SMOOTHING: f64 = 5.0;
 
 /// Default hot-spots shown.
 pub const DEFAULT_TOP: usize = 10;
@@ -38,37 +36,33 @@ pub struct HotSpot {
     pub line_end: usize,
     pub score: f64,
     pub confidence: String,
+    pub severity: String,
+    pub rule: String,
     /// Content-based hit hash — `argot mute <hash>` accepts the hunk.
     pub hash: String,
 }
 
 #[derive(Serialize)]
 pub struct VoiceDiffSummary {
-    /// Smoothed proportion of scored hunks above threshold, as a percent.
-    pub out_of_voice_pct: f64,
-    pub hunks_total: usize,
-    pub hunks_flagged: usize,
-    /// Strongest tier that fired (`foreign`/`suspicious`/`unusual`/`none`).
-    pub max_confidence: String,
-    /// Highest-scoring hunks first.
-    pub hot_spots: Vec<HotSpot>,
+    pub scanned_hunks: usize,
+    pub configured_findings: usize,
+    pub findings_by_severity: BTreeMap<String, usize>,
+    pub findings_by_rule: BTreeMap<String, usize>,
+    /// Highest-scoring selected locations first.
+    pub locations: Vec<HotSpot>,
 }
 
 /// Aggregate scored hits into the PR-level summary. Pure: the CLI just feeds it
 /// what `check` produced.
 pub fn summarize(hits: &[HitScore], hunks_total: usize, top_n: usize) -> VoiceDiffSummary {
-    let flagged = hits.len();
-    let denom = hunks_total as f64 + SMOOTHING;
-    let out_of_voice_pct = if denom > 0.0 {
-        (flagged as f64 / denom) * 100.0
-    } else {
-        0.0
-    };
-    let max_confidence = ["foreign", "suspicious", "unusual"]
-        .into_iter()
-        .find(|t| hits.iter().any(|h| h.confidence == *t))
-        .unwrap_or("none")
-        .to_string();
+    let mut findings_by_severity = BTreeMap::new();
+    let mut findings_by_rule = BTreeMap::new();
+    for hit in hits {
+        *findings_by_severity
+            .entry(hit.severity.clone())
+            .or_insert(0) += 1;
+        *findings_by_rule.entry(hit.rule.clone()).or_insert(0) += 1;
+    }
     let mut sorted: Vec<&HitScore> = hits.iter().collect();
     sorted.sort_by(|a, b| {
         b.score
@@ -86,15 +80,17 @@ pub fn summarize(hits: &[HitScore], hunks_total: usize, top_n: usize) -> VoiceDi
             line_end: h.line_end,
             score: h.score,
             confidence: h.confidence.clone(),
+            severity: h.severity.clone(),
+            rule: h.rule.clone(),
             hash: h.hash.clone(),
         })
         .collect();
     VoiceDiffSummary {
-        out_of_voice_pct,
-        hunks_total,
-        hunks_flagged: flagged,
-        max_confidence,
-        hot_spots,
+        scanned_hunks: hunks_total,
+        configured_findings: hits.len(),
+        findings_by_severity,
+        findings_by_rule,
+        locations: hot_spots,
     }
 }
 
@@ -148,6 +144,16 @@ pub fn summary_for_ref(repo: &Path, reference: &str, top_n: usize) -> Option<Voi
                         .and_then(Value::as_str)
                         .unwrap_or("")
                         .to_string(),
+                    severity: h
+                        .get("severity")
+                        .and_then(Value::as_str)
+                        .unwrap_or("unknown")
+                        .to_string(),
+                    rule: h
+                        .get("rule")
+                        .and_then(Value::as_str)
+                        .unwrap_or("unknown")
+                        .to_string(),
                     hash: h
                         .get("hash")
                         .and_then(Value::as_str)
@@ -163,55 +169,55 @@ pub fn summary_for_ref(repo: &Path, reference: &str, top_n: usize) -> Option<Voi
 /// One-line headline for the human render + `argot review` header.
 pub fn one_liner(s: &VoiceDiffSummary) -> String {
     format!(
-        "voice-diff · {:.0}% out of voice ({}/{} hunks · max {})",
-        s.out_of_voice_pct, s.hunks_flagged, s.hunks_total, s.max_confidence
+        "observed configured findings · {} on {} scanned hunks",
+        s.configured_findings, s.scanned_hunks
     )
 }
 
-/// A GitHub-flavoured markdown "voice score" card — for a PR comment or an
-/// Actions job summary. Deliberately framed as informational: it reports a score and
-/// hot-spots and offers the `argot mute` escape hatch, but never speaks in terms
-/// of pass/fail or blocking. The reviewer decides.
+/// A GitHub-flavoured observed-findings card for a PR comment or Actions job
+/// summary. It is informational and offers the `argot mute` escape hatch.
 pub fn markdown_card(s: &VoiceDiffSummary) -> String {
     use std::fmt::Write as _;
-    let in_voice = (100.0 - s.out_of_voice_pct).clamp(0.0, 100.0);
-    let filled = ((in_voice / 100.0) * 20.0).round() as usize;
-    // Explicit `.as_str()`: the `+ &String` deref-coercion form stopped
-    // resolving once the `script` feature pulled rhai into the crate graph
-    // (observed E0277 under feature unification); the explicit form is
-    // clearer anyway.
-    let bar: String = "█".repeat(filled) + "░".repeat(20 - filled).as_str();
-
     let mut out = String::new();
-    let _ = writeln!(out, "### 🎙️ argot voice check\n");
+    let _ = writeln!(out, "### 🎙️ argot configured findings\n");
 
-    if s.hunks_flagged == 0 {
+    if s.configured_findings == 0 {
         let _ = writeln!(
             out,
-            "**100% in-voice** — this diff sounds like the rest of the repo. ✅\n"
+            "**No configured findings on {} scanned hunks.**\n",
+            s.scanned_hunks
         );
-        let _ = writeln!(out, "`{bar}` 100%\n");
-        let _ = writeln!(
-            out,
-            "<sub>argot is a probabilistic guardrail — informational, it never blocks a merge.</sub>"
-        );
+        let _ = writeln!(out, "<sub>Non-blocking by default: argot findings are prompts for review, not proof of defects.</sub>");
         return out;
     }
 
     let _ = writeln!(
         out,
-        "**{in_voice:.0}% in-voice** · {} of {} scored hunks look foreign to this repo's patterns · strongest signal: **{}**",
-        s.hunks_flagged, s.hunks_total, s.max_confidence
+        "**{} observed configured findings on {} scanned hunks.**",
+        s.configured_findings, s.scanned_hunks
     );
-    let _ = writeln!(out, "\n`{bar}` {in_voice:.0}%\n");
     let _ = writeln!(
         out,
-        "> **Informational — not a merge gate.** argot is probabilistic and can be wrong; treat these as prompts to review, not errors.\n"
+        "> **Non-blocking by default.** argot is probabilistic and can be wrong; treat findings as prompts to review, not errors.\n"
     );
+    let severity_counts = s
+        .findings_by_severity
+        .iter()
+        .map(|(severity, count)| format!("{count} {severity}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let rule_counts = s
+        .findings_by_rule
+        .iter()
+        .map(|(rule, count)| format!("{count} {rule}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let _ = writeln!(out, "**Severity counts:** {severity_counts}");
+    let _ = writeln!(out, "**Rule counts:** {rule_counts}\n");
 
-    let _ = writeln!(out, "| | Location | Signal | Score | Accept |");
-    let _ = writeln!(out, "|---|---|---|--:|---|");
-    for h in &s.hot_spots {
+    let _ = writeln!(out, "| | Location | Rule | Severity | Signal | Accept |");
+    let _ = writeln!(out, "|---|---|---|---|---|---|");
+    for h in &s.locations {
         let glyph = match h.confidence.as_str() {
             "foreign" => "🔴",
             "suspicious" => "🟡",
@@ -229,8 +235,8 @@ pub fn markdown_card(s: &VoiceDiffSummary) -> String {
         };
         let _ = writeln!(
             out,
-            "| {glyph} | `{loc}` | {} | {:.1} | {accept} |",
-            h.confidence, h.score
+            "| {glyph} | `{loc}` | {} | {} | {} | {accept} |",
+            h.rule, h.severity, h.confidence
         );
     }
     let _ = writeln!(out);
@@ -244,52 +250,22 @@ pub fn markdown_card(s: &VoiceDiffSummary) -> String {
     );
     let _ = writeln!(
         out,
-        "<sub>argot never blocks a merge — the reviewer has the last word. · [What this means](https://argot.tmonier.com/docs/reading-the-output/)</sub>"
+        "<sub>Non-blocking by default — the reviewer has the last word. · [What this means](https://argot.tmonier.com/docs/reading-the-output/)</sub>"
     );
     out
-}
-
-/// The badge score = in-voice %, the positive complement of the out-of-voice
-/// metric. A README badge is a thing you pin and keep, so it uses the positive
-/// framing (green when high) — the provocative AI-share number belongs on the
-/// one-time `argot audit` card, not a persistent badge.
-fn in_voice_pct(s: &VoiceDiffSummary) -> f64 {
-    (100.0 - s.out_of_voice_pct).clamp(0.0, 100.0)
-}
-
-/// Score → (shields colour keyword, SVG hex). Coverage-badge semantics: green
-/// high, red low, so the badge reads at a glance the way a coverage badge does.
-fn badge_color(in_voice: f64) -> (&'static str, &'static str) {
-    match in_voice {
-        s if s >= 95.0 => ("brightgreen", "#4c1"),
-        s if s >= 85.0 => ("green", "#97ca00"),
-        s if s >= 70.0 => ("yellowgreen", "#a4a61d"),
-        s if s >= 50.0 => ("yellow", "#dfb317"),
-        s if s >= 30.0 => ("orange", "#fe7d37"),
-        _ => ("red", "#e05d44"),
-    }
-}
-
-/// Minimal XML text escape for the SVG badge.
-fn xml_esc(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
 }
 
 /// A [shields.io endpoint](https://shields.io/badges/endpoint-badge) JSON
 /// document. Published by CI to a stable URL, it lets a README badge stay fresh
 /// without argot hosting anything: `img.shields.io/endpoint?url=<the JSON>`
-/// renders the current score. `schemaVersion` 1 is shields' stable contract.
+/// renders the current configured-finding count. `schemaVersion` 1 is shields'
+/// stable contract.
 pub fn shields_endpoint(s: &VoiceDiffSummary) -> String {
-    let in_voice = in_voice_pct(s);
-    let (color, _) = badge_color(in_voice);
     let doc = serde_json::json!({
         "schemaVersion": 1,
         "label": "argot",
-        "message": format!("{in_voice:.0}% in-voice"),
-        "color": color,
+        "message": format!("{} findings", s.configured_findings),
+        "color": "blue",
     });
     format!("{doc}\n")
 }
@@ -298,10 +274,16 @@ pub fn shields_endpoint(s: &VoiceDiffSummary) -> String {
 /// audit HTML card), for a static badge committed to a repo or embedded in
 /// docs. The shields endpoint is the fresher path; this is the offline one.
 pub fn badge_svg(s: &VoiceDiffSummary) -> String {
-    let in_voice = in_voice_pct(s);
-    let (_, hex) = badge_color(in_voice);
     let label = "argot";
-    let message = format!("{in_voice:.0}% in-voice");
+    let message = format!("{} findings", s.configured_findings);
+    let hex = "#007ec6";
+    let escape = |value: &str| {
+        value
+            .replace('&', "&amp;")
+            .replace('<', "&lt;")
+            .replace('>', "&gt;")
+            .replace('"', "&quot;")
+    };
     // Approximate Verdana-11 advance width; the shields endpoint renders
     // pixel-perfect, so a rough width here only affects the offline SVG.
     let char_w = 7u32;
@@ -314,8 +296,8 @@ pub fn badge_svg(s: &VoiceDiffSummary) -> String {
     let lcx = lw * 5;
     let mcx = lw * 10 + mw * 5;
     let (ltl, mtl) = (ltw * 10, mtw * 10);
-    let label_e = xml_esc(label);
-    let message_e = xml_esc(&message);
+    let label_e = escape(label);
+    let message_e = escape(&message);
     let aria = format!("{label_e}: {message_e}");
     format!(
         r##"<svg xmlns="http://www.w3.org/2000/svg" width="{total}" height="20" role="img" aria-label="{aria}">
@@ -358,20 +340,17 @@ pub fn run_voice_diff(target: &str, repo: PathBuf, format: &str, top_n: usize) -
         return ExitCode::SUCCESS;
     }
     println!("{}", one_liner(&summary));
-    if summary.hot_spots.is_empty() {
-        println!("  no hot spots — this diff sounds like the repo.");
+    if summary.locations.is_empty() {
+        println!("  no configured findings.");
     } else {
-        println!("  hot spots:");
-        for h in &summary.hot_spots {
+        println!("  selected locations:");
+        for h in &summary.locations {
             let loc = if h.line_start == h.line_end {
                 format!("L{}", h.line_start)
             } else {
                 format!("L{}-L{}", h.line_start, h.line_end)
             };
-            println!(
-                "    {:>6.2}  {:<10}  {}:{}",
-                h.score, h.confidence, h.file, loc
-            );
+            println!("    {:<20} {:<10}  {}:{}", h.rule, h.severity, h.file, loc);
         }
     }
     ExitCode::SUCCESS
@@ -381,76 +360,74 @@ pub fn run_voice_diff(target: &str, repo: PathBuf, format: &str, top_n: usize) -
 mod tests {
     use super::*;
 
-    fn hit(file: &str, line: usize, score: f64, sev: &str) -> HitScore {
+    fn hit(file: &str, line: usize, score: f64, confidence: &str) -> HitScore {
         HitScore {
             file: file.to_string(),
             line_start: line,
             line_end: line,
             score,
-            confidence: sev.to_string(),
+            confidence: confidence.to_string(),
+            severity: "error".to_string(),
+            rule: "foreign-import".to_string(),
             hash: "deadbeef".to_string(),
         }
     }
 
     #[test]
-    fn empty_diff_is_zero_percent_and_no_hot_spots() {
+    fn clean_summary_reports_no_configured_findings() {
         let s = summarize(&[], 12, 10);
-        assert_eq!(s.out_of_voice_pct, 0.0);
-        assert_eq!(s.max_confidence, "none");
-        assert!(s.hot_spots.is_empty());
+        assert_eq!(s.scanned_hunks, 12);
+        assert_eq!(s.configured_findings, 0);
+        assert!(s.findings_by_severity.is_empty());
+        assert!(s.locations.is_empty());
     }
 
     #[test]
-    fn smoothing_keeps_a_lone_hunk_in_a_tiny_diff_off_one_hundred_percent() {
-        // 1 flagged of 1 total would be 100% unsmoothed; smoothing pulls it down.
+    fn findings_summary_has_no_percentage_fields() {
         let s = summarize(&[hit("a.py", 1, 9.0, "foreign")], 1, 10);
-        assert!(s.out_of_voice_pct < 50.0, "got {}", s.out_of_voice_pct);
-        assert_eq!(s.hunks_flagged, 1);
-    }
-
-    #[test]
-    fn large_diffs_are_barely_smoothed() {
-        // 10 of 100 → ~9.5%, close to the naive 10%.
-        let hits: Vec<HitScore> = (0..10).map(|i| hit("a.py", i, 6.0, "unusual")).collect();
-        let s = summarize(&hits, 100, 10);
-        assert!(
-            (s.out_of_voice_pct - 9.5).abs() < 0.6,
-            "got {}",
-            s.out_of_voice_pct
-        );
-    }
-
-    #[test]
-    fn max_severity_is_the_strongest_tier_present() {
-        let hits = vec![
-            hit("a.py", 1, 5.0, "unusual"),
-            hit("b.py", 2, 6.0, "foreign"),
-            hit("c.py", 3, 5.5, "suspicious"),
-        ];
-        assert_eq!(summarize(&hits, 20, 10).max_confidence, "foreign");
+        let json = serde_json::to_value(s).unwrap();
+        assert!(json.get("out_of_voice_pct").is_none());
+        assert!(json.get("hunks_total").is_none());
+        assert!(json.get("hunks_flagged").is_none());
+        assert!(json.get("max_confidence").is_none());
+        assert_eq!(json["configured_findings"], 1);
     }
 
     #[test]
     fn markdown_card_is_informational_and_offers_mute() {
         let hits = vec![hit("src/http.ts", 42, 8.2, "foreign")];
         let card = markdown_card(&summarize(&hits, 40, 10));
-        assert!(card.contains("in-voice"), "reports a score");
-        assert!(card.contains("not a merge gate"), "framed informational");
+        assert!(card.contains("1 observed configured findings"));
+        assert!(card.contains("**Severity counts:** 1 error"));
+        assert!(card.contains("**Rule counts:** 1 foreign-import"));
+        assert!(
+            card.contains("Non-blocking by default"),
+            "framed informational"
+        );
         assert!(
             card.contains("argot mute deadbeef"),
             "offers the accept command"
         );
-        assert!(
-            !card.to_lowercase().contains("fail"),
-            "never speaks of failing"
-        );
+        assert!(!card.contains('%'), "never presents a percentage");
     }
 
     #[test]
-    fn markdown_card_clean_diff_is_100_percent() {
+    fn markdown_card_preserves_warn_and_error_counts() {
+        let mut warning = hit("src/style.rs", 9, 4.0, "unusual");
+        warning.severity = "warn".to_string();
+        warning.rule = "convention".to_string();
+        let error = hit("src/http.rs", 42, 8.2, "foreign");
+        let card = markdown_card(&summarize(&[warning, error], 40, 10));
+        assert!(card.contains("**Severity counts:** 1 error, 1 warn"));
+        assert!(card.contains("**Rule counts:** 1 convention, 1 foreign-import"));
+    }
+
+    #[test]
+    fn markdown_card_clean_diff_uses_the_bounded_clean_claim() {
         let card = markdown_card(&summarize(&[], 30, 10));
-        assert!(card.contains("100% in-voice"));
-        assert!(card.contains("never blocks"));
+        assert!(card.contains("No configured findings on 30 scanned hunks."));
+        assert!(card.contains("Non-blocking by default"));
+        assert!(!card.contains("in-voice"));
     }
 
     #[test]
@@ -461,39 +438,27 @@ mod tests {
             hit("c.py", 3, 7.0, "suspicious"),
         ];
         let s = summarize(&hits, 20, 2);
-        assert_eq!(s.hot_spots.len(), 2);
-        assert_eq!(s.hot_spots[0].file, "b.py"); // highest score first
-        assert_eq!(s.hot_spots[1].file, "c.py");
+        assert_eq!(s.locations.len(), 2);
+        assert_eq!(s.locations[0].file, "b.py"); // highest score first
+        assert_eq!(s.locations[1].file, "c.py");
     }
 
     #[test]
-    fn badge_color_follows_coverage_semantics() {
-        assert_eq!(badge_color(100.0).0, "brightgreen");
-        assert_eq!(badge_color(95.0).0, "brightgreen");
-        assert_eq!(badge_color(90.0).0, "green");
-        assert_eq!(badge_color(75.0).0, "yellowgreen");
-        assert_eq!(badge_color(60.0).0, "yellow");
-        assert_eq!(badge_color(40.0).0, "orange");
-        assert_eq!(badge_color(10.0).0, "red");
-    }
-
-    #[test]
-    fn shields_endpoint_is_valid_and_positively_framed() {
-        // One flagged hunk in a large diff → high in-voice %.
+    fn shields_endpoint_is_a_neutral_findings_count() {
         let json = shields_endpoint(&summarize(&[hit("a.py", 1, 6.0, "unusual")], 100, 10));
         let doc: Value = serde_json::from_str(&json).unwrap();
         assert_eq!(doc["schemaVersion"], 1);
         assert_eq!(doc["label"], "argot");
         let msg = doc["message"].as_str().unwrap();
-        assert!(msg.ends_with("% in-voice"), "{msg}");
-        assert_eq!(doc["color"], "brightgreen");
+        assert_eq!(msg, "1 findings");
+        assert_eq!(doc["color"], "blue");
     }
 
     #[test]
-    fn shields_endpoint_clean_diff_is_one_hundred_percent() {
+    fn shields_endpoint_clean_diff_is_zero_findings() {
         let doc: Value = serde_json::from_str(&shields_endpoint(&summarize(&[], 30, 10))).unwrap();
-        assert_eq!(doc["message"], "100% in-voice");
-        assert_eq!(doc["color"], "brightgreen");
+        assert_eq!(doc["message"], "0 findings");
+        assert_eq!(doc["color"], "blue");
     }
 
     #[test]
@@ -501,7 +466,7 @@ mod tests {
         let svg = badge_svg(&summarize(&[hit("a.py", 1, 6.0, "unusual")], 100, 10));
         assert!(svg.starts_with("<svg"));
         assert!(svg.trim_end().ends_with("</svg>"));
-        assert!(svg.contains("in-voice"));
+        assert!(svg.contains("1 findings"));
         assert!(svg.contains("argot"));
         // No external resource references (internal url(#…) refs are fine).
         for banned in ["href=", "src=", "<image", "url(http", "@import"] {

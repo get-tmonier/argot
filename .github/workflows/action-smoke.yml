@@ -12,6 +12,24 @@ permissions:
   contents: read
 
 jobs:
+  contract:
+    name: Action findings contract
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Assert renderer snapshots and Action state contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo test -p argot voice_diff::tests
+          grep -Fq 'No configured findings on {} scanned hunks.' crates/argot-cli/src/voice_diff.rs
+          grep -Fq 'Non-blocking by default' action.yml
+          grep -Fq 'argot-configured-findings' action.yml
+          grep -Fq '"message":"unknown","color":"lightgrey"' action.yml
+          grep -Fq 'Fail the job when argot finds hunks above the calibrated threshold.' action.yml
+          grep -Fq "if: \${{ inputs.fail-on-hits == 'true' && steps.check.outputs.exit-code == '1' }}" action.yml
+          ! grep -Eiq 'in-voice|out-of-voice|voice score|score card' action.yml
+
   linux:
     name: Linux Action ${{ matrix.scenario }} smoke
     runs-on: ubuntu-24.04

@@ -2,7 +2,7 @@
 # from git history. See https://argot.tmonier.com/docs/ci/ for copy-paste workflows.
 #
 # It is non-blocking by default: argot is a probabilistic guardrail, so it
-# informs the PR with a visual score and inline annotations without gating the
+# informs the PR with observed configured findings and inline annotations without gating the
 # merge. The reviewer has the last word (opt into `fail-on-hits` for a hard gate).
 #
 # What it does:
@@ -14,10 +14,10 @@
 #      per base commit and re-fit only when the base advances. Needs full history
 #      (`actions/checkout` with `fetch-depth: 0`).
 #   3. Runs `argot check --format <format>` on base..HEAD and writes it to a file.
-#   4. Renders a non-blocking "voice score" card into the Actions job summary,
+#   4. Renders a non-blocking configured-findings card into the Actions job summary,
 #      and (on pull requests) into a single sticky PR comment.
 #   5. Optionally uploads the SARIF file to GitHub code scanning.
-#   6. Optionally publishes a shields.io "voice score" badge to a `badges`
+#   6. Optionally publishes a shields.io configured-findings badge to a `badges`
 #      branch (publish-badge: true; needs `contents: write`) so a README badge
 #      stays fresh — see https://argot.tmonier.com/docs/ci/ for the snippet.
 #
@@ -28,7 +28,7 @@
 # Use `actions/checkout` with `fetch-depth: 0`.
 
 name: "argot"
-description: "Score a PR against the repo's learned voice — a non-blocking visual score card, PR comment, and SARIF code-scanning annotations."
+description: "Summarize configured findings on a PR — non-blocking by default, with a job summary, PR comment, and SARIF code-scanning annotations."
 branding:
   icon: "mic"
   color: "purple"
@@ -65,7 +65,7 @@ inputs:
     required: false
     default: "true"
   comment-pr:
-    description: "Post/update a non-blocking voice-score comment on the pull request (requires `pull-requests: write`)."
+    description: "Post/update a non-blocking configured-findings comment on the pull request (requires `pull-requests: write`)."
     required: false
     default: "true"
   rules:
@@ -87,14 +87,14 @@ inputs:
     description: >-
       Fail the job when argot finds hunks above the calibrated threshold.
       Off by default: argot is a statistical guardrail, so it informs the PR
-      (score card + code-scanning annotations) without gating the merge. Opt in
+      (configured-findings card + code-scanning annotations) without gating the merge. Opt in
       only if you deliberately want a hard gate.
     required: false
     default: "false"
   publish-badge:
     description: >-
       On a push to the default branch, publish a shields.io endpoint JSON
-      (the repo's current in-voice %) to a `badges` branch, so a README badge
+      (the scanned change's configured-finding count) to a `badges` branch, so a README badge
       stays fresh. Off by default; needs `contents: write`. Embed it with
       `[![argot](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/OWNER/REPO/badges/argot.json)](https://argot.tmonier.com)`.
     required: false
@@ -261,9 +261,9 @@ runs:
       run: |
         set -euo pipefail
         # Learn the repo's established voice from the BASE tree — NOT the PR head.
-        # Fitting on the head would train on the PR's own new code and certify it
-        # in-voice before it's ever scored (a PR that adds `import axios` would
-        # read "100% in-voice"). The fitted .argot/ model survives the checkout
+        # Fitting on the head would train on the PR's own new code and hide its
+        # configured findings (a PR that adds `import axios` would see none).
+        # The fitted .argot/ model survives the checkout
         # (it's gitignored), so we restore the original ref afterward.
         git -C "$ARGOT_PATH" checkout -q --detach "$BASE_SHA"
         argot fit --repo "$ARGOT_PATH"
@@ -316,7 +316,7 @@ runs:
           echo "argot check clean."
         fi
 
-    - name: Voice score card
+    - name: Configured findings card
       id: card
       shell: bash
       env:
@@ -327,22 +327,22 @@ runs:
         # Same range the check scored, summarized against the base-fit model.
         range="$ARGOT_RANGE"
         if [ -z "$range" ]; then
-          echo "No diff range to score — skipping the voice card."
+          echo "No diff range to summarize — skipping the configured-findings card."
           echo "card=" >> "$GITHUB_OUTPUT"
           exit 0
         fi
-        card="${RUNNER_TEMP}/argot-voice-card.md"
+        card="${RUNNER_TEMP}/argot-findings-card.md"
         # Informational: never let card rendering fail the job.
         if argot voice-diff "$range" --repo "$ARGOT_PATH" --format markdown > "$card" 2>/dev/null; then
-          # Rich score card in the Actions run UI — no extra permissions, fork-safe.
+          # Findings card in the Actions run UI — no extra permissions, fork-safe.
           cat "$card" >> "$GITHUB_STEP_SUMMARY"
           echo "card=$card" >> "$GITHUB_OUTPUT"
         else
-          echo "voice-diff could not score '$range' (is the model fitted?) — skipping card."
+          echo "voice-diff could not summarize '$range' (is the model fitted?) — skipping card."
           echo "card=" >> "$GITHUB_OUTPUT"
         fi
 
-    - name: Comment voice score on the PR
+    - name: Comment configured findings on the PR
       if: ${{ inputs.comment-pr == 'true' && github.event_name == 'pull_request' && steps.card.outputs.card != '' }}
       uses: actions/github-script@v9
       env:
@@ -351,7 +351,7 @@ runs:
         github-token: ${{ github.token }}
         script: |
           const fs = require('fs');
-          const marker = '<!-- argot-voice-check -->';
+          const marker = '<!-- argot-configured-findings -->';
           const body = marker + '\n' + fs.readFileSync(process.env.ARGOT_CARD, 'utf8');
           const { owner, repo } = context.repo;
           const issue_number = context.payload.pull_request.number;
@@ -366,7 +366,7 @@ runs:
             await github.rest.issues.createComment({ owner, repo, issue_number, body });
           }
 
-    - name: Generate voice badge
+    - name: Generate configured-findings badge
       id: badge
       if: ${{ inputs.publish-badge == 'true' && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && steps.base.outputs.range != '' }}
       shell: bash
@@ -379,13 +379,12 @@ runs:
         # endpoint JSON is a single line; hand it to the publish step as output.
         json="$(argot voice-diff "$ARGOT_RANGE" --repo "$ARGOT_PATH" --format shields 2>/dev/null || true)"
         if [ -z "$json" ]; then
-          echo "voice-diff produced no badge JSON (model not fitted?) — skipping."
-          echo "json=" >> "$GITHUB_OUTPUT"
-          exit 0
+          echo "voice-diff produced no findings badge JSON (model not fitted?) — publishing neutral state."
+          json='{"schemaVersion":1,"label":"argot","message":"unknown","color":"lightgrey"}'
         fi
         printf 'json=%s\n' "$json" >> "$GITHUB_OUTPUT"
 
-    - name: Publish voice badge to the badges branch
+    - name: Publish configured-findings badge to the badges branch
       if: ${{ steps.badge.outputs.json != '' }}
       uses: actions/github-script@v9
       env:
@@ -397,11 +396,11 @@ runs:
           const { owner, repo } = context.repo;
           const branch = 'badges';
           const path = 'argot.json';
-          // Unchanged score → no commit, so a quiet repo never churns history.
+          // Unchanged findings summary → no commit, so a quiet repo never churns history.
           try {
             const existing = await github.rest.repos.getContent({ owner, repo, path, ref: branch });
             const cur = Buffer.from(existing.data.content, 'base64').toString('utf8');
-            if (cur.trim() === content.trim()) { core.info('argot badge unchanged — no commit.'); return; }
+            if (cur.trim() === content.trim()) { core.info('argot findings badge unchanged — no commit.'); return; }
           } catch (e) { /* file or branch absent → created below */ }
           const blob = await github.rest.git.createBlob({
             owner, repo, encoding: 'base64',
@@ -424,14 +423,14 @@ runs:
           });
           const commit = await github.rest.git.createCommit({
             owner, repo, tree: tree.data.sha, parents,
-            message: 'chore(argot): update voice badge [skip ci]',
+            message: 'chore(argot): update findings badge [skip ci]',
           });
           try {
             await github.rest.git.updateRef({ owner, repo, ref: `heads/${branch}`, sha: commit.data.sha, force: true });
           } catch (e) {
             await github.rest.git.createRef({ owner, repo, ref: `refs/heads/${branch}`, sha: commit.data.sha });
           }
-          core.info(`argot badge published → ${branch}/${path}`);
+          core.info(`argot findings badge published → ${branch}/${path}`);
 
     - name: Upload SARIF to code scanning
       if: ${{ inputs.upload-sarif == 'true' && inputs.format == 'sarif' }}
