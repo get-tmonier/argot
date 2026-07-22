@@ -2,9 +2,9 @@ import type { SiteContent } from './types';
 
 const en: SiteContent = {
   meta: {
-    title: 'argot — catch the AI code that doesn’t fit your codebase',
+    title: 'argot — find code your repository would question',
     description:
-      'The harness for AI-written code — statistics on your repo’s own history, not a second LLM. argot flags what doesn’t belong — foreign dependencies, reinvented functions, broken layering, gamed tests, patterns your own migrations left behind — plus the conventions you script yourself. No LLM, no cloud, 100% local.',
+      'Audit your history, then check changes against patterns your repository already established. Argot presents evidence for human judgment.',
   },
   nav: {
     demo: 'Demo',
@@ -13,15 +13,16 @@ const en: SiteContent = {
     docs: 'Docs',
   },
   hero: {
-    eyebrow: 'The harness for AI-written code · statistics, not a second LLM · 100% local',
-    titleLead: 'Lint the rules',
-    titleGradient: 'you never wrote down.',
+    eyebrow: 'Repository-grounded review · audit first · human judgment',
+    titleLead: 'Find the code your repository',
+    titleGradient: 'would question.',
     subtitle:
-      'AI writes the code. argot harnesses it with the one thing that can’t hallucinate: [[your repo’s own history]]. Deterministic, measured, local.',
-    ctaPrimary: 'Read the docs',
+      'Start with [[argot audit]]: it compares accepted changes with the repository history that came before them, then gives people evidence to review. For recurring checks, choose and wire the path that fits your workflow.',
+    ctaPrimary: 'See the audit',
     ctaSecondary: 'Star on GitHub',
     install: 'npm i -g @tmonier/argot',
-    installNote: 'MIT · single static binary · macOS · Linux · Windows · 100% local',
+    installNote:
+      'MIT-licensed open source · free local core · no account is ever required · audit and check run locally',
     installAlt: 'or install without npm',
     watchFilm: 'Watch the film',
   },
@@ -81,11 +82,10 @@ const en: SiteContent = {
       '[[94%]] of authored gaming edits caught · 0 of 102 legitimate refactors flagged · ships as warn — informs, never blocks.',
   },
   audit: {
-    label: 'Day one',
-    title: 'Audit your history. See what AI snuck in.',
-    body: '[[argot audit]] fits the voice as of 50 commits ago, rescores everything since, and attributes each finding — [[ai-assisted, human, or unknown]] — from commit markers, never style. One command, zero setup, your tree untouched — and a card [[built to screenshot and share]].',
-    caption:
-      'On argot’s own history: [[52%]] of commits carry AI markers — and the one finding traces to an AI-assisted commit.',
+    label: 'Start here',
+    title: 'Audit accepted changes before making it a habit.',
+    body: '[[argot audit]] evaluates the base-to-HEAD net diff with a historical fit. Its commit-marker attribution is a floor, not a census; findings are prompts to inspect, never a defect verdict. The displayed receipt is an [[authored two-commit fixture]] with its command, version, raw output, and checksum committed.',
+    caption: 'Then run [[argot init]] to fit today’s repository and choose a recurring check path.',
   },
   customRules: {
     label: 'Your conventions',
@@ -184,9 +184,9 @@ const en: SiteContent = {
   },
   setup: {
     label: 'Setup · built for agents',
-    title: 'A CLI your coding agent can drive.',
-    body: 'The skills bring the judgment: [[/argot-setup]] reads your repo, excludes what shouldn’t shape its voice, fits, and verifies the catch.',
-    installLabel: 'Add the skills — Claude Code, Cursor, 70+ agents',
+    title: 'From audit to a recurring check you choose.',
+    body: 'Run [[argot init]] to fit a repository, then choose an invoked CLI/skill, a user-wired commit hook, or a workflow-configured GitHub Action. The Claude plugin can ask before a write introduces a foreign dependency in a fitted repository; it is not a full acceptance-time check.',
+    installLabel: 'Six on-demand skills for compatible agent hosts',
     skillsIntro: 'six slash-commands your agent runs:',
     skillDescs: [
       'reads your tree, writes argot.toml, verifies the catch',
@@ -197,7 +197,7 @@ const en: SiteContent = {
       'finds your conventions, codifies one',
     ],
     pluginNote:
-      'On Claude Code? One install adds the skills, the MCP server, and the pre-write guardrail together.',
+      'The Claude plugin adds optional MCP context and a narrow, fail-open pre-write prompt; agents still decide when to call Argot.',
     pluginCta: 'Get the plugin',
     ctaLocal: 'Or drive the CLI by hand',
     ctaCi: 'the CI guide',
@@ -205,15 +205,15 @@ const en: SiteContent = {
   },
   ciScore: {
     label: 'In CI, without the friction',
-    title: 'A voice score on every PR. Never a merge gate.',
-    body: 'A visual score and the hot-spots on each PR — [[non-blocking by default]]. Intentional? One argot mute, committed as an audit trail.',
+    title: 'A workflow-configured PR or push signal.',
+    body: 'The GitHub Action is [[non-blocking by default]]; a workflow may opt into gating. Intentional divergence is a human decision, with a mute recorded as an audit trail.',
     caption: 'Lands in the Actions summary, a sticky PR comment, and the Security tab.',
     badge:
       'Pin it in your README — a [[live badge]] that refreshes on every push. Every visitor, every fork, sees the repo still speaks its own voice.',
   },
   cta: {
     title: 'Add the layer your CI is missing.',
-    body: 'MIT · alpha. Calibrate on your repo in two minutes, then see what it flags.',
+    body: 'MIT-licensed open source. Audit first, then fit a repository and choose the check path you want to run.',
     primary: 'Get started',
     secondary: 'View on GitHub',
   },

@@ -2,9 +2,9 @@ import type { SiteContent } from './types';
 
 const fr: SiteContent = {
   meta: {
-    title: 'argot — détectez le code IA qui ne colle pas à votre dépôt',
+    title: 'argot — trouvez le code que votre dépôt questionnerait',
     description:
-      'Le harnais du code écrit par IA — des statistiques sur l’historique de votre propre dépôt, pas un second LLM. argot signale ce qui n’a pas sa place — dépendances étrangères, fonctions réinventées, architecture inversée, tests truqués, restes de vos propres migrations — plus les conventions que vous scriptez vous-même. Sans LLM, sans cloud, 100 % local.',
+      'Auditez votre historique, puis vérifiez les changements face aux usages déjà établis par votre dépôt. Argot présente des éléments pour le jugement humain.',
   },
   nav: {
     demo: 'Démo',
@@ -13,15 +13,16 @@ const fr: SiteContent = {
     docs: 'Docs',
   },
   hero: {
-    eyebrow: 'Le harnais du code écrit par IA · des statistiques, pas un second LLM · 100 % local',
-    titleLead: 'Lintez les règles',
-    titleGradient: 'que personne n’a écrites.',
+    eyebrow: 'Revue ancrée dans le dépôt · audit d’abord · jugement humain',
+    titleLead: 'Trouvez le code que votre dépôt',
+    titleGradient: 'questionnerait.',
     subtitle:
-      'L’IA écrit le code. argot le tient à la seule chose qui n’hallucine jamais : [[l’historique de votre dépôt]]. Déterministe, mesuré, local.',
-    ctaPrimary: 'Lire la doc',
+      'Commencez avec [[argot audit]] : la commande compare les changements acceptés à l’historique antérieur du dépôt, puis donne des éléments à examiner. Pour la récurrence, choisissez et configurez le chemin adapté à votre équipe.',
+    ctaPrimary: 'Voir l’audit',
     ctaSecondary: 'Star sur GitHub',
     install: 'npm i -g @tmonier/argot',
-    installNote: 'MIT · binaire statique unique · macOS · Linux · Windows · 100 % local',
+    installNote:
+      'open source sous licence MIT · cœur local gratuit · aucun compte n’est jamais requis · audit et check s’exécutent localement',
     installAlt: 'ou installer sans npm',
     watchFilm: 'Voir le film',
   },
@@ -79,11 +80,11 @@ const fr: SiteContent = {
       '[[94 %]] des éditions truquées détectées · 0 des 102 refactorings légitimes signalés · sort en warn — informe, ne bloque jamais.',
   },
   audit: {
-    label: 'Jour un',
-    title: 'Auditez votre historique. Voyez ce que l’IA y a glissé.',
-    body: '[[argot audit]] calibre la voix telle qu’elle était il y a 50 commits, rescore tout ce qui a suivi et attribue chaque signalement — [[ai-assisted, human ou unknown]] — depuis les marqueurs de commit, jamais le style. Une commande, zéro config, votre arbre intact — et une carte [[faite pour être capturée et partagée]].',
+    label: 'Commencez ici',
+    title: 'Auditez les changements acceptés avant d’en faire une habitude.',
+    body: '[[argot audit]] évalue le diff net base-vers-HEAD avec un fit historique. L’attribution par marqueurs de commit est un plancher, pas un recensement ; un signalement invite à examiner, il ne prouve jamais un défaut. Le reçu affiché est une [[fixture rédigée en deux commits]] dont la commande, la version, la sortie brute et le checksum sont commités.',
     caption:
-      'Sur l’historique d’argot lui-même : [[52 %]] des commits portent des marqueurs IA — et l’unique signalement remonte à un commit assisté par IA.',
+      'Ensuite, [[argot init]] calibre le dépôt actuel et vous choisissez un chemin de vérification récurrent.',
   },
   customRules: {
     label: 'Vos conventions',
@@ -183,9 +184,9 @@ const fr: SiteContent = {
   },
   setup: {
     label: 'Configuration · conçu pour les agents',
-    title: 'Un CLI que votre agent peut piloter.',
-    body: 'Les skills apportent le jugement : [[/argot-setup]] lit votre dépôt, exclut ce qui ne doit pas façonner sa voix, calibre, et vérifie la détection.',
-    installLabel: 'Ajoutez les skills — Claude Code, Cursor, 70+ agents',
+    title: 'De l’audit à une vérification récurrente que vous choisissez.',
+    body: 'Lancez [[argot init]] pour calibrer le dépôt, puis choisissez une CLI/skill invoquée, un hook de commit configuré par l’utilisateur, ou une Action GitHub configurée dans le workflow. Le plugin Claude peut demander avant une écriture qui introduit une dépendance étrangère dans un dépôt calibré ; ce n’est pas une vérification complète à l’acceptation.',
+    installLabel: 'Six skills à la demande pour les hôtes d’agents compatibles',
     skillsIntro: 'six slash-commands que votre agent lance :',
     skillDescs: [
       'lit votre arbre, écrit argot.toml, vérifie la détection',
@@ -196,7 +197,7 @@ const fr: SiteContent = {
       'trouve vos conventions, en codifie une',
     ],
     pluginNote:
-      'Sur Claude Code ? Une seule installation ajoute les skills, le serveur MCP et le garde-fou pré-écriture.',
+      'Le plugin Claude ajoute du contexte MCP optionnel et une invite pré-écriture étroite et fail-open ; l’agent choisit toujours quand appeler Argot.',
     pluginCta: 'Obtenir le plugin',
     ctaLocal: 'Ou pilotez le CLI à la main',
     ctaCi: 'le guide CI',
@@ -204,15 +205,15 @@ const fr: SiteContent = {
   },
   ciScore: {
     label: 'En CI, sans la friction',
-    title: 'Un score de voix sur chaque PR. Jamais une porte de merge.',
-    body: 'Un score visuel et les points chauds sur chaque PR — [[non bloquant par défaut]]. Intentionnel ? Un argot mute, versionné comme trace d’audit.',
+    title: 'Un signal PR ou push configuré dans le workflow.',
+    body: 'L’Action GitHub est [[non bloquante par défaut]] ; un workflow peut choisir une barrière. Une divergence intentionnelle reste une décision humaine, et un mute devient une trace d’audit.',
     caption: 'Atterrit dans le résumé Actions, un commentaire de PR épinglé, et l’onglet Security.',
     badge:
       'Épinglez-le dans votre README — un [[badge en direct]] rafraîchi à chaque push. Chaque visiteur, chaque fork, voit que le dépôt parle toujours sa propre voix.',
   },
   cta: {
     title: 'Ajoutez la couche qui manque à votre CI.',
-    body: 'MIT · alpha. Calibrez sur votre dépôt en deux minutes, puis voyez ce qu’il signale.',
+    body: 'Open source sous licence MIT. Auditez d’abord, calibrez ensuite un dépôt et choisissez le chemin de vérification à lancer.',
     primary: 'Commencer',
     secondary: 'Voir sur GitHub',
   },

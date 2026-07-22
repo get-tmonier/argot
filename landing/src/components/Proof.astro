@@ -1,11 +1,17 @@
 ---
 import { emphasize } from '#lib/text';
+import { claim, claimValue } from '../data/claims/claims';
 import type { SiteContent } from '#i18n/types';
 
 interface Props {
   content: SiteContent;
 }
 const { proof } = Astro.props.content;
+const evidence = [
+  { key: 'foreign.visible_symbol', title: 'visible foreign patterns', description: 'Fixture recall; the changed symbol is visible in the diff.' },
+  { key: 'architecture.layering', title: 'layering violations', description: 'Authored internal layering violations across 25 corpora and 12 languages.' },
+  { key: 'integrity.catch', title: 'test-integrity gaming edits', description: 'Authored production fit-to-check gaming fixtures.' },
+] as const;
 
 // The twelve supported languages, each a real tree-sitter adapter with its own
 // learned model (per-corpus numbers on /benchmarks). Logos are vendored from
@@ -36,30 +42,34 @@ const langs = [
       <h2 class="text-3xl font-bold tracking-tight text-balance sm:text-4xl">{proof.title}</h2>
     </div>
 
-    <div class="mt-10 grid grid-cols-2 gap-x-5 gap-y-8 sm:gap-x-8 sm:gap-y-10 md:mt-16 lg:grid-cols-5">
+    <div class="mt-10 grid grid-cols-1 gap-x-5 gap-y-8 sm:grid-cols-3 sm:gap-x-8 md:mt-16">
       {
-        proof.stats.map((stat, i) => (
+        evidence.map((item, i) => {
+          const record = claim(item.key);
+          return (
           <div
             class:list={[
               'reveal min-w-0',
-              i === 4 && 'col-span-2 lg:col-span-1',
+              i === 2 && 'sm:col-span-1',
             ]}
             style={`--reveal-delay: ${(i % 5) * 90}ms`}
           >
             <span class="proof-tick block h-px w-8 bg-gradient-to-r from-ember to-ember-deep" />
             <p
               class="mt-3 text-4xl font-bold tracking-tight text-ink tabular-nums sm:mt-4 sm:text-5xl"
-              data-count={stat.value}
+              data-count={record.percentage?.toFixed(1) ?? '—'}
             >
-              {stat.value}
+              {record.percentage?.toFixed(1)}%
             </p>
-            <h3 class="mt-2 text-sm font-semibold tracking-tight text-ink sm:text-base">{stat.title}</h3>
+            <h3 class="mt-2 text-sm font-semibold tracking-tight text-ink sm:text-base">{item.title}</h3>
             <p
               class="mt-1.5 text-xs leading-relaxed text-ink-dim sm:mt-2 sm:text-sm"
-              set:html={emphasize(stat.desc)}
+              set:html={emphasize(`${claimValue(item.key)}. ${item.description}`)}
             />
+            <p class="mt-2 font-mono text-[11px] leading-relaxed text-muted">{record.scope} · {record.revision}</p>
           </div>
-        ))
+          );
+        })
       }
     </div>
 

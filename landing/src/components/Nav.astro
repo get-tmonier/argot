@@ -10,10 +10,7 @@ interface Props {
 const { content, locale } = Astro.props;
 const { nav } = content;
 const altLocale = locale === 'fr' ? 'en' : 'fr';
-const altPath =
-  locale === 'fr'
-    ? Astro.url.pathname.replace(/^\/fr\//, '/').replace(/^\/fr$/, '/')
-    : `/fr${Astro.url.pathname === '/' ? '/' : Astro.url.pathname}`;
+const altPath = locale === 'fr' ? '/' : '/fr/';
 const base = locale === 'fr' ? '/fr/' : '/';
 ---
 
@@ -27,8 +24,8 @@ const base = locale === 'fr' ? '/fr/' : '/';
     </a>
 
     <div class="hidden items-center gap-7 text-sm text-ink-dim md:flex">
-      <a href="#demo" class="transition-colors hover:text-ink">{nav.demo}</a>
       <a href="#audit" class="transition-colors hover:text-ink">{nav.audit}</a>
+      <a href="#demo" class="transition-colors hover:text-ink">{nav.demo}</a>
       <a href="#engine" class="transition-colors hover:text-ink">{nav.engine}</a>
       <a href="/benchmarks" class="transition-colors hover:text-ink">Benchmarks</a>
       <a href={localePath('/docs/', locale)} class="transition-colors hover:text-ink">

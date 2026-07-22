@@ -1,6 +1,6 @@
 ---
 import '#styles/global.css';
-import { SITE } from '#lib/site';
+import { hasLocaleAlternate, SITE } from '#lib/site';
 
 interface Props {
   title: string;
@@ -12,6 +12,7 @@ interface Props {
 const { title, description, locale = 'en', snap = false } = Astro.props;
 
 const canonicalURL = new URL(Astro.url.pathname, Astro.site);
+const hasAlternate = hasLocaleAlternate(Astro.url.pathname);
 const altLocale = locale === 'fr' ? 'en' : 'fr';
 const altPath =
   locale === 'fr'
@@ -27,7 +28,7 @@ const jsonLd = {
   description,
   codeRepository: SITE.github,
   url: SITE.domain,
-  programmingLanguage: ['TypeScript', 'Python'],
+  programmingLanguage: ['Rust', 'TypeScript', 'Python', 'JavaScript', 'Go', 'Java', 'C#', 'C', 'C++', 'Ruby', 'PHP', 'Pascal'],
   license: 'https://opensource.org/licenses/MIT',
   author: { '@type': 'Person', name: SITE.author, url: SITE.portfolio },
 };
@@ -42,9 +43,9 @@ const jsonLd = {
     <title>{title}</title>
     <meta name="description" content={description} />
     <link rel="canonical" href={canonicalURL} />
-    <link rel="alternate" hreflang={locale} href={canonicalURL} />
-    <link rel="alternate" hreflang={altLocale} href={altURL} />
-    <link rel="alternate" hreflang="x-default" href={new URL('/', Astro.site)} />
+    {hasAlternate && <link rel="alternate" hreflang={locale} href={canonicalURL} />}
+    {hasAlternate && <link rel="alternate" hreflang={altLocale} href={altURL} />}
+    {hasAlternate && <link rel="alternate" hreflang="x-default" href={new URL('/', Astro.site)} />}
 
     <meta name="theme-color" content="#0c0a09" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />

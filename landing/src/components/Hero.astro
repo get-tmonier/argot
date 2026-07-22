@@ -1,5 +1,4 @@
 ---
-import HeroFormula from '#components/HeroFormula.astro';
 import Logo from '#components/Logo.astro';
 import VoiceField from '#components/VoiceField.astro';
 import { SITE, localePath } from '#lib/site';
@@ -80,7 +79,7 @@ const rules = [
 
     <div class="mt-7 flex flex-wrap items-center justify-center gap-3">
       <a
-        href={localePath('/docs/', locale)}
+        href="#audit"
         class="group inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-ember to-ember-deep px-5 py-3 text-sm font-semibold text-bg shadow-lg shadow-ember/20 transition-transform hover:-translate-y-0.5"
       >
         {hero.ctaPrimary}
@@ -94,27 +93,6 @@ const rules = [
       >
         ★ {hero.ctaSecondary}
       </a>
-    </div>
-
-    <div class="mt-4">
-      <button
-        type="button"
-        data-film-open
-        aria-haspopup="dialog"
-        class="film-trigger group inline-flex items-center gap-2 text-sm font-medium text-ink-dim transition-colors hover:text-ink"
-      >
-        <span
-          class="grid place-items-center rounded-full border border-line-2 bg-panel/70 transition-colors group-hover:border-ember"
-          style="width: 1.9rem; height: 1.9rem"
-          aria-hidden="true"
-        >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" class="text-ember" style="margin-left: 1px">
-            <path d="M8 5v14l11-7z"></path>
-          </svg>
-        </span>
-        {hero.watchFilm}
-        <span class="text-muted">· 0:45</span>
-      </button>
     </div>
 
     <div class="mt-5 flex flex-col items-center gap-2">
@@ -139,12 +117,9 @@ const rules = [
       </a>
     </div>
 
-    <div class="hidden md:block">
-      <HeroFormula />
-    </div>
   </div>
 
-  <a href="#demo" class="hero-scroll" aria-label="Scroll to the demo">
+  <a href="#audit" class="hero-scroll" aria-label="Scroll to the audit">
     <svg
       width="22"
       height="22"
