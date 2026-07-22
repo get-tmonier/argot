@@ -91,7 +91,7 @@ pub fn run_hook(repo: PathBuf) -> ExitCode {
 fn assess(repo: &Path, file_path: &str, content: &str) -> Option<String> {
     let config = ArgotConfig::load(repo);
     let relative_path = repo_relative_path(repo, file_path)?;
-    if !can_assess(&config, &relative_path, content) {
+    if !can_assess(&config, &relative_path) {
         return None;
     }
 
@@ -100,6 +100,7 @@ fn assess(repo: &Path, file_path: &str, content: &str) -> Option<String> {
     let scored = scorers.score(file_path, content, Some(content))?;
     if !scored.flagged
         || argot_core::rules::code_for_reason(scored.reason.as_str()) != "foreign-import"
+        || only_declared_replacements(&config, &scored.foreign_import_modules)
     {
         return None;
     }
@@ -135,7 +136,7 @@ fn assess(repo: &Path, file_path: &str, content: &str) -> Option<String> {
 /// hook has no final diff hunk or stable hit hash, so inline and hash mutes are
 /// deliberately unsupported here; treating a proposed partial edit as either
 /// would claim parity the hook cannot provide.
-fn can_assess(config: &ArgotConfig, relative_path: &str, content: &str) -> bool {
+fn can_assess(config: &ArgotConfig, relative_path: &str) -> bool {
     // Check reports configuration diagnostics to its caller; the hook has no
     // diagnostic channel that should interrupt an agent, so malformed config
     // fails open rather than silently falling back to a possibly unwanted ask.
@@ -143,21 +144,23 @@ fn can_assess(config: &ArgotConfig, relative_path: &str, content: &str) -> bool 
         return false;
     }
     let settings = config.rule_settings(&Vec::new());
-    if settings.severity_of_reason("import") == Severity::Off
-        || !settings.covers_path("import", relative_path)
-        || config.path_suppressions().classify(relative_path) != PathScope::InScope
-    {
-        return false;
-    }
+    settings.severity_of_reason("import") != Severity::Off
+        && settings.covers_path("import", relative_path)
+        && config.path_suppressions().classify(relative_path) == PathScope::InScope
+}
 
-    // A declared replacement is attested by full check before voice scoring.
-    // The hook cannot mutate the loaded scorer's private attestation state, so
-    // it suppresses only the same replacement-side import prompt here.
-    !config
-        .migrations()
-        .active
-        .iter()
-        .any(|migration| migration.kind == MigrationKind::Import && content.contains(&migration.to))
+/// Full check attests declared replacement imports before scoring. At pre-write
+/// time, retain a prompt when any other foreign import remains in the proposed
+/// content; suppress only when every foreign module is a declared replacement.
+fn only_declared_replacements(config: &ArgotConfig, foreign_modules: &[String]) -> bool {
+    !foreign_modules.is_empty()
+        && foreign_modules.iter().all(|module| {
+            config
+                .migrations()
+                .active
+                .iter()
+                .any(|migration| migration.kind == MigrationKind::Import && module == &migration.to)
+        })
 }
 
 /// Normalize a Claude file path to the repository-relative, slash-separated
@@ -236,7 +239,7 @@ mod tests {
         ] {
             let config = config_with_rules(vec![(selector, severity)]);
             assert_eq!(
-                can_assess(&config, "src/app.py", "import new_dependency"),
+                can_assess(&config, "src/app.py"),
                 expected,
                 "{selector} = {}",
                 severity.as_str()
@@ -248,11 +251,7 @@ mod tests {
     fn path_excludes_and_rule_scopes_skip_pre_write_assessment() {
         let mut excluded = ArgotConfig::default();
         excluded.exclude.paths.push("generated/**".to_string());
-        assert!(!can_assess(
-            &excluded,
-            "generated/client.py",
-            "import new_dependency"
-        ));
+        assert!(!can_assess(&excluded, "generated/client.py",));
 
         let mut scoped = ArgotConfig::default();
         scoped.rule_scopes.push((
@@ -262,13 +261,9 @@ mod tests {
                 exclude: vec!["src/legacy/**".to_string()],
             },
         ));
-        assert!(can_assess(&scoped, "src/app.py", "import new_dependency"));
-        assert!(!can_assess(
-            &scoped,
-            "src/legacy/app.py",
-            "import new_dependency"
-        ));
-        assert!(!can_assess(&scoped, "lib/app.py", "import new_dependency"));
+        assert!(can_assess(&scoped, "src/app.py"));
+        assert!(!can_assess(&scoped, "src/legacy/app.py",));
+        assert!(!can_assess(&scoped, "lib/app.py"));
     }
 
     #[test]
@@ -282,25 +277,28 @@ mod tests {
 
                 [[mute]]
                 path = "src/app.py"
+                hash = "a1b2c3d4e5f6"
                 reason = "a full-check hash mute cannot apply before write"
             "#,
         );
-        assert!(!can_assess(
+        assert!(can_assess(&config, "src/app.py"));
+        assert!(only_declared_replacements(
             &config,
-            "src/app.py",
-            "import approved_dependency"
+            &["approved_dependency".to_string()]
         ));
-        assert!(can_assess(
+        assert!(!only_declared_replacements(
             &config,
-            "src/app.py",
-            "import different_dependency"
+            &[
+                "approved_dependency".to_string(),
+                "different_dependency".to_string()
+            ]
         ));
     }
 
     #[test]
     fn malformed_config_fails_open() {
         let config = config_from_toml("[rules\nforeign-import = \"off\"");
-        assert!(!can_assess(&config, "src/app.py", "import new_dependency"));
+        assert!(!can_assess(&config, "src/app.py"));
     }
 
     fn config_from_toml(body: &str) -> ArgotConfig {
