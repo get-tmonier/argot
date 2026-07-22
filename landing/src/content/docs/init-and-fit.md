@@ -9,8 +9,9 @@ Use `argot init` for first-time repository setup. Use `argot fit` when you inten
 rebuild the local model after configuration or source layout changes.
 
 ```bash
+argot init                 # create portable configuration, fit, and report health
 argot init --suggest       # suggestions only; does not fit or edit configuration
-argot init                 # fit, health report, and portable configuration setup
+argot init                 # refit after any reviewed configuration change
 argot fit                  # rebuild local artifacts only
 argot inspect              # inspect corpus composition and health
 ```
@@ -28,8 +29,9 @@ checkouts, which is why configuration scaffolding belongs only to `init`.
 
 ## Build a trustworthy voice
 
-Run `argot init --suggest`, review the proposed generated or data-heavy directories, edit
-`argot.toml [exclude].paths` only when you agree, then run `argot init` again. Exclusions shape the
+Run `argot init` first on a fresh clone so its shared `argot.toml` exists. Then run
+`argot init --suggest`, review the proposed generated or data-heavy directories, edit
+`argot.toml [exclude].paths` only when you agree, and run `argot init` again. Exclusions shape the
 voice; they are not a way to silence ordinary findings.
 
 Manual `init` and `fit` learn the files on disk. Prefer a clean checkout of the default branch:
