@@ -37,8 +37,14 @@ const PUBLIC_HELP: &[(&str, &[&str])] = &[
 ];
 
 fn public_help() -> Vec<(&'static str, &'static [&'static str])> {
-    #[cfg(feature = "semantic")]
-    {
+    let binary_has_model_command = Command::new(env!("CARGO_BIN_EXE_argot"))
+        .arg("--help")
+        .output()
+        .expect("run root help")
+        .stdout
+        .windows(b"\n  model ".len())
+        .any(|window| window == b"\n  model ");
+    if binary_has_model_command {
         let mut commands = PUBLIC_HELP.to_vec();
         commands[0] = ("root-semantic", &[]);
         commands.push(("model", &["model"]));
@@ -46,9 +52,7 @@ fn public_help() -> Vec<(&'static str, &'static [&'static str])> {
         commands.push(("model-status", &["model", "status"]));
         commands.push(("model-clean", &["model", "clean"]));
         commands
-    }
-    #[cfg(not(feature = "semantic"))]
-    {
+    } else {
         PUBLIC_HELP.to_vec()
     }
 }
