@@ -2,10 +2,67 @@
   "schemaVersion": 1,
   "generatedAt": "2026-07-22",
   "claims": [
-    {"key":"foreign.legacy","status":"candidate","source":"docs/research/evidence/catalog-excluded-host-purge.md","revision":"working-tree evidence","observedAt":"2026-07-22","scope":"foreign fixture aggregate before excluded-host correction","qualifier":"superseded candidate; not approved for public use","numerator":604,"denominator":618,"percentage":97.73462783171522,"supersedes":[]},
-    {"key":"foreign.corrected","status":"candidate","source":"docs/research/evidence/catalog-excluded-host-purge.md","revision":"working-tree evidence","observedAt":"2026-07-22","scope":"foreign fixture aggregate after excluded-host correction","qualifier":"candidate only; DR-09 selection required","numerator":595,"denominator":618,"percentage":96.27831715210356,"supersedes":["foreign.legacy"]},
-    {"key":"architecture.legacy","status":"candidate","source":"docs/research/evidence/architecture-graph-foreignness.md","revision":"working-tree evidence","observedAt":"2026-07-22","scope":"23 corpora / 11 languages","qualifier":"superseded candidate; not approved for public use","numerator":244,"denominator":252,"percentage":96.82539682539682,"supersedes":[]},
-    {"key":"architecture.current","status":"candidate","source":"landing/src/data/arch.json","revision":"generated_at=2026-07-20","observedAt":"2026-07-20","scope":"25 corpora / 12 languages","qualifier":"candidate only; DR-09 selection required","numerator":264,"denominator":272,"percentage":97.05882352941177,"supersedes":["architecture.legacy"]},
-    {"key":"semantic.aggregate","status":"unavailable","source":"landing/src/data/semantic.json","revision":"a4c9dee5","observedAt":"2026-07-14","scope":"reinvention corpus records","qualifier":"no aggregate public claim approved","unavailableReason":"the source has per-corpus records but no identified disputed aggregate lineage"}
+    {
+      "key": "foreign.legacy",
+      "status": "candidate",
+      "source": "docs/research/evidence/catalog-excluded-host-purge.md",
+      "revision": "working-tree evidence",
+      "observedAt": "2026-07-22",
+      "scope": "foreign fixture aggregate before excluded-host correction",
+      "qualifier": "superseded candidate; not approved for public use",
+      "numerator": 604,
+      "denominator": 618,
+      "percentage": 97.73462783171522,
+      "supersedes": []
+    },
+    {
+      "key": "foreign.corrected",
+      "status": "candidate",
+      "source": "docs/research/evidence/catalog-excluded-host-purge.md",
+      "revision": "working-tree evidence",
+      "observedAt": "2026-07-22",
+      "scope": "foreign fixture aggregate after excluded-host correction",
+      "qualifier": "candidate only; DR-09 selection required",
+      "numerator": 595,
+      "denominator": 618,
+      "percentage": 96.27831715210356,
+      "supersedes": ["foreign.legacy"]
+    },
+    {
+      "key": "architecture.legacy",
+      "status": "candidate",
+      "source": "docs/research/evidence/architecture-graph-foreignness.md",
+      "revision": "working-tree evidence",
+      "observedAt": "2026-07-22",
+      "scope": "23 corpora / 11 languages",
+      "qualifier": "superseded candidate; not approved for public use",
+      "numerator": 244,
+      "denominator": 252,
+      "percentage": 96.82539682539682,
+      "supersedes": []
+    },
+    {
+      "key": "architecture.current",
+      "status": "candidate",
+      "source": "landing/src/data/arch.json",
+      "revision": "generated_at=2026-07-20",
+      "observedAt": "2026-07-20",
+      "scope": "25 corpora / 12 languages",
+      "qualifier": "candidate only; DR-09 selection required",
+      "numerator": 264,
+      "denominator": 272,
+      "percentage": 97.05882352941177,
+      "supersedes": ["architecture.legacy"]
+    },
+    {
+      "key": "semantic.aggregate",
+      "status": "unavailable",
+      "source": "landing/src/data/semantic.json",
+      "revision": "a4c9dee5",
+      "observedAt": "2026-07-14",
+      "scope": "reinvention corpus records",
+      "qualifier": "no aggregate public claim approved",
+      "unavailableReason": "the source has per-corpus records but no identified disputed aggregate lineage"
+    }
   ]
 }
