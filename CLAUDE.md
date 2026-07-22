@@ -6,6 +6,16 @@ A guardrail that flags code foreign to a repo's own patterns — the dependencie
 
 **In doubt, optimise for code that's easy to change.** The Pragmatic Programmer / craftsmanship lens: the right design is the one a future contributor (human or agent) can extend, refactor, or revert without archaeology. When two options look equally correct, pick the one with the smaller blast radius and clearer seams. Don't add abstractions before the second use case shows up; don't keep dead code "just in case"; don't suppress a check when the underlying code is the real fix. Strict tooling (clippy `-D warnings`, the golden suites) exists to surface change-cost early — work with it, not around it.
 
+## Strategy & positioning
+
+Before changing Argot's product, positioning, website, or public claims, read:
+
+- `FOUNDER.md` — the one-page operating manifesto.
+- `docs/strategy/ARGOT_STRATEGY.md` — canonical strategy (normative decision register D1–D14).
+- `docs/strategy/ARGOT_CURRENT_REALITY.md` — authoritative on what ships today; never market a product requirement as current reality.
+
+This is a founder-level operating layer; it does not change the engineering conventions below.
+
 ## Task runner
 
 Always use `just` — it's the canonical interface for all dev commands.

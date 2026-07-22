@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Argot — Canonical Strategy &amp; Positioning</title>
+<style>
+  :root {
+    --bg:#0e0e10; --bg-2:#131317; --panel:#17171c; --panel-2:#1c1c22;
+    --ink:#e9e9ee; --ink-dim:#b6b6c0; --muted:#83838d;
+    --ember:#e67e45; --ember-bright:#f0965f; --ember-deep:#c4622e;
+    --line:#26262d; --line-2:#34343d;
+    --ok:#5bb98b; --blue:#5b8def; --amber:#e0a83a; --red:#e0685f; --violet:#a583e8; --teal:#3ab0c4; --gray:#9a9aa4;
+    --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --maxw:820px;
+  }
+  *{box-sizing:border-box;} html{scroll-behavior:smooth;}
+  body{margin:0;background:radial-gradient(60rem 30rem at 80% -10%,rgba(230,126,69,.08),transparent 70%),var(--bg);
+    color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;}
+  a{color:var(--ember-bright);text-decoration:none;} a:hover{text-decoration:underline;}
+  .wrap{display:grid;grid-template-columns:270px minmax(0,1fr);gap:0;}
+  aside{position:sticky;top:0;align-self:start;height:100vh;overflow-y:auto;border-right:1px solid var(--line);padding:1.5rem 1rem 3rem;background:var(--bg-2);}
+  .brandmark{display:flex;align-items:baseline;gap:.5rem;font-weight:700;font-size:1.25rem;letter-spacing:-.02em;margin-bottom:.25rem;}
+  .brandmark .g{color:var(--ember);}
+  .brandmark .tag{font-family:var(--mono);font-size:.6rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);border:1px solid var(--line-2);border-radius:5px;padding:.1rem .35rem;}
+  aside .sub{color:var(--muted);font-size:.75rem;margin-bottom:1.25rem;}
+  nav.toc ol{list-style:none;margin:0;padding:0;counter-reset:toc;}
+  nav.toc a{display:block;color:var(--ink-dim);font-size:.82rem;padding:.26rem .5rem .26rem 2.1rem;border-radius:6px;position:relative;line-height:1.35;}
+  nav.toc a::before{counter-increment:toc;content:counter(toc,decimal-leading-zero);position:absolute;left:.4rem;top:.26rem;font-family:var(--mono);font-size:.68rem;color:var(--muted);width:1.5rem;text-align:right;}
+  nav.toc a:hover{background:var(--panel);color:var(--ink);text-decoration:none;}
+  main{padding:2.5rem clamp(1rem,4vw,3.5rem) 6rem;max-width:calc(var(--maxw) + 7rem);}
+  .doc-head{border-bottom:1px solid var(--line);padding-bottom:1.5rem;margin-bottom:1.25rem;}
+  .doc-head h1{font-size:clamp(1.6rem,4vw,2.3rem);line-height:1.1;letter-spacing:-.02em;margin:0 0 .75rem;}
+  .doc-head .meta{color:var(--muted);font-size:.82rem;font-family:var(--mono);}
+  .banner{margin-top:1rem;padding:.9rem 1.1rem;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--ember);border-radius:8px;color:var(--ink-dim);font-size:.9rem;}
+  .banner + .banner{margin-top:.5rem;border-left-color:var(--blue);}
+  .toolbar{position:sticky;top:0;z-index:5;display:flex;flex-wrap:wrap;align-items:center;gap:.4rem;padding:.6rem 0;margin-bottom:1rem;background:linear-gradient(var(--bg) 70%,transparent);}
+  .toolbar .grp{display:flex;flex-wrap:wrap;gap:.35rem;align-items:center;}
+  .toolbar .lbl{font-family:var(--mono);font-size:.64rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-right:.2rem;}
+  button.chip{font-family:var(--mono);font-size:.7rem;color:var(--ink-dim);background:var(--panel);border:1px solid var(--line-2);border-radius:999px;padding:.24rem .65rem;cursor:pointer;transition:all .15s;}
+  button.chip:hover{border-color:var(--ember);color:var(--ink);}
+  button.chip[aria-pressed="true"]{background:var(--ember);border-color:var(--ember);color:#1a0f08;font-weight:600;}
+  .spacer{flex:1 1 auto;}
+  details.section{border-top:1px solid var(--line);}
+  details.section>summary{list-style:none;cursor:pointer;padding:1.1rem 0 .5rem;display:flex;align-items:baseline;gap:.7rem;}
+  details.section>summary::-webkit-details-marker{display:none;}
+  details.section>summary .num{font-family:var(--mono);font-size:.8rem;color:var(--ember);min-width:1.9rem;}
+  details.section>summary h2{margin:0;font-size:1.18rem;letter-spacing:-.01em;font-weight:650;color:var(--ink);flex:1 1 auto;}
+  details.section>summary .caret{color:var(--muted);font-size:.8rem;transition:transform .2s;}
+  details.section[open]>summary .caret{transform:rotate(90deg);}
+  details.section>.body{padding:0 0 1.6rem 2.6rem;}
+  @media (max-width:620px){details.section>.body{padding-left:0;}}
+  h3{font-size:1rem;margin:1.4rem 0 .4rem;color:var(--ink);letter-spacing:-.01em;}
+  p{margin:.6rem 0;color:var(--ink-dim);} main strong{color:var(--ink);font-weight:650;}
+  ul,ol{color:var(--ink-dim);padding-left:1.3rem;} li{margin:.3rem 0;}
+  code{font-family:var(--mono);font-size:.85em;background:var(--panel-2);border:1px solid var(--line);border-radius:5px;padding:.06rem .35rem;color:var(--ember-bright);}
+  .label{font-family:var(--mono);font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;border-radius:5px;padding:.08rem .4rem;white-space:nowrap;border:1px solid;vertical-align:middle;}
+  .label.reality{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 45%,transparent);background:color-mix(in srgb,var(--ok) 12%,transparent);}
+  .label.decision{color:var(--ember);border-color:color-mix(in srgb,var(--ember) 50%,transparent);background:color-mix(in srgb,var(--ember) 12%,transparent);}
+  .label.requirement{color:var(--blue);border-color:color-mix(in srgb,var(--blue) 45%,transparent);background:color-mix(in srgb,var(--blue) 12%,transparent);}
+  .label.hypothesis{color:var(--violet);border-color:color-mix(in srgb,var(--violet) 45%,transparent);background:color-mix(in srgb,var(--violet) 12%,transparent);}
+  .label.option{color:var(--teal);border-color:color-mix(in srgb,var(--teal) 45%,transparent);background:color-mix(in srgb,var(--teal) 12%,transparent);}
+  .label.rejected{color:var(--red);border-color:color-mix(in srgb,var(--red) 45%,transparent);background:color-mix(in srgb,var(--red) 12%,transparent);}
+  .label.open{color:var(--amber);border-color:color-mix(in srgb,var(--amber) 45%,transparent);background:color-mix(in srgb,var(--amber) 12%,transparent);}
+  .label.evidence{color:var(--gray);border-color:color-mix(in srgb,var(--gray) 45%,transparent);background:color-mix(in srgb,var(--gray) 12%,transparent);}
+  .stmt{transition:opacity .2s;} body[data-filter] .stmt:not(.match){opacity:.2;}
+  .callout{margin:1rem 0;padding:.9rem 1.1rem;border-radius:8px;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--line-2);font-size:.93rem;}
+  .callout.key{border-left-color:var(--ember);} .callout.warn{border-left-color:var(--red);} .callout.req{border-left-color:var(--blue);}
+  .callout .k{font-family:var(--mono);font-size:.64rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);display:block;margin-bottom:.3rem;}
+  .tablewrap{overflow-x:auto;margin:1rem 0;border:1px solid var(--line);border-radius:8px;}
+  table{border-collapse:collapse;width:100%;font-size:.85rem;min-width:560px;}
+  th,td{text-align:left;padding:.55rem .75rem;border-bottom:1px solid var(--line);vertical-align:top;}
+  thead th{background:var(--panel-2);color:var(--ink);font-weight:650;font-size:.74rem;text-transform:uppercase;letter-spacing:.04em;}
+  tbody tr:last-child td{border-bottom:none;} td.c,th.c{text-align:center;white-space:nowrap;}
+  .card{background:linear-gradient(180deg,var(--panel),var(--bg-2));border:1px solid var(--line-2);border-radius:12px;padding:1.3rem 1.5rem;margin:1rem 0;}
+  footer.docfoot{margin-top:3rem;padding-top:1.5rem;border-top:1px solid var(--line);color:var(--muted);font-size:.8rem;}
+  .menubtn{display:none;}
+  @media (max-width:900px){
+    .wrap{grid-template-columns:1fr;}
+    aside{position:fixed;z-index:20;left:0;top:0;width:280px;height:100vh;transform:translateX(-100%);transition:transform .25s;box-shadow:0 0 40px rgba(0,0,0,.5);}
+    body.nav-open aside{transform:none;}
+    .menubtn{display:inline-flex;position:fixed;z-index:21;top:.7rem;left:.7rem;background:var(--panel);border:1px solid var(--line-2);color:var(--ink);border-radius:8px;padding:.4rem .6rem;cursor:pointer;font-family:var(--mono);font-size:.8rem;}
+    main{padding-top:3.5rem;}
+  }
+  @media print{
+    aside,.toolbar,.menubtn{display:none!important;} .wrap{display:block;}
+    body{background:#fff;color:#111;font-size:11pt;}
+    details.section>.body{display:block!important;padding-left:0;} details.section>summary .caret{display:none;}
+    main strong,h1,h2,h3{color:#000;} p,li,td{color:#222;} a{color:#000;text-decoration:underline;}
+    .callout,.card,.tablewrap{break-inside:avoid;}
+  }
+</style>
+</head>
+<body>
+<button class="menubtn" id="menubtn" aria-label="Toggle contents">☰ Contents</button>
+<div class="wrap">
+  <aside id="sidebar">
+    <div class="brandmark">ar<span class="g">g</span>ot <span class="tag">strategy</span></div>
+    <div class="sub">Canonical operating document · hardened 2026-07-22</div>
+    <nav class="toc" aria-label="Table of contents">
+      <ol>
+        <li><a href="#sec-1">Executive summary</a></li>
+        <li><a href="#sec-2">Current product reality</a></li>
+        <li><a href="#sec-3">The behavioral invariant</a></li>
+        <li><a href="#sec-4">Problem Argot solves today</a></li>
+        <li><a href="#sec-5">The two engines</a></li>
+        <li><a href="#sec-6">Habit &amp; the acceptance moment</a></li>
+        <li><a href="#sec-7">Strategic positioning</a></li>
+        <li><a href="#sec-8">North Star &amp; measurability</a></li>
+        <li><a href="#sec-9">Trusted analytical core</a></li>
+        <li><a href="#sec-10">Standing Decisions (normative)</a></li>
+        <li><a href="#sec-11">Product principles</a></li>
+        <li><a href="#sec-12">Marketing principles</a></li>
+        <li><a href="#sec-13">Review of absolute claims</a></li>
+        <li><a href="#sec-14">Plausible future states</a></li>
+        <li><a href="#sec-15">Evidence gates</a></li>
+        <li><a href="#sec-16">Roadmap principles</a></li>
+        <li><a href="#sec-17">Distribution &amp; onboarding</a></li>
+        <li><a href="#sec-18">Brand &amp; language</a></li>
+        <li><a href="#sec-19">Do say / do not say</a></li>
+        <li><a href="#sec-20">Risks &amp; failure modes</a></li>
+        <li><a href="#sec-21">Open questions</a></li>
+        <li><a href="#sec-22">Contributor decision test</a></li>
+        <li><a href="#sec-23">Decision log</a></li>
+      </ol>
+    </nav>
+  </aside>
+
+  <main>
+    <div class="doc-head">
+      <h1>Argot — Canonical Strategy &amp; Positioning</h1>
+      <div class="meta">Normative source of truth · living document · hardening pass 2026-07-22</div>
+      <div class="banner"><strong>Normative hierarchy.</strong> §10 Standing Decisions is authoritative; other sections explain but must not exceed it. <code>ARGOT_CURRENT_REALITY.md</code> is authoritative on current fact. This Markdown-rendered page and <code>ARGOT_STRATEGY_CARD.md</code> are <strong>derived from <code>ARGOT_STRATEGY.md</code></strong> — do not edit them independently. The canonical source lives at <code>docs/strategy/ARGOT_STRATEGY.md</code>; the root-level <code>FOUNDER.md</code> is a manifesto shortcut, not a replacement.</div>
+      <div class="banner"><strong>Do not describe a future experience in the present tense.</strong> A <span class="label requirement">Requirement</span> or <span class="label option">Future option</span> is not marketable as current. Check <code>ARGOT_CURRENT_REALITY.md</code> before any capability claim.</div>
+    </div>
+
+    <div class="toolbar" role="region" aria-label="Controls">
+      <div class="grp">
+        <span class="lbl">Filter</span>
+        <button class="chip" data-lf="reality" aria-pressed="false">Reality</button>
+        <button class="chip" data-lf="decision" aria-pressed="false">Decision</button>
+        <button class="chip" data-lf="requirement" aria-pressed="false">Requirement</button>
+        <button class="chip" data-lf="hypothesis" aria-pressed="false">Hypothesis</button>
+        <button class="chip" data-lf="option" aria-pressed="false">Option</button>
+        <button class="chip" data-lf="rejected" aria-pressed="false">Rejected</button>
+        <button class="chip" data-lf="open" aria-pressed="false">Open</button>
+      </div>
+      <div class="spacer"></div>
+      <div class="grp">
+        <button class="chip" id="expand">Expand all</button>
+        <button class="chip" id="collapse">Collapse all</button>
+        <button class="chip" id="print">Print</button>
+      </div>
+    </div>
+
+    <p style="color:var(--muted);font-size:.84rem;margin-top:0">
+      Labels:
+      <span class="label reality">Current reality</span> true today ·
+      <span class="label decision">Standing decision</span> committed ·
+      <span class="label requirement">Product requirement</span> must build, not yet real ·
+      <span class="label hypothesis">Working hypothesis</span> believed, unproven ·
+      <span class="label option">Future option</span> gated ·
+      <span class="label rejected">Rejected assumption</span> set aside ·
+      <span class="label open">Open question</span> unresolved ·
+      <span class="label evidence">Evidence required</span> what would move it.
+    </p>
+
+    <!-- 1 -->
+    <details class="section" id="sec-1" open>
+      <summary><span class="num">01</span><h2>Executive summary</h2><span class="caret">▸</span></summary>
+      <div class="body">
+        <p>For most of software history, understanding code was a byproduct of writing it. AI weakened that link. Code now enters repositories that no human fully understood, and the engineer's posture is shifting from author to approver of work they did not write and did not fully read.</p>
+        <p class="stmt" data-label="hypothesis"><span class="label hypothesis">Working hypothesis</span> (high conviction). This shift is likely to intensify as models improve: more code, more trust, proportionally less reading, so the gap between responsibility and direct understanding is likely to widen. A statement about behavior, not settled fact.</p>
+        <p>Argot's durable role is <strong>awareness at the moment a developer accepts responsibility for code they did not fully read</strong>. Not "catch the AI's mistakes." Awareness survives correct code.</p>
+        <p>Two engines: an <strong>acquisition engine</strong> of rare, memorable catches earns attention; a <strong>retention engine</strong> of frequent awareness is intended to build the habit. Operating model: <strong>audit installs you, check-on-accept keeps you</strong>.</p>
+        <p class="stmt" data-label="requirement"><span class="label requirement">Product requirement</span> The "check-on-accept" auto-run is not a shipped default today (see §2, §6). Do not describe it as present.</p>
+        <p class="stmt" data-label="decision"><span class="label decision">Standing decision</span> Posture: conviction on the foundation, options on the destination. Primary metric: audit-to-habit conversion, which is <em>not directly measurable today</em> without new opt-in instrumentation (§8).</p>
+      </div>
+    </details>
+
+    <!-- 2 -->
+    <details class="section" id="sec-2" open>
+      <summary><span class="num">02</span><h2>Current product reality (summary)</h2><span class="caret">▸</span></summary>
+      <div class="body">
+        <p>Full verified inventory with evidence: <code>ARGOT_CURRENT_REALITY.md</code>. Do not market anything as current unless confirmed there.</p>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Capability</th><th>Status</th><th>Note</th></tr></thead>
+          <tbody>
+            <tr><td><code>argot audit</code></td><td><span class="label reality">Reality</span></td><td>Zero-setup (temp-worktree fit), 50-commit default, real HTML share card, exits 0. Attribution from commit markers; a floor, not a census.</td></tr>
+            <tr><td><code>argot check</code></td><td><span class="label reality">Reality</span></td><td>Real, but requires a prior fit; human/json/sarif/github; non-blocking by severity tier.</td></tr>
+            <tr><td>Detectors (foreign, superseded, redundant, misplaced, layering, integrity, custom, locked, rule-tampered)</td><td><span class="label reality">Reality</span></td><td>All ship in the release binary.</td></tr>
+            <tr><td>CI Action, SARIF/JSON/annotations, badge</td><td><span class="label reality">Reality</span></td><td>Non-blocking by default. JSON "stable by intent," no versioned schema file.</td></tr>
+            <tr><td>Privacy / no telemetry</td><td><span class="label reality">Reality</span></td><td>Only default egress: a suppressible once-per-24h update check + one-time ~100MB model download.</td></tr>
+            <tr><td>Accept-time auto-run</td><td><span class="label requirement">Requirement</span></td><td>Only a <em>pre-write</em> foreign-import "ask" guardrail is automatic (Claude Code). Commit-time check is manual / agent-chosen / user-wired.</td></tr>
+            <tr><td>Durable finding history</td><td><span class="label requirement">Requirement</span></td><td>Only model artifacts + a single-run <code>last-check.json</code> persist.</td></tr>
+            <tr><td>Retention measurement</td><td><span class="label requirement">Requirement</span></td><td>No instrumentation; North Star not directly observable (§8).</td></tr>
+            <tr><td>Low noise across ALL detectors at accept-time</td><td><span class="label hypothesis">Hypothesis</span></td><td>0.29% is the base foreign detector on real history; combined accept-time noise is unmeasured.</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+    </details>
+
+    <!-- 3 -->
+    <details class="section" id="sec-3" open>
+      <summary><span class="num">03</span><h2>The behavioral invariant</h2><span class="caret">▸</span></summary>
+      <div class="body">
+        <p class="stmt" data-label="hypothesis"><span class="label hypothesis">Working hypothesis</span> (high conviction). The foundation, held as a belief, not a proof.</p>
+        <p>Writing, understanding, and being responsible for code were welded together: you wrote it, so you understood it; reading moved understanding between people. AI weakened the weld. Producing code is near-free; understanding is still human-bound. So engineers increasingly ship code they have not fully read, often rationally.</p>
+        <p><strong>Refined</strong> (was "the gap widens without bound"): the gap between responsibility and direct understanding is <strong>likely to widen as agent output grows faster than human review capacity</strong>. A tendency, not a law.</p>
+        <div class="callout key"><span class="k">What this is not</span>Not "AI makes mistakes." Mistake detection may improve or be commoditized. The durable need is awareness of what is being accepted, which persists even when the code is correct.</div>
+      </div>
+    </details>
+
+    <!-- 4 -->
+    <details class="section" id="sec-4">
+      <summary><span class="num">04</span><h2>The problem Argot solves today</h2><span class="caret">▸</span></summary>
+      <div class="body">
+        <p>A developer gets a plausible agent diff, skims it, accepts it, and puts their name on the commit, carrying a low unease and no efficient way to resolve it. Type checkers and linters answer "is this valid?" (increasingly handled in the agent). The unanswered question: "is this how we do things here, and did anything happen in this diff I would want to know before I sign it?" Argot answers that against the repository's own history and structure.</p>
+        <p class="stmt" data-label="decision"><span class="label decision">Standing decision</span> Describe the job as awareness at the moment of acceptance, grounded in the repo. Not "AI code review" (implies a second model's opinion); not "style/voice checker" (understates it, anchors to the shrinking axis).</p>
+      </div>
+    </details>
+
+    <!-- 5 -->
+    <details class="section" id="sec-5">
+      <summary><span class="num">05</span><h2>The product's two engines</h2><span class="caret">▸</span></summary>
+      <div class="body">
+        <p class="stmt" data-label="decision"><span class="label decision">Standing decision (D3)</span> Build and market two complementary engines; do not collapse them.</p>
+        <p><strong>Acquisition</strong> (memorable, rare): weakened/disabled/deleted tests, bypassed/muted checks, a tampered locked rule, a spectacular catch, a historical audit. The ignition. <span class="label reality">Reality</span> the integrity detectors, <code>rule-tampered</code>, and <code>argot audit</code> all ship.</p>
+        <p><strong>Retention</strong> (frequent): foreign deps, reinvented helpers, misplaced code, drift, crossed boundaries. Intended to build the habit via a fast accept-time briefing. <span class="label reality">Reality</span> the detectors ship; <span class="label requirement">Requirement</span> the accept-time auto-run does not (§6).</p>
+        <p class="stmt" data-label="hypothesis"><span class="label hypothesis">Working hypothesis</span> (not a decision): the retention engine is where Argot's long-term value is created — it determines whether Argot becomes durable infrastructure rather than a curiosity; the acquisition engine is the ignition. Depends on user behavior; unproven. <em>Minority view (recorded):</em> an earlier analysis wanted the memorable catch to be the whole story; rejected because a once-per-hundred-diffs tool does not build a habit.</p>
+        <p class="stmt" data-label="decision"><span class="label decision">Standing decision (D4)</span> Frame the retention engine as awareness, not defect detection, so its value survives better models.</p>
+      </div>
+    </details>
+
+    <!-- 6 -->
+    <details class="section" id="sec-6">
+      <summary><span class="num">06</span><h2>The daily habit and the acceptance moment</h2><span class="caret">▸</span></summary>
+      <div class="body">
+        <p class="stmt" data-label="decision"><span class="label decision">Standing decision (D2)</span> Operating model: Audit installs you. Check-on-accept keeps you.</p>
+        <ul>
+          <li><strong>Install trigger:</strong> <code>argot audit</code>. <span class="label reality">Reality</span> zero-setup, shareable, exits 0.</li>
+          <li><strong>The habit:</strong> a seconds-long briefing at the moment the developer accepts an agent's change, showing only what deserves attention.</li>
+        </ul>
+        <div class="callout req"><span class="k">Product requirement — not current reality (P0-1)</span>Argot does <strong>not</strong> run automatically at the acceptance moment today. The only automatic-on-install wiring is a <em>pre-write</em> foreign-import "ask" guardrail (Claude Code plugin only, fitted repos only). Commit-time <code>check</code> is manual, agent-chosen, or user-wired pre-commit. Do not write "Argot runs automatically before you accept." Write "the onboarding should make Argot run at the acceptance moment," or describe the real pre-write guardrail precisely.</div>
+        <p class="stmt" data-label="decision"><span class="label decision">Standing decision (D8)</span> Pursue onboarding that wires the check into the acceptance moment (or the nearest reachable agent lifecycle event) with no manual step. A committed direction; a requirement not yet met.</p>
+        <p class="stmt" data-label="decision"><span class="label decision">Standing decision (D14)</span> Signal quality is existential; no detector ships default-gating above a defined noise threshold. <span class="label evidence">Evidence required</span> measured accept-time noise across all default detectors.</p>
+      </div>
+    </details>
+
+    <!-- 7 -->
+    <details class="section" id="sec-7">
+      <summary><span class="num">07</span><h2>Strategic positioning</h2><span class="caret">▸</span></summary>
+      <div class="body">
+        <p class="stmt" data-label="decision"><span class="label decision">Standing decision (D6)</span> Posture: conviction on the foundation, options on the destination.</p>
+        <p><strong>The foundation (full conviction):</strong> clean low-noise signal; local-first; repository-grounded; seconds; portable repo-owned config; embeddability; integration into the accept flow (a requirement); a useful individual experience. Every future we currently find plausible depends on it.</p>
+        <p><strong>The destination (held open):</strong> invest only in what the foundation needs; defer future-specific work until a gate is crossed (§14, §15).</p>
+        <p class="stmt" data-label="rejected"><span class="label rejected">Rejected assumption</span> That Argot must become an organization-level governance platform, and that remaining a standalone tool would be failure. Influence and value capture differ (git stayed a tool; GitHub captured the value). Neither destination is inevitable.</p>
+        <p class="stmt" data-label="decision"><span class="label decision">Standing framing</span> Argot is an open-source product. Its long-term form is deliberately left open, and <strong>how value might eventually be sustained or captured is intentionally outside the scope of this strategy</strong> — neither assumed nor rejected. This document answers <em>why the product should exist</em>, not <em>how value should eventually be captured</em>; that question is deferred until there is evidence. The strategy optimizes only for what makes an open-source tool matter: usefulness, adoption, habit, and trust. Remaining an independent open-source tool indefinitely is a fully successful outcome.</p>
+      </div>
+    </details>
+
+    <!-- 8 -->
+    <details class="section" id="sec-8">
+      <summary><span class="num">08</span><h2>North Star and its measurability</h2><span class="caret">▸</span></summary>
+      <div class="body">
+        <p class="stmt" data-label="decision"><span class="label decision">Standing decision (D5)</span> Primary metric: audit-to-habit conversion — run <code>argot audit</code> → install → enable recurring checks → still trust and use it after 30 days. Stars and installs are secondary.</p>
+        <div class="callout warn"><span class="k">The measurement conflict (honest)</span><span class="label reality">Reality</span> Argot has no telemetry and cannot observe steps 3–4. The North Star is a <strong>conceptual</strong> target, not directly measurable today, and D13 forbids default telemetry. Do not imply retention is observed. <strong>Do not resolve this by adding default telemetry.</strong></div>
+        <ul>
+          <li><strong>Measurable today (proxies):</strong> npm/Action/plugin installs, release-asset downloads. Weak proxies for reach, not retention.</li>
+          <li><strong>Only with opt-in instrumentation:</strong> local metrics shown to the user; opt-in anonymous usage; opt-in dismissal/false-alarm counts. Off by default, anonymous, local-first.</li>
+          <li><strong>Qualitative research:</strong> voluntary surveys; user-research cohorts; interviews on whether the accept-time briefing is kept on.</li>
+        </ul>
+        <p class="stmt" data-label="hypothesis"><span class="label hypothesis">Working hypothesis</span> Dismissal and false-alarm rates lead retention. <span class="label evidence">Evidence required</span> a privacy-compatible, opt-in way to observe dismissals.</p>
+      </div>
+    </details>
+
+    <!-- 9 -->
+    <details class="section" id="sec-9">
+      <summary><span class="num">09</span><h2>The trusted analytical core (definition)</h2><span class="caret">▸</span></summary>
+      <div class="body">
+        <h3>Authoritative analytical path</h3>
+        <p>The logic that detects findings, computes scores, determines severity, decides rule violations, produces machine-readable evidence, and affects exit codes or enforcement.</p>
+        <p class="stmt" data-label="reality"><span class="label reality">Current reality</span> This path is statistics (frequency tables + callee clustering) plus, for <code>redundant</code>/<code>misplaced</code>, a <strong>local, deterministic code-embedding encoder</strong> (jina-code via statically linked llama.cpp). The encoder turns code into vectors; it is not generative or opinion-forming. <code>layering</code> uses a dependency graph; integrity uses a tree-sitter test inventory. All local, all reproducible.</p>
+        <p class="stmt" data-label="decision"><span class="label decision">Standing decision (D12)</span> The authoritative path must remain reproducible, inspectable, runnable without any <strong>generative</strong> LLM, stable for automation, and grounded in checkable evidence. "No LLM in the core" means no generative or opinion-forming model decides a finding, score, severity, or CI outcome. It does not forbid the existing deterministic encoder, which is part of the core.</p>
+        <h3>Optional non-authoritative assistance</h3>
+        <p>A future LLM <strong>may</strong> explain a finding, help with docs, summarize, onboard, suggest a remediation, or draft a custom rule for human review. It must <strong>never</strong> silently create a finding, alter a score/severity, decide CI pass/fail, replace evidence, or become mandatory for the core local workflow.</p>
+        <div class="callout key"><span class="k">Test for a proposed feature</span>If it changes what is flagged, the score, the severity, or the exit code, it is authoritative and may not be an LLM. If it only explains, summarizes, or drafts-for-review, it may be an LLM — provided it is optional and non-authoritative.</div>
+      </div>
+    </details>
+
+    <!-- 10 -->
+    <details class="section" id="sec-10">
+      <summary><span class="num">10</span><h2>Standing Decisions (normative)</h2><span class="caret">▸</span></summary>
+      <div class="body">
+        <p>The authoritative register. A decision is binding only if it appears here. Prose elsewhere may explain but not exceed it.</p>
+        <div class="tablewrap"><table>
+          <thead><tr><th>ID</th><th>Statement</th><th>Status</th><th>Reversal evidence</th></tr></thead>
+          <tbody>
+            <tr><td>D1</td><td>The behavioral invariant (§3) is the foundational belief and root of positioning.</td><td>Active (foundational hypothesis)</td><td>Developers do not, in aggregate, ship increasing volumes of unread AI code.</td></tr>
+            <tr><td>D2</td><td>Operating model: audit installs, check-on-accept retains.</td><td>Active; accept-time auto-run is a Requirement.</td><td>Audit-to-habit stays low after accept-time integration ships.</td></tr>
+            <tr><td>D3</td><td>Build and market two engines; do not collapse them.</td><td>Active</td><td>One engine alone sustains both acquisition and retention.</td></tr>
+            <tr><td>D4</td><td>Frame the retention engine as awareness, not defect detection.</td><td>Active</td><td>Users value only catches, not awareness of correct-but-unfamiliar code.</td></tr>
+            <tr><td>D5</td><td>North Star is audit-to-habit conversion.</td><td>Active; not directly measurable (§8).</td><td>A better-correlated, measurable retention metric is found.</td></tr>
+            <tr><td>D6</td><td>Conviction on the foundation, options on the destination.</td><td>Active</td><td>A future's evidence gate (§15) is decisively crossed.</td></tr>
+            <tr><td>D7</td><td>The fully local individual core check remains free and requires no account or payment.</td><td>Active (commitment)</td><td>A deliberate, documented reversal; none intended.</td></tr>
+            <tr><td>D8</td><td>Pursue onboarding that runs the check at the acceptance moment without a manual step.</td><td>Active; requirement unmet (P0-1).</td><td>Accept-time integration proves not to move retention.</td></tr>
+            <tr><td>D9</td><td>No future-specific feature before its evidence gate (§15) is crossed and recorded.</td><td>Active</td><td>A gate is recorded as crossed.</td></tr>
+            <tr><td>D10</td><td>"Voice" demoted to a secondary brand/visual metaphor; never carries the explanatory load.</td><td>Active</td><td>Research shows "voice" is the phrase users actually adopt.</td></tr>
+            <tr><td>D11</td><td>Keep the four positioning layers separate; no one-slogan compression.</td><td>Active</td><td>—</td></tr>
+            <tr><td>D12</td><td>No generative/opinion-forming model in the authoritative core; the local deterministic encoder is permitted.</td><td>Active</td><td>A deliberate architecture change, explicitly recorded.</td></tr>
+            <tr><td>D13</td><td>Local-first, no default telemetry; only default egress is a suppressible update check + one-time model download; retention measurement must be opt-in.</td><td>Active</td><td>A deliberate, documented reversal; none intended.</td></tr>
+            <tr><td>D14</td><td>Signal quality is existential; no detector ships default-gating above a defined noise threshold.</td><td>Active</td><td>— (threshold tunable; principle holds).</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+    </details>
+
+    <!-- 11 -->
+    <details class="section" id="sec-11">
+      <summary><span class="num">11</span><h2>Product principles</h2><span class="caret">▸</span></summary>
+      <div class="body">
+        <p>Operational consequences of §10; where a principle restates a decision, the decision governs.</p>
+        <ol>
+          <li>Signal quality is existential (D14).</li>
+          <li>Noise destroys the product; a dismissed finding is a withdrawal from trust.</li>
+          <li>Seconds, not flow interruption.</li>
+          <li>Attach to an existing behavior, not a new ritual (D8).</li>
+          <li>Brief, do not scold.</li>
+          <li>The individual local check stays free (D7).</li>
+          <li>Cloud is never mandatory for the core (D13).</li>
+          <li>Local-first and neutrality are non-retrofittable trust assets (D13).</li>
+          <li>Configuration is portable and user-owned. <span class="label reality">Reality</span></li>
+          <li>Stay embeddable (CLI/JSON/SARIF/hooks). <em>JSON is stable-by-intent; a versioned schema is a P2 gap.</em></li>
+          <li>No generative LLM in the authoritative core (D12).</li>
+          <li>Do not reposition as "AI governance" prematurely (D6, D9).</li>
+          <li>Build organization-facing features only after repeated, concrete inbound demand (D9, §15).</li>
+        </ol>
+      </div>
+    </details>
+
+    <!-- 12 -->
+    <details class="section" id="sec-12">
+      <summary><span class="num">12</span><h2>Marketing principles</h2><span class="caret">▸</span></summary>
+      <div class="body">
+        <ol>
+          <li>Lead with the behavior, not a metaphor.</li>
+          <li>One message, everywhere.</li>
+          <li>Acquisition through stories, retention through habit; never let the memorable engine become the whole pitch.</li>
+          <li>Proof over adjectives; publish the blind spot.</li>
+          <li>State caveats once, confidently.</li>
+          <li>Do not tie the brand to model deficiencies (D4).</li>
+          <li>One idea per screen.</li>
+          <li>The prose must not read like the machine slop the product catches.</li>
+          <li class="stmt" data-label="requirement"><strong>Never market a Requirement or Future option in the present tense.</strong> Consult <code>ARGOT_CURRENT_REALITY.md</code> before any capability claim.</li>
+        </ol>
+      </div>
+    </details>
+
+    <!-- 13 -->
+    <details class="section" id="sec-13">
+      <summary><span class="num">13</span><h2>Review of absolute claims</h2><span class="caret">▸</span></summary>
+      <div class="body">
+        <div class="tablewrap"><table>
+          <thead><tr><th>Original claim</th><th>Verdict</th><th>Kept / rewritten as</th></tr></thead>
+          <tbody>
+            <tr><td>"The gap widens without bound."</td><td>Rewrite</td><td>Hypothesis: "likely to widen as agent output grows faster than human review capacity."</td></tr>
+            <tr><td>"The individual daily check is free forever."</td><td>Keep, precise</td><td>D7: the fully local individual core check remains free and requires no account or payment.</td></tr>
+            <tr><td>"Never add an LLM."</td><td>Keep, scoped</td><td>D12: no <em>generative</em> model in the core; local deterministic encoder permitted.</td></tr>
+            <tr><td>"Agents will always cheat."</td><td>Rewrite</td><td>Hypothesis: incentive-gaming has a longer half-life than capability-drift; a constrained agent may game less.</td></tr>
+            <tr><td>"Every future requires the foundation."</td><td>Keep, softened</td><td>"Every future we currently find plausible depends on the foundation."</td></tr>
+            <tr><td>Future-state probabilities.</td><td>Reframed</td><td>Scenario-weighting tools, not forecasts (§14).</td></tr>
+            <tr><td>"The retention engine is the company."</td><td>Downgraded + reworded</td><td>Working hypothesis; reworded to drop company framing — it determines whether Argot becomes durable infrastructure (§5).</td></tr>
+            <tr><td>"Audit installs you."</td><td>Keep</td><td>Current reality: audit is zero-setup and shareable.</td></tr>
+            <tr><td>"Check-on-accept keeps you."</td><td>Split</td><td>Operating-model target (D2) + Requirement for the accept-time auto-run (§6).</td></tr>
+            <tr><td>"Acceptance is the permanent attach point."</td><td>Rewrite</td><td>Open question: the attach point may move as workflows evolve (§21).</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+    </details>
+
+    <!-- 14 -->
+    <details class="section" id="sec-14">
+      <summary><span class="num">14</span><h2>Plausible future states</h2><span class="caret">▸</span></summary>
+      <div class="body">
+        <p class="stmt" data-label="hypothesis"><span class="label hypothesis">Working hypothesis</span> Scenario-weighting tools, not empirical forecasts. The percentages force honest relative comparison; they are not measured probabilities.</p>
+        <p><strong>Not a roadmap.</strong> These are possible <em>product</em> futures and honest risks (F4 is a risk, not a goal), not a plan we steer toward. How value might eventually be captured is outside the scope of this strategy; the project steers only by usefulness and adoption.</p>
+        <div class="tablewrap"><table>
+          <thead><tr><th>#</th><th>Future</th><th class="c">Weight</th><th>Qualitative &amp; what would update it</th></tr></thead>
+          <tbody>
+            <tr><td>F1</td><td>World-class standalone tool</td><td class="c">35–40%</td><td>Most plausible. Up if love/retention high but team WTP weak; down if teams pull to centralize. Not a failure.</td></tr>
+            <tr><td>F2</td><td>Team engineering-quality product</td><td class="c">25–30%</td><td>Plausible. Teams adopt Argot as shared infrastructure through committed config. Up if teams commit config unprompted and rely on it together; down if team-level adoption never appears.</td></tr>
+            <tr><td>F3</td><td>Organization-level accountability / governance</td><td class="c">10–15%</td><td>Lower probability, high upside; externally dependent. A call option, not a plan. Down if trust in models collapses verification demand.</td></tr>
+            <tr><td>F4</td><td>Acquisition / commoditization</td><td class="c">15–20%</td><td>Material downside. Up if native "fits your repo" ships and adoption stalls; acqui-hire is a non-catastrophic floor.</td></tr>
+            <tr><td>F5</td><td>Pre-generation convention layer</td><td class="c">5–10%</td><td>Emerging option. Up if agents/IDEs pull the convention model from the generation side.</td></tr>
+          </tbody>
+        </table></div>
+        <p class="stmt" data-label="rejected"><span class="label rejected">Rejected assumption</span> That the tool→platform→governance escalator is inevitable. Building for F2 keeps F3 open cheaply.</p>
+      </div>
+    </details>
+
+    <!-- 15 -->
+    <details class="section" id="sec-15">
+      <summary><span class="num">15</span><h2>Evidence gates</h2><span class="caret">▸</span></summary>
+      <div class="body">
+        <p>Until a gate is crossed and recorded in the decision log, default to strengthening the foundation.</p>
+        <p class="stmt" data-label="option"><span class="label option">F2 — Team platform</span> teams commit config unprompted; multiple contributors inherit one setup; requests for shared policy or cross-repo visibility; requests for centralized records/reports; sustained shared reliance on a collaboration layer, distinct from the individual check.</p>
+        <p class="stmt" data-label="option"><span class="label option">F3 — Governance</span> explicit requests for tamper evidence, attestations, or provenance; procurement/insurance/regulation asking for proof of AI-code controls; need to prove agents could not bypass rules; the same demand recurring across unrelated customers.</p>
+        <p class="stmt" data-label="option"><span class="label option">F1 — Stay a tool</span> high individual love/retention; weak team coordination need; users value the accept-time briefing over centralization; platform additions reduce simplicity without lifting retention.</p>
+        <p><span class="label evidence">Reassess thesis</span> audit-to-habit stays low after accept-time ships; users disable for noise; model-native alternatives remove most findings; the tool rarely finds anything actionable; the acceptance moment moves or disappears.</p>
+        <p class="stmt" data-label="option"><span class="label option">F5 — Pre-generation</span> agents/IDEs ask to consume the convention model to write code up front.</p>
+      </div>
+    </details>
+
+    <!-- 16 -->
+    <details class="section" id="sec-16">
+      <summary><span class="num">16</span><h2>Product roadmap principles</h2><span class="caret">▸</span></summary>
+      <div class="body">
+        <p class="stmt" data-label="decision"><span class="label decision">Standing decision (D9)</span> Nail the shared foundation; keep branch points cheap and open; exercise a branch only when its gate is crossed.</p>
+        <p><strong>Transmission mechanism</strong> <span class="label reality">Reality, partial</span> The config file committed to the repo carries Argot from one developer to a team (as ESLint/Prettier configs do). <em>Note:</em> one-click "codify a repeated finding as a rule" is a P2 gap (<code>argot-suggest-rules</code> is assisted authoring today); a durable local finding record is a P2 gap.</p>
+        <p>Illustrative sequencing, held loosely: win the accept-time briefing → let committed config spread to teams → become part of the definition of done in CI → only if gates cross, shared records or attestation. Prioritized gaps: <code>ARGOT_PRODUCT_GAPS.md</code>.</p>
+      </div>
+    </details>
+
+    <!-- 17 -->
+    <details class="section" id="sec-17">
+      <summary><span class="num">17</span><h2>Distribution and onboarding principles</h2><span class="caret">▸</span></summary>
+      <div class="body">
+        <ol>
+          <li>Front door: <code>argot audit</code>, zero-setup. <span class="label reality">Reality</span></li>
+          <li>Activation goal is the habit, not the install (measurability caveat, §8).</li>
+          <li class="stmt" data-label="requirement"><span class="label requirement">Requirement</span> default install should make the check fire at the acceptance moment (P0-1). Today the automatic piece is a pre-write foreign-import guardrail (Claude Code). Do not overstate it.</li>
+          <li>Developer-first, bottom-up; never abandon the individual developer.</li>
+          <li>Zero cost to try: free, local, non-blocking.</li>
+          <li>Distribution through embeddability.</li>
+          <li>The committed config is the team on-ramp.</li>
+        </ol>
+      </div>
+    </details>
+
+    <!-- 18 -->
+    <details class="section" id="sec-18">
+      <summary><span class="num">18</span><h2>Brand and language guidelines</h2><span class="caret">▸</span></summary>
+      <div class="body">
+        <h3>Four layers kept separate (D11)</h3>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Layer</th><th>Statement</th><th>Where it lives</th></tr></thead>
+          <tbody>
+            <tr><td>Behavioral truth</td><td>Developers are responsible for code they increasingly do not read.</td><td>"Why we exist," essays, talks.</td></tr>
+            <tr><td>Product job</td><td>Awareness at the moment you accept that code.</td><td>Headlines, primary value prop.</td></tr>
+            <tr><td>Memorable proof</td><td>An agent may weaken a test or route around a check.</td><td>Launch stories, "Caught in the Wild."</td></tr>
+            <tr><td>Current tool</td><td>A repository-grounded check, not a generic AI reviewer.</td><td>Docs, honest description.</td></tr>
+            <tr><td>Optional long-term</td><td>A record and control layer, only if users pull us there.</td><td>Not in current marketing.</td></tr>
+          </tbody>
+        </table></div>
+        <h3>The "voice" metaphor (D10)</h3>
+        <p class="stmt" data-label="decision"><span class="label decision">Decision: demote, do not delete.</span> As positioning, "voice" describes the shrinking style axis and is aesthetic where the stakes are trust. But <em>argot</em> means a group's private vocabulary, so voice imagery has brand coherence and is distinctive. It may live in visual identity, the name's story, and the emotional register — never as the headline or the sentence explaining the product.</p>
+        <p class="stmt" data-label="reality"><span class="label reality">Current reality</span> The shipped <code>--help</code> tagline and site still lead with "voice." Aligning them is out of scope here; recorded as positioning gap P0-3. <span class="label evidence">Evidence required</span> to reverse: research that "voice" is the phrase users actually repeat.</p>
+      </div>
+    </details>
+
+    <!-- 19 -->
+    <details class="section" id="sec-19">
+      <summary><span class="num">19</span><h2>Do say / do not say</h2><span class="caret">▸</span></summary>
+      <div class="body">
+        <div class="tablewrap"><table>
+          <thead><tr><th>Do say</th><th>Do not say</th><th>Why</th></tr></thead>
+          <tbody>
+            <tr><td>"Awareness at the moment you accept AI code."</td><td>"AI code review."</td><td>"Review" implies a second model's opinion; the core is evidence.</td></tr>
+            <tr><td>"It shows what the agent introduced that deserves a look."</td><td>"It catches the AI's mistakes."</td><td>Awareness survives correct code (D4).</td></tr>
+            <tr><td>"Grounded in your repository's own history."</td><td>"Your codebase has a voice."</td><td>The grounding explains; the metaphor is brand-only (D10).</td></tr>
+            <tr><td>"A repository-grounded check."</td><td>"An AI governance platform."</td><td>Premature governance framing (D6).</td></tr>
+            <tr><td>"Runs locally; reproducible; no generative LLM in the core."</td><td>"No models at all." / "Deterministic verification is our moat."</td><td>A local encoder IS used (§9); determinism is erodable as a moat.</td></tr>
+            <tr><td>"The onboarding aims to run it at the acceptance moment."</td><td>"Argot runs automatically before you accept."</td><td>Accept-time auto-run is a Requirement, not shipped (§6).</td></tr>
+            <tr><td>"All analysis is local; the only default egress is a suppressible update check and a one-time model download."</td><td>"Nothing ever leaves your machine."</td><td>Precise and true (§8).</td></tr>
+            <tr><td>"Attributed from commit markers; a floor, not a census."</td><td>"It knows which code the AI wrote."</td><td>Attribution is marker-based.</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+    </details>
+
+    <!-- 20 -->
+    <details class="section" id="sec-20">
+      <summary><span class="num">20</span><h2>Risks and failure modes</h2><span class="caret">▸</span></summary>
+      <div class="body">
+        <ul>
+          <li><strong>Noise kills the habit (largest risk).</strong> Mitigation: D14; watch dismissal/false-alarm (needs P1-3).</li>
+          <li><strong>Accept-time integration never becomes automatic.</strong> Mitigation: P0-1 is the top gap.</li>
+          <li><strong>Retention findings erode as models improve.</strong> Mitigation: D4. Open whether it fully holds.</li>
+          <li><strong>Incumbent bundling.</strong> Partial defense: independence + the accept-time habit; bundled-good-enough wins low/mid stakes.</li>
+          <li><strong>Verification demand erodes with trust</strong> (compiler analogy). Unresolved (§21).</li>
+          <li><strong>Premature platform/governance investment.</strong> Mitigation: §15 gates.</li>
+          <li><strong>Positioning drift back to "voice" or over-claiming unshipped features.</strong> Mitigation: §0, §19, reality doc.</li>
+          <li><strong>Over-reliance on stars.</strong> Mitigation: D5 — while acknowledging the measurement gap (§8).</li>
+        </ul>
+      </div>
+    </details>
+
+    <!-- 21 -->
+    <details class="section" id="sec-21">
+      <summary><span class="num">21</span><h2>Open questions</h2><span class="caret">▸</span></summary>
+      <div class="body">
+        <ol class="stmt" data-label="open">
+          <li>Which future (F1–F5) does Argot end up in?</li>
+          <li>Is there enough team-level demand and shared reliance to make a team product (F2) worthwhile?</li>
+          <li>Does verification demand persist, or erode toward a regulated niche as trust in models rises?</li>
+          <li>Is independence a sufficient moat for the project, or only a category moat?</li>
+          <li>Does the acceptance moment stay where it is, or move as agent workflows evolve?</li>
+          <li>What should the accept-time briefing show in its first lines so busy engineers keep it on? (P1-2)</li>
+          <li>Is the code-level slice where accountability value concentrates, or is it agent actions/permissions?</li>
+          <li>How do we measure audit-to-habit without default telemetry (§8)?</li>
+        </ol>
+      </div>
+    </details>
+
+    <!-- 22 -->
+    <details class="section" id="sec-22">
+      <summary><span class="num">22</span><h2>Contributor decision test</h2><span class="caret">▸</span></summary>
+      <div class="body">
+        <p>A contributor should decide, from this document alone, whether a change is allowed. Ten worked answers.</p>
+        <div class="tablewrap"><table>
+          <thead><tr><th>#</th><th>Proposal</th><th>Verdict</th><th>Basis</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td>Optional LLM explanation command</td><td>Allowed</td><td>D12 / §9.2: non-authoritative only.</td></tr>
+            <tr><td>2</td><td>Require an account or cloud for the core</td><td>Not allowed</td><td>D7, D13; one-way door.</td></tr>
+            <tr><td>3</td><td>Shared team dashboard</td><td>Gated</td><td>D9 + §15 F2; the individual local check stays free and unrestricted (D7).</td></tr>
+            <tr><td>4</td><td>Telemetry to compute 30-day retention</td><td>Not allowed by default</td><td>D13; only opt-in, anonymous, local-first.</td></tr>
+            <tr><td>5</td><td>Hero back to "Your codebase has a voice"</td><td>Not allowed</td><td>D10; "voice" is brand-only.</td></tr>
+            <tr><td>6</td><td>New detector, 4% FP, default-gating</td><td>Not allowed</td><td>D14; may ship only as warn/off/opt-in.</td></tr>
+            <tr><td>7</td><td>Plugin that runs before the agent writes</td><td>Allowed / exists</td><td>§6; the opt-in pre-write guardrail.</td></tr>
+            <tr><td>8</td><td>Lock SARIF output behind an account</td><td>Not allowed</td><td>Principle 10 (embeddability).</td></tr>
+            <tr><td>9</td><td>Attestation / provenance export</td><td>Gated</td><td>D9 + §15 F3; needs repeated inbound demand.</td></tr>
+            <tr><td>10</td><td>Remove <code>argot audit</code></td><td>Not allowed</td><td>D2/D5; the verified front door and North Star step 1.</td></tr>
+          </tbody>
+        </table></div>
+        <p>If a real proposal is not clearly answerable from §10 and §9, that is a gap in this document; improve the document rather than guessing.</p>
+      </div>
+    </details>
+
+    <!-- 23 -->
+    <details class="section" id="sec-23">
+      <summary><span class="num">23</span><h2>Decision log</h2><span class="caret">▸</span></summary>
+      <div class="body">
+        <ul>
+          <li><strong>2026-07-22 — Open-source framing pass.</strong> Corrected language implying Argot is a company/startup, and moved value-capture out of the narrative. Argot is an open-source product whose long-term form is deliberately undecided; the strategy stays agnostic about how value is eventually captured (neither assumed nor rejected) and answers only why the product should exist. Reframed "retention engine is the company," "durable business," "highest-EV business / SaaS," and "company moat" into project/product/adoption language. Internal evidence gates (§15) and the free-check commitment (D7) are unchanged in substance. No strategic conclusion, product decision, roadmap, or gate changed.</li>
+          <li><strong>2026-07-22 — Hardening pass.</strong> Verified every claim against the repo (<code>ARGOT_CURRENT_REALITY.md</code>). Reframed accept-time auto-run as a Requirement; scoped D12 to "no generative model in the core" (a local deterministic encoder is used and permitted); qualified local-first with the update check + model download; downgraded "retention engine is the company" and future probabilities to hypotheses/scenario tools; made D7 and D13 precise; added §8 measurability, §9 trusted-core, §10 register, §22 contributor test. Full before/after: <code>ARGOT_STRATEGY_CHANGELOG.md</code>.</li>
+          <li><strong>2026-07-22 — D10.</strong> Demote "voice" to brand/visual layer.</li>
+          <li><strong>2026-07-22 — D6.</strong> Conviction on foundation, options on destination; reject governance-inevitability.</li>
+          <li><strong>2026-07-22 — D4.</strong> Retention engine framed as awareness, not defect detection.</li>
+          <li><strong>2026-07-22 — D5.</strong> North Star = audit-to-habit conversion (measurability caveat, §8).</li>
+          <li><strong>2026-07-22 — D2 / D8.</strong> Operating model; pursue accept-time wiring.</li>
+          <li><strong>2026-07-22 — D3.</strong> Two engines; "retention is the company" is a hypothesis, not a decision.</li>
+          <li><strong>2026-07-22 — D12 / D13 / D14.</strong> Trusted-core boundary; no default telemetry; signal-quality existential.</li>
+          <li><strong>2026-07-22 — D1.</strong> Behavioral invariant adopted as the foundational working hypothesis.</li>
+        </ul>
+      </div>
+    </details>
+
+    <footer class="docfoot">
+      Argot — Canonical Strategy &amp; Positioning. Rendered from <code>ARGOT_STRATEGY.md</code> (canonical).
+      Companion files: <code>ARGOT_STRATEGY_CARD.md</code>, <code>ARGOT_CURRENT_REALITY.md</code>,
+      <code>ARGOT_PRODUCT_GAPS.md</code>, <code>ARGOT_STRATEGY_CHANGELOG.md</code>. Revise the Markdown, then re-sync this file.
+    </footer>
+  </main>
+</div>
+
+<script>
+  var menubtn=document.getElementById('menubtn');
+  menubtn&&menubtn.addEventListener('click',function(){document.body.classList.toggle('nav-open');});
+  function openTarget(hash){
+    if(!hash)return; var el=document.querySelector(hash);
+    if(el&&el.tagName==='DETAILS'){el.open=true;el.scrollIntoView({behavior:'smooth',block:'start'});}
+    document.body.classList.remove('nav-open');
+  }
+  document.querySelectorAll('nav.toc a').forEach(function(a){
+    a.addEventListener('click',function(e){
+      var hash=a.getAttribute('href');
+      if(hash&&hash.charAt(0)==='#'){e.preventDefault();history.replaceState(null,'',hash);openTarget(hash);}
+    });
+  });
+  if(location.hash){setTimeout(function(){openTarget(location.hash);},60);}
+  var sections=document.querySelectorAll('details.section');
+  document.getElementById('expand').addEventListener('click',function(){sections.forEach(function(s){s.open=true;});});
+  document.getElementById('collapse').addEventListener('click',function(){sections.forEach(function(s){s.open=false;});});
+  document.getElementById('print').addEventListener('click',function(){sections.forEach(function(s){s.open=true;});setTimeout(function(){window.print();},80);});
+  var activeFilter=null;
+  function applyFilter(label){
+    var stmts=document.querySelectorAll('.stmt');
+    if(!label){document.body.removeAttribute('data-filter');stmts.forEach(function(s){s.classList.remove('match');});return;}
+    document.body.setAttribute('data-filter',label);
+    stmts.forEach(function(s){
+      var m=s.getAttribute('data-label')===label;
+      s.classList.toggle('match',m);
+      if(m){var sec=s.closest('details.section'); if(sec)sec.open=true;}
+    });
+  }
+  document.querySelectorAll('button.chip[data-lf]').forEach(function(btn){
+    btn.addEventListener('click',function(){
+      var label=btn.getAttribute('data-lf');
+      var off=activeFilter===label;
+      document.querySelectorAll('button.chip[data-lf]').forEach(function(b){b.setAttribute('aria-pressed',String(!off&&b===btn));});
+      activeFilter=off?null:label; applyFilter(activeFilter);
+    });
+  });
+</script>
+</body>
+</html>
