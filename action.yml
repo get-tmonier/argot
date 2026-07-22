@@ -1,7 +1,7 @@
 # Composite GitHub Action for argot — voice linter that learns a repo's voice
 # from git history. See https://argot.tmonier.com/docs/ci/ for copy-paste workflows.
 #
-# It is non-blocking by default: argot is a probabilistic guardrail, so it
+# Non-blocking by default: argot is a probabilistic guardrail, so it
 # informs the PR with observed configured findings and inline annotations without gating the
 # merge. The reviewer has the last word (opt into `fail-on-hits` for a hard gate).
 #
