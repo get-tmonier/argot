@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+output=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -o)
+      output="$2"
+      shift 2
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+
+case "${ARGOT_ACTION_FIXTURE_MODE:?}" in
+  missing)
+    echo "curl: (22) The requested release asset was not found" >&2
+    exit 22
+    ;;
+  checksum-mismatch)
+    printf 'corrupt fixture payload\n' > "$output"
+    ;;
+  *)
+    echo "unknown action fixture mode: ${ARGOT_ACTION_FIXTURE_MODE}" >&2
+    exit 64
+    ;;
+esac

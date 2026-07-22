@@ -7,7 +7,7 @@
 #
 # What it does:
 #   1. Downloads the prebuilt `argot` binary from this repo's GitHub Releases
-#      (cargo-dist artifacts: argot-{target}.tar.xz).
+#      (cargo-dist artifacts: argot-{target}.tar.gz).
 #   2. Fits the voice model on the *base* ref (the PR's target branch, or the
 #      parent commit on a push) — never the PR head, so a PR's own new code is
 #      judged as new instead of self-certifying it. The `.argot/` model is cached
@@ -117,12 +117,12 @@ runs:
         ARGOT_VERSION: ${{ inputs.argot-version }}
       run: |
         set -euo pipefail
-        # Unix ships .tar.xz; Windows ships .zip with argot.exe.
+        # Unix ships .tar.gz; Windows ships .zip with argot.exe.
         case "${RUNNER_OS}-${RUNNER_ARCH}" in
-          Linux-X64)   target="x86_64-unknown-linux-gnu"; ext="tar.xz"; bin="argot" ;;
-          Linux-ARM64) target="aarch64-unknown-linux-gnu"; ext="tar.xz"; bin="argot" ;;
-          macOS-ARM64) target="aarch64-apple-darwin"; ext="tar.xz"; bin="argot" ;;
-          macOS-X64)   target="x86_64-apple-darwin"; ext="tar.xz"; bin="argot" ;;
+          Linux-X64)   target="x86_64-unknown-linux-gnu"; ext="tar.gz"; bin="argot" ;;
+          Linux-ARM64) target="aarch64-unknown-linux-gnu"; ext="tar.gz"; bin="argot" ;;
+          macOS-ARM64) target="aarch64-apple-darwin"; ext="tar.gz"; bin="argot" ;;
+          macOS-X64)   target="x86_64-apple-darwin"; ext="tar.gz"; bin="argot" ;;
           Windows-X64) target="x86_64-pc-windows-msvc"; ext="zip"; bin="argot.exe" ;;
           *)
             echo "::error::argot publishes prebuilt binaries for Linux (x64/arm64), macOS (arm64/x64), and Windows (x64); got ${RUNNER_OS}-${RUNNER_ARCH}"
@@ -147,7 +147,7 @@ runs:
         curl --proto '=https' --tlsv1.2 -fsSL --retry 3 "${url}.sha256" -o "${archive}.sha256"
         expected="$(awk '{print $1}' "${archive}.sha256")"
         if command -v sha256sum >/dev/null 2>&1; then
-          actual="$(sha256sum "$archive" | awk '{print $1}')"
+          actual="$(sha256sum < "$archive" | awk '{print $1}')"
         else
           actual="$(shasum -a 256 "$archive" | awk '{print $1}')"
         fi
@@ -156,9 +156,16 @@ runs:
           exit 1
         fi
         echo "Checksum verified: $actual"
-        # bsdtar (the `tar` on GitHub's Windows runners) extracts .zip too, so
-        # one code path serves both archive kinds.
-        tar -xf "$archive" -C "$install_dir" --strip-components=1
+        # cargo-dist wraps Unix archives in a target directory, while the
+        # Windows ZIP stores its files at the archive root.
+        if [ "$ext" = "zip" ]; then
+          # Git Bash tar misreads a drive-letter destination (for example
+          # D:\\a\\_temp) as a remote archive target. Let PowerShell consume
+          # the native Windows paths instead.
+          ARCHIVE="$archive" INSTALL_DIR="$install_dir" powershell -NoProfile -NonInteractive -Command 'Expand-Archive -LiteralPath $env:ARCHIVE -DestinationPath $env:INSTALL_DIR -Force'
+        else
+          tar -xf "$archive" -C "$install_dir" --strip-components=1
+        fi
         echo "$install_dir" >> "$GITHUB_PATH"
         "$install_dir/$bin" --version
 
