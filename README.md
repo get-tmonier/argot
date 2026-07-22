@@ -3,8 +3,8 @@
 </p>
 
 <p align="center">
-  <strong>Your codebase has a voice. argot makes AI code speak it.</strong><br/>
-  <em>AI writes the code. argot harnesses it with the one thing that can't hallucinate: your repo's own history. Statistics, not a second LLM — flagging a dependency you've never used, a function you already wrote, an import that breaks your layering, a test quietly weakened, a convention only your team knows. 100% local, replayable.</em>
+  <strong>Review changes against the patterns your repository has already accepted.</strong><br/>
+  <em>argot surfaces repository-grounded divergence; you decide what to accept.</em>
 </p>
 
 <p align="center">
@@ -12,9 +12,7 @@
   &nbsp;·&nbsp;
   <a href="https://argot.tmonier.com/docs/">Documentation</a>
   &nbsp;·&nbsp;
-  <a href="https://argot.tmonier.com/benchmarks">Benchmarks</a>
-  &nbsp;·&nbsp;
-  <a href="https://argot.tmonier.com/caught-in-the-wild">Caught in the wild</a>
+  <a href="https://argot.tmonier.com/benchmarks">Evidence</a>
   &nbsp;·&nbsp;
   <a href="docs/research/README.md">Research log</a>
 </p>
@@ -24,285 +22,127 @@
   <a href="https://www.npmjs.com/package/@tmonier/argot"><img src="https://img.shields.io/npm/v/@tmonier/argot?logo=npm" alt="npm" /></a>
   <a href="https://github.com/get-tmonier/argot/actions/workflows/ci.yml"><img src="https://github.com/get-tmonier/argot/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <a href="https://github.com/get-tmonier/argot/blob/main/LICENSE"><img src="https://img.shields.io/github/license/get-tmonier/argot?color=E67E45" alt="License" /></a>
-  <img src="https://img.shields.io/badge/status-alpha-5B8DEF" alt="Status: alpha" />
-  <img src="https://img.shields.io/badge/rust-single%20static%20binary-DEA584?logo=rust&logoColor=white" alt="Rust" />
-  <img src="https://img.shields.io/badge/100%25-local%20%C2%B7%20no%20cloud-brightgreen" alt="100% local, no cloud" />
-  &nbsp;·&nbsp;<a href="https://argot.tmonier.com/docs/languages/">12 languages →</a>
 </p>
 
-<table align="center">
-  <tr>
-    <td align="center" valign="middle">
-      <a href="https://glama.ai/mcp/servers/get-tmonier/argot"><img src="https://glama.ai/mcp/servers/get-tmonier/argot/badges/card.svg" alt="argot MCP server on Glama" width="340" /></a>
-    </td>
-    <td align="center" valign="middle">
-      <a href="https://argot.tmonier.com/#film"><img src="landing/public/argot-film-poster.jpg" alt="Watch the argot launch film" width="180" /></a>
-      <br/>
-      <em>🎬 <a href="https://argot.tmonier.com/#film">Watch the 45-second launch film</a></em>
-    </td>
-  </tr>
-</table>
+## Start with an audit
 
----
-
-Type checkers ask *"is this valid?"* argot asks the question that used to live in code review: *"is this how **we** do it here?"* — and catches AI code that's flawless, type-correct, lint-clean, and still doesn't belong. It answers with statistics on your repo's own history — the statistical core deterministic and replayable, everything local — never a second LLM judging the first.
-
-It also asks a second question no other tool asks: **did the AI play fair?** When an agent can't make a failing test pass, the cheapest path to "done" is to make the test stop looking. argot reads both sides of every diff and pairs a weakened, disabled, or deleted test with the production change it covers.
-
-### Five learned detectors — plus the rules only your repo could write
-
-| | Rule | It catches | |
-| :-- | :-- | :-- | :-- |
-| 🚫 | **`foreign-import`** + friends | a dependency, API, or idiom your repo has **never used** | *"we don't do it this way here"* |
-| ♻️ | **`redundant`** | a new function that **reinvents one you already have** | *"you already have this"* |
-| 📍 | **`misplaced`** | the right code, filed in the **wrong place** | *"this doesn't belong here"* |
-| 🧱 | **`layering`** | an internal import that **reverses your architecture** | *"we never cross this boundary"* |
-| 🧪 | **`test-deleted`** + friends | a test **quietly weakened, disabled, or removed** alongside the prod change it covers | *"don't game the tests"* |
-| 📜 | **your own rules** | the conventions **only your repo has** — scripted, no recompile | *"here's exactly how we do it"* |
-
-The first five are learned from your git history. The sixth is [written by you](#your-conventions-as-rules) — and it's the part of every linter config your team actually cares about.
-
-argot also notices when the repo itself moves on: it mines your accepted history for **migrations** — an old dependency or call retired in favor of a new one — so the replacement stops reading as foreign, new code that still reaches for the old side raises `superseded` (warn by default), and it lists the files the refactor forgot. Evidence is your own commits; or declare one yourself in two lines of `argot.toml`, effective immediately, no refit needed.
-
-## Get started
+`argot audit` needs no prior Argot fit or configuration. It fits a historical
+base in a temporary worktree, then evaluates the surviving base-to-HEAD net
+diff. Your working tree is left untouched. It is a review prompt—not a census
+of who wrote code, or proof that a finding is a defect.
 
 ```sh
-# install (single static binary — no Python, no Node)
+# macOS / Linux
 curl --proto '=https' --tlsv1.2 -LsSf https://github.com/get-tmonier/argot/releases/latest/download/argot-installer.sh | sh
+
+cd your-repository
+argot audit
 ```
 
-Windows: `powershell -c "irm https://github.com/get-tmonier/argot/releases/latest/download/argot-installer.ps1 | iex"` · npm: `npm install -g @tmonier/argot`
+Windows: `powershell -c "irm https://github.com/get-tmonier/argot/releases/latest/download/argot-installer.ps1 | iex"`.
+The npm package is also available as `npm install -g @tmonier/argot`.
 
-**Sixty seconds of proof, zero setup, on your own history:**
+Audit needs usable Git history and supported source. It has no fixed runtime
+promise. Semantic analysis may download a local code-embedding model once; see
+[Getting started](https://argot.tmonier.com/docs/getting-started/) for install,
+offline, and fit details.
+
+If the audit gives you a useful lead, fit the current repository and score the
+changes you intend to review:
 
 ```sh
-argot audit      # ⏪ what did AI sneak into your last 50 commits?
+argot init
+argot check
 ```
 
-`audit` fits the voice as it was 50 commits ago (in a temp worktree — your tree stays untouched), rescores everything since, and attributes every finding to its introducing commit — **ai-assisted / human / unknown**, from concrete commit markers only:
+`check` reports configured findings on the selected changeset; a clean result
+does not prove the change correct or fully idiomatic. Read the
+[Audit](https://argot.tmonier.com/docs/audit/),
+[Init and Fit](https://argot.tmonier.com/docs/init-and-fit/), and
+[Check](https://argot.tmonier.com/docs/check/) guides for the exact contracts.
 
-```
-━━ argot audit ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  last 50 commits · 52% carry AI markers · 1 finding would have met review
+## What it surfaces
 
-  Worst offender — commit cae8349 · ai-assisted
-  ! landing/src/pages/llms-full.txt.ts:L1-32 · foreign-import
-      ↳ astro (L1), astro:content (L2) — 0 of 49 module specifiers…
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
+argot is a probabilistic review guardrail, not a correctness oracle. Its
+current detector composition can surface a foreign dependency/API/idiom, a
+function that duplicates one already present, code placed away from its peers,
+an internal import that reverses a learned direction, or a test weakened,
+disabled, or deleted alongside the production change it covers. Repositories
+can also add their own versioned scripted rules.
 
-The terminal card ends with a copy-paste **share caption**, and `argot audit --format html` is a screenshot-ready card — post your score.
+Each finding carries repository evidence. Treat it as a prompt to inspect and
+make the human decision explicit—never as proof that the code is wrong.
 
-Then fit today's voice so `check` raises these *before* they merge:
+## Choose how to run it
 
-```sh
-argot init       # learn this repo's voice (~25 s on a 1,100-file repo)
-argot check      # score your working changes against it
-```
+The CLI is the complete, explicit changeset check. Other routes have narrower
+triggers and coverage; none provides a universal acceptance-time check.
 
-Accuracy is a function of setup — argot learns from what it's allowed to see. Best path: `npx skills add get-tmonier/argot`, then `/argot-setup` in your coding agent (Claude Code, Cursor, 70+ agents) reads your repo, excludes what shouldn't shape the voice, and verifies the catch. Full guide: [Setup](https://argot.tmonier.com/docs/setup/) · [Getting started](https://argot.tmonier.com/docs/getting-started/).
+| Route              | Execution class                                          | Prerequisites and coverage                                                                                                                                                               | Evidence status                         |
+| ------------------ | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| CLI                | Invoked by a user or agent                               | Run `audit`, `init`, or the full `check`; fitting is required where the command needs it.                                                                                                | CLI/source inventory, 2026-07-22        |
+| Skills             | Invoked                                                  | Six on-demand workflows for a compatible skill host; installation does not schedule commands, configure MCP, or add a hook.                                                              | Manifest/source inventory, 2026-07-22   |
+| MCP                | Passive                                                  | A configured client selects read-only context/check tools; a fitted repository is required for model-dependent tools. Use the CLI for a complete changeset check.                        | Focused test and source inspection, 2026-07-22 |
+| Claude Code plugin | Automatic when configured, plus invoked/passive surfaces | Its opt-in pre-write hook, in a fitted repository, asks only when a `Write`, `Edit`, or `MultiEdit` introduces a foreign import. It never blocks and is not a full or end-of-turn check. | Manifest/source inspection, 2026-07-22  |
+| pre-commit         | Automatic when user-configured                           | Scores staged supported files in a fitted repository. The `argot-check` hook is advisory for findings; `argot-check-gate` is opt-in for error-severity exits.                            | Manifest inspection, 2026-07-22         |
+| GitHub Action      | Automatic when user-configured                           | Scores the configured ref/range in a workflow; it needs checkout history and release-download access. `fail-on-hits` defaults to `false`.                                                | Action manifest inspection, 2026-07-22  |
 
-**Claude Code — one install for everything.** The [argot plugin](https://argot.tmonier.com/docs/plugin/) bundles the six skills, the [MCP server](https://argot.tmonier.com/docs/agents/) (`argot mcp` — proactive voice context while your agent writes), and an opt-in, non-blocking pre-write guardrail that *asks* before a foreign dependency lands:
+Canonical setup and host details: [Claude Code](https://argot.tmonier.com/docs/plugin/),
+[other agents and MCP](https://argot.tmonier.com/docs/agents/), and
+[CI and pre-commit](https://argot.tmonier.com/docs/ci/).
 
-```text
-/plugin marketplace add get-tmonier/argot
-/plugin install argot@argot
-```
+## Evidence and limits
 
-Other agents (Cursor, Codex, 70+): `npx skills add get-tmonier/argot`.
+Current public measurements are detector-specific, not a product-wide accuracy
+or combined-brief claim. The [approved claim manifest](landing/src/data/claims/manifest.json)
+records:
 
-## Demo
+- visible foreign-symbol fixtures: **595/605** across 22 corpora;
+- layering fixtures: **264/272** across 25 corpora and 12 languages;
+- test-integrity fixtures: **155/164** across 23 corpora and 12 languages.
 
-<p align="center">
-  <img src="docs/demo/demo.gif" alt="argot check flagging a foreign Django-style view in an all-FastAPI codebase" width="760" />
-</p>
+Each number has a distinct corpus, denominator, and qualifier. The combined
+briefing/noise result, semantic aggregate, and ordinary-repository timing are
+not yet measured public claims. See the
+[benchmark methodology and sources](https://argot.tmonier.com/benchmarks).
 
-A PR adds a **Django-style view** to an all-FastAPI codebase. mypy and ruff are silent — the framework it reaches for is one this repo has never imported:
+Argot ships adapters for 12 languages. The five tested release targets are macOS
+arm64/x64, Linux x64/arm64, and Windows x64. The local analysis path uses
+statistical, graph, scripted, and embedding evidence; no generative or
+opinion-forming model decides a finding.
 
-```
-argot check · 1 hunk above threshold (1 foreign)
+Fit health matters. A repository with shallow, generated, vendored, or
+otherwise unsuitable history may not produce a useful model. Argot is also
+least reliable for an incorrect choice made entirely with familiar vocabulary,
+masked prose, and code outside the selected range. Read
+[Limitations](https://argot.tmonier.com/docs/limitations/) before relying on a
+specific detector.
 
-fastapi/receipts.py
-  !  L1-L10         1.00  foreign  · staged · foreign-import [94a92c256ea1]
-     ↳ django (L1) — 0 of 74 module specifiers in repo
-       common here: fastapi (357×), pydantic (129×), typing (129×) (+7 more)
-  1 | from django.views import View
-             ^^^^^^
-```
+## Reproducible authored proof
 
-`redundant` names the function you already have (`↳ duplicates slugify (src/utils/text.py:14) — similarity 0.86`), `misplaced` names where the code belongs, `layering` names the direction an import reverses, and every `↳` line is your repo's own evidence. Full anatomy: [Reading the output](https://argot.tmonier.com/docs/reading-the-output/) · [What it catches](https://argot.tmonier.com/docs/what-it-catches/).
+![Authored two-commit fixture: `argot audit --commits 1` reports one foreign token sequence in an introduced Django-style import. Semantic, architecture, and integrity are unavailable in this development build.](docs/demo/proof/audit.gif)
 
-## Your conventions, as rules
+This is an **authored fixture**, not a wild-case corpus. Its pinned command,
+version, receipts, checksums, regeneration procedure, and the visual’s
+non-byte-stable GIF qualification are documented in
+[the proof receipt](docs/demo/proof/README.md). The image is a reproducible
+companion to the [auditable Markdown receipt](docs/demo/proof/audit.md).
 
-Every team has conventions no generic linter ships: *"presentational components take props — they don't fetch"*, *"files are parsed through our loader, never a raw `JSON.parse`"*, *"one HTTP client per repo"*. They live in review comments and onboarding docs — until an AI agent, who read neither, merges around them. With argot they're **repo-local rules**: a TOML manifest + a small sandboxed script in `.argot/rules/`, versioned with your code, loaded at run time — no plugin build, no recompile, one rule format across all 12 languages.
+## Privacy and open source
 
-**And you don't start from a blank page — argot *finds* your conventions for you.** `argot conventions` reads your codebase's own layout and shows you what it already does: its shared internal API, and *where each kind of code lives*. No other tool detects that last part — the **placement conventions** a team enforces in review but never writes down, learned framework-agnostically from nothing but your file tree and call graph:
+Argot analyzes source, history, and findings locally. The individual local core
+is free, MIT-licensed open source, and requires no account or cloud service.
+Argot has no default telemetry and does not upload source code. It can still
+use network paths for a one-time local model download, update/version checks,
+release downloads, or an explicitly configured review/update/CI integration.
+Set `ARGOT_OFFLINE=1` to prevent network use; semantic checks without a cached
+model are then skipped with a diagnostic while other checks continue.
 
-```console
-$ argot conventions
+Read the complete [privacy and security boundary](https://argot.tmonier.com/privacy/),
+[security policy](SECURITY.md), and [MIT license](LICENSE).
 
-── typescript (1,240 files) ──
-  Naming             camelCase 94% · PascalCase 6%
-  Vocabulary         db (86 files), logger (74), apiClient (61), AppError (44)
-  Type funnels       Money, Result, DateTime
+## Contribute
 
-── placement · where a kind of code lives ──
-  dir:migrations     queryRunner, addColumn, createTable       100% confined
-  role:schema        z.object, z.string, validate               96% confined
-  dir:services       db.transaction, logger.info, publish       92% confined
-  dir:controllers    req, res, next                             98% confined
-  ext:.tsx           useState, useQuery, styled                 99% confined
-```
-
-Read that as: *"validation lives in `*.schema.ts`, DB access only in migrations, business logic in the service layer — not the controllers or views."* Hand any line to the **argot-suggest-rules** skill and it writes the rule as the contrapositive — *this belongs in its home; flag it anywhere else* — gated on a green fixture suite before it ever sees a diff. You go from *"we should really document that"* to an enforced rule in one step.
-
-And your rules can do what no classic linter structurally can. A linter sees one version of one file; argot hands your rule **both sides of the diff** — so you can write rules about what a change *removed*:
-
-```toml
-# .argot/rules/no-dropped-endpoints/rule.toml
-[rule]
-schema = 1
-name = "no-dropped-endpoints"
-description = "removing a public endpoint requires a deprecation cycle — catch the route that silently disappears in a diff"
-severity = "error"
-languages = ["typescript", "javascript"]
-```
-
-```rhai
-// check.rhai — a route that existed before this change, and is gone now
-const ROUTES = "(call_expression function: (member_expression property: (property_identifier) @verb)
-                arguments: (arguments (string (string_fragment) @path)))";
-let now = [];
-for m in ts_query(ROUTES) { if m.capture == "path" { now.push(m.text); } }
-for m in ts_query_old(ROUTES) {
-    if m.capture == "path" && !now.contains(m.text) {
-        report(m.line, "endpoint '" + m.text + "' removed without a deprecation cycle — see docs/api-lifecycle.md");
-    }
-}
-```
-
-No ESLint plugin can express that rule — there is no "old side" in a linter. And because argot fits your history, a rule's allowlist can be **your own git log**: `import_attested("moment")` asks *"has this repo ever used this date library?"* — no list to hardcode, no list to maintain. Rules run on **changed files only** (adopting one creates zero backlog noise), and their findings are suppressed, configured, and rendered exactly like built-in rules. `argot rules test` is the red/green authoring loop. Full reference + worked examples: [Custom rules](https://argot.tmonier.com/docs/custom-rules/).
-
-## Rules an agent can't game
-
-An AI agent that can't satisfy a check will reach for the next-cheapest green: mute the rule, downgrade it in a local config, `--rule it=off`, or — for a custom rule — just rewrite the script that caught it. Lock the rule and every one of those doors closes:
-
-```toml
-[rules]
-layering = { severity = "error", locked = true }
-custom   = { severity = "error", locked = true }   # lock every repo-local rule
-```
-
-A **locked** rule (opt-in, from the committed `argot.toml` only):
-
-- **freezes its severity** — `argot.local.toml` and `--rule` overrides are refused;
-- **refuses every suppression surface for its findings** — inline `# argot: ignore`, `[[mute]]`, and `[exclude].paths` don't apply;
-- and — the teeth — **weakening the lock is itself a finding.** `rule-tampered` (group `governance`, pinned `error`, unsuppressable) reads *both sides of the diff being checked* and fires when the change removes a lock, downgrades a locked severity, adds a `[[mute]]` on a locked rule, or edits a locked custom rule's script — with a loud run-level warning your CI surfaces (a PR annotation under `--format github`).
-
-Tamper-**evidence**, not tamper-proofing — the same philosophy as the test-integrity rules: an agent *can* touch the alarm, but touching the alarm **is** the alarm. The one quiet way to relax a locked rule is a committed `argot.toml` diff a human reviews. Guide: [Locked rules](https://argot.tmonier.com/docs/configure/#locked-rules--the-agent-cant-turn-off-the-alarm).
-
-## Configure it like any linter
-
-Every rule (built-in or yours) defaults through `argot.toml [rules]` — `error` / `warn` / `off`, per rule or per group — or per run via `--rule layering=warn`. A `[rules]` entry can also scope a rule to paths (`layering = { include = ["src/**"] }`). Excludes are gitignore-style `[exclude].paths`; inline `# argot: ignore-next-line rule=… — reason` and `argot mute <hash>` give line-level and durable committed acceptances. Guides: [Configure](https://argot.tmonier.com/docs/configure/) · [The commands](https://argot.tmonier.com/docs/the-commands/).
-
-### argot vs. the tools you already run
-
-|  | Type checker | Linter | Copilot · SAST | argot |
-|---|:---:|:---:|:---:|:---:|
-| Catches invalid code | ✅ | ✅ | ~ | — |
-| Flags what's foreign to *this* repo | ❌ | ❌ | ❌ | ✅ |
-| Flags a function you **already have** | ❌ | ❌ | ❌ | ✅ |
-| Flags code filed in the **wrong place** | ❌ | ❌ | ❌ | ✅ |
-| Flags an import that **breaks your layering** | ❌ | ❌ | ❌ | ✅ |
-| Flags a test **quietly weakened to game a failing suite** | ❌ | ❌ | ❌ | ✅ |
-| Enforces **your team's own conventions**, cross-language, on the diff | ❌ | ~ | ❌ | ✅ |
-| **Locked rules** an agent can't mute, override, or rewrite unnoticed | ❌ | ❌ | ❌ | ✅ |
-| Audits merged history · **attributes findings AI vs human** | ❌ | ❌ | ❌ | ✅ |
-| Learns from *your* history · runs 100% local | ❌ | ❌ | ❌ | ✅ |
-
-argot is additive: it sits *after* your type checker and linter and catches the one thing they can't — code that's valid and lint-clean but unlike anything your team has written. It's the harness around AI output, built from the one thing that can't hallucinate: your repo's own history.
-
-## Twelve languages, one model each
-
-<p align="center">
-  <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/python/python-original.svg" width="36" height="36" alt="Python" title="Python" />&nbsp;&nbsp;
-  <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/typescript/typescript-original.svg" width="36" height="36" alt="TypeScript" title="TypeScript" />&nbsp;&nbsp;
-  <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/javascript/javascript-original.svg" width="36" height="36" alt="JavaScript" title="JavaScript" />&nbsp;&nbsp;
-  <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/go/go-original.svg" width="36" height="36" alt="Go" title="Go" />&nbsp;&nbsp;
-  <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/rust/rust-original.svg" width="36" height="36" alt="Rust" title="Rust" />&nbsp;&nbsp;
-  <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/java/java-original.svg" width="36" height="36" alt="Java" title="Java" />&nbsp;&nbsp;
-  <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/csharp/csharp-original.svg" width="36" height="36" alt="C#" title="C#" />&nbsp;&nbsp;
-  <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/c/c-original.svg" width="36" height="36" alt="C" title="C" />&nbsp;&nbsp;
-  <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/cplusplus/cplusplus-original.svg" width="36" height="36" alt="C++" title="C++" />&nbsp;&nbsp;
-  <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/ruby/ruby-original.svg" width="36" height="36" alt="Ruby" title="Ruby" />&nbsp;&nbsp;
-  <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/php/php-original.svg" width="36" height="36" alt="PHP" title="PHP" />&nbsp;&nbsp;
-  <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/delphi/delphi-original.svg" width="36" height="36" alt="Pascal" title="Pascal (Delphi + FreePascal)" />
-</p>
-
-Not a shared grammar with twelve front-ends — **twelve real tree-sitter adapters**, each with its own import/callee extraction, its own naming and idiom model, and its own per-language calibration (a Python hunk is judged against Python, a TypeScript hunk against TypeScript — no cross-language bleed). Each is benchmarked on a real open-source corpus:
-
-| Language | Files | Benchmarked on |
-|---|---|---|
-| Python | `.py` | fastapi · rich · faker |
-| TypeScript | `.ts` `.tsx` | hono · ink · faker-js |
-| JavaScript | `.js` `.jsx` | express · commander · eslint |
-| Go | `.go` | gh-cli · hugo |
-| Rust | `.rs` | ripgrep · bat |
-| Java | `.java` | guava · junit5 |
-| C# | `.cs` | powershell · jellyfin |
-| C | `.c` `.h` | redis · curl |
-| C++ | `.cpp` `.cc` `.hpp` | rocksdb · fmt |
-| Ruby | `.rb` | homebrew · rubocop |
-| PHP | `.php` | laravel · composer |
-| Pascal | `.pas` `.pp` `.dpr` | castle-engine · mormot2 |
-
-<sub>Language logos © their respective projects, via <a href="https://devicon.dev">Devicon</a> (MIT).</sub>
-
-## Benchmarks
-
-**Honest, leak-free numbers**, measured by the real `fit → check` pipeline — foreign fixtures spliced into real host files; false alarms counted on a temporal holdout the model never saw:
-
-- **Foreign catch — 595/605 (98%)** when the foreign symbol is visible in the diff · **false alarms 0.29%** of 22,513 real hunks (worst corpus 1.46%)
-- **Architecture — 244/252 (96.8%)** caught · **0/140** controls flagged · ≤2.7% over-fire on replayed real history
-- **Reinvention — median 89%** at ≤4.5% false fires per hunk · **Misplacement — 85–99% (median 96%)** at ≤1.2%, where the repo has separable architecture
-- **Test-integrity — 144/153 (94.1%)** gaming tactics caught · **0/102** legitimate-refactor controls · 1.12% of 5,268 replayed accepted test-touching commits flagged at gating severity
-
-One documented limit: **masked foreign** — a foreign symbol whose name collides with one you already use — is statistically invisible to a voice model. We publish that number rather than hide it. And the method, stated plainly: catch rates are measured on fixtures we authored under a [pre-registered rubric](benchmarks/catalogs/RUBRIC.md) frozen before scoring; false alarms are counted on real commits the model never saw. Independent validation is welcome — that's what the reproducible harness is for. Per-language and per-corpus tables, methodology, confidence intervals: [benchmarks page](https://argot.tmonier.com/benchmarks) (CI-fed, can't drift from what ships). Want a language validated? [Open an issue](https://github.com/get-tmonier/argot/issues/new).
-
-Numbers are one thing; real diffs are another. **[Caught in the wild](https://argot.tmonier.com/caught-in-the-wild)** collects verified findings from running argot over the last year of history on 33 real open-source repos (dagster, hono, rich, saleor, faker, and more) — each one adversarially attacked by a reviewer briefed to disprove it, and every one survived.
-
-## CI
-
-```yaml
-- uses: get-tmonier/argot@main   # non-blocking voice score on every PR
-```
-
-`--format github` prints inline PR annotations; `--format sarif` feeds code scanning; `--format json` is a stable schema. Add `publish-badge: true` (with `contents: write`) for a live README badge — `argot · N% in-voice`, updated on every push. Copy-paste setups incl. pre-commit: [the CI guide](https://argot.tmonier.com/docs/ci/).
-
-## How it works
-
-Five learned detectors, one source of truth — your git history — plus the rules you script yourself. A statistical voice model (two frequency tables + a callee-cluster partition — no neural net) catches foreign imports, callees, and token shapes; a local code-embedding model (jina-code via statically-linked llama.cpp) catches reinvention and misplacement; a module-dependency graph catches layering reversals; a test-inventory diff catches gamed tests. Fit in seconds, check in milliseconds, nothing leaves your machine — and nothing generates: every verdict is a statistic you can replay. Full detail: [How it works](https://argot.tmonier.com/docs/how-it-works/) · [The scoring model](https://argot.tmonier.com/docs/the-scoring-model/) · [Performance](https://argot.tmonier.com/docs/performance/) · experiment log in [docs/research/](docs/research/README.md).
-
-## Contributing
-
-Issues and PRs welcome — start with [CONTRIBUTING.md](CONTRIBUTING.md):
-
-```sh
-git clone https://github.com/get-tmonier/argot && cd argot
-just build       # cargo build --release -p argot → target/release/argot
-just verify      # cargo fmt --check + clippy -D warnings + cargo test
-```
-
-## Acknowledgements
-
-argot is benchmarked against real repositories used as **read-only corpora** — cloned at benchmark time, never redistributed, each under its own license, none affiliated with argot: FastAPI, rich, faker, Saleor, Wagtail, Dagster, Scrapy, Hono, Ink, faker-js, Excalidraw, Outline, Express, Commander.js, ESLint, GitHub CLI, Hugo, ripgrep, bat, Guava, JUnit 5, PowerShell, Jellyfin, redis, curl, RocksDB, fmt, Homebrew, RuboCop, Laravel, and Composer.
-
-Built on [tree-sitter](https://tree-sitter.github.io/tree-sitter/) (11 grammars), [libgit2](https://libgit2.org/) via [git2](https://docs.rs/git2/), HuggingFace [tokenizers](https://github.com/huggingface/tokenizers) (UnixCoder BPE), [Rhai](https://rhai.rs/) (scripted rules), [clap](https://docs.rs/clap/), [Serde](https://serde.rs/), and [cargo-dist](https://opensource.axo.dev/cargo-dist/). The semantic layer links [llama.cpp](https://github.com/ggml-org/llama.cpp) (MIT) statically via [`llama-cpp-2`](https://crates.io/crates/llama-cpp-2); its model is [**jina-embeddings-v2-base-code**](https://huggingface.co/jinaai/jina-embeddings-v2-base-code) by [Jina AI](https://jina.ai/) (Apache-2.0), fetched on first use as a `Q4_K_M` GGUF quantization (a derivative work under Apache-2.0 §4) from the [`semantic-model-v1`](https://github.com/get-tmonier/argot/releases/tag/semantic-model-v1) release. argot is not affiliated with, nor endorsed by, Jina AI.
-
-## Privacy
-
-argot runs 100% locally — no telemetry, no account, your code never leaves your machine. Full policy: [argot.tmonier.com/privacy](https://argot.tmonier.com/privacy).
-
-## License
-
-MIT
+Contributions are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md), then
+see the [product strategy](docs/strategy/ARGOT_STRATEGY.md) for the maintained
+decision record and [research log](docs/research/README.md) for evidence.
