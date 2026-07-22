@@ -89,6 +89,15 @@ fn snapshot(name: &str) -> &str {
         .trim_end_matches('\n')
 }
 
+fn expected_help(name: &str) -> String {
+    let snapshot = snapshot(name);
+    if cfg!(windows) {
+        snapshot.replace("Usage: argot", "Usage: argot.exe")
+    } else {
+        snapshot.to_owned()
+    }
+}
+
 #[test]
 fn every_public_command_help_matches_its_reviewed_snapshot() {
     for (name, args) in public_help() {
@@ -104,7 +113,11 @@ fn every_public_command_help_matches_its_reviewed_snapshot() {
             String::from_utf8_lossy(&output.stderr)
         );
         let actual = String::from_utf8(output.stdout).expect("help output is UTF-8");
-        assert_eq!(actual.trim_end(), snapshot(name), "{name} help changed");
+        assert_eq!(
+            actual.trim_end(),
+            expected_help(name),
+            "{name} help changed"
+        );
     }
 }
 
