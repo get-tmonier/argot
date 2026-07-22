@@ -52,7 +52,7 @@ if [ "$windows" -eq 1 ]; then
     curl --proto '=https' --tlsv1.2 -fsSL "$download_base/argot-installer.ps1" -o "$installer"
     ARGOT_INSTALL_DIR="$(native_path "$prefix")" ARGOT_NO_MODIFY_PATH=1 \
         pwsh -NoProfile -ExecutionPolicy Bypass -File "$(native_path "$installer")"
-    binary="$prefix/argot.exe"
+    binary="$prefix/bin/argot.exe"
 else
     installer="$work/argot-installer.sh"
     curl --proto '=https' --tlsv1.2 -fsSL "$download_base/argot-installer.sh" -o "$installer"
