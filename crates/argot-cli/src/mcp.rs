@@ -411,4 +411,37 @@ mod tests {
         assert!(u.contains("not fitted"));
         assert!(u.contains("argot init"));
     }
+
+    #[test]
+    fn protocol_wording_contract_keeps_names_and_capability_boundaries() {
+        let repo = PathBuf::from(".");
+        let initialized = dispatch("initialize", &Value::Null, &repo).unwrap();
+        let instructions = initialized["instructions"].as_str().unwrap();
+        assert!(instructions.contains("passive: the host must invoke them"));
+        assert!(instructions.contains("not a complete changeset"));
+        assert!(instructions.contains("full CLI `argot check`"));
+
+        let tools = dispatch("tools/list", &Value::Null, &repo).unwrap();
+        let names: Vec<&str> = tools["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|tool| tool["name"].as_str().unwrap())
+            .collect();
+        assert_eq!(
+            names,
+            [
+                "argot.check",
+                "argot.explain",
+                "argot.voice_context",
+                "argot.fit_status",
+                "argot.conventions",
+            ]
+        );
+        for tool in tools["tools"].as_array().unwrap() {
+            let description = tool["description"].as_str().unwrap();
+            assert!(description.contains("Passively"));
+            assert!(description.contains("complete changeset checking"));
+        }
+    }
 }
