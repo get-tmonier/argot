@@ -7,7 +7,7 @@
 #
 # What it does:
 #   1. Downloads the prebuilt `argot` binary from this repo's GitHub Releases
-#      (cargo-dist artifacts: argot-{target}.tar.xz).
+#      (cargo-dist artifacts: argot-{target}.tar.gz).
 #   2. Fits the voice model on the *base* ref (the PR's target branch, or the
 #      parent commit on a push) — never the PR head, so a PR's own new code is
 #      judged as new instead of self-certifying it. The `.argot/` model is cached
@@ -117,12 +117,12 @@ runs:
         ARGOT_VERSION: ${{ inputs.argot-version }}
       run: |
         set -euo pipefail
-        # Unix ships .tar.xz; Windows ships .zip with argot.exe.
+        # Unix ships .tar.gz; Windows ships .zip with argot.exe.
         case "${RUNNER_OS}-${RUNNER_ARCH}" in
-          Linux-X64)   target="x86_64-unknown-linux-gnu"; ext="tar.xz"; bin="argot" ;;
-          Linux-ARM64) target="aarch64-unknown-linux-gnu"; ext="tar.xz"; bin="argot" ;;
-          macOS-ARM64) target="aarch64-apple-darwin"; ext="tar.xz"; bin="argot" ;;
-          macOS-X64)   target="x86_64-apple-darwin"; ext="tar.xz"; bin="argot" ;;
+          Linux-X64)   target="x86_64-unknown-linux-gnu"; ext="tar.gz"; bin="argot" ;;
+          Linux-ARM64) target="aarch64-unknown-linux-gnu"; ext="tar.gz"; bin="argot" ;;
+          macOS-ARM64) target="aarch64-apple-darwin"; ext="tar.gz"; bin="argot" ;;
+          macOS-X64)   target="x86_64-apple-darwin"; ext="tar.gz"; bin="argot" ;;
           Windows-X64) target="x86_64-pc-windows-msvc"; ext="zip"; bin="argot.exe" ;;
           *)
             echo "::error::argot publishes prebuilt binaries for Linux (x64/arm64), macOS (arm64/x64), and Windows (x64); got ${RUNNER_OS}-${RUNNER_ARCH}"
