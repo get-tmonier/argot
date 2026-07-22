@@ -84,7 +84,7 @@ checksum = "2a4385e2e34eb35d6b3efe798b9eb88096925d87726c0798709bf56d9ed84af3"
 
 [[package]]
 name = "argot"
-version = "0.2.86"
+version = "0.2.87"
 dependencies = [
  "anyhow",
  "argot-core",
@@ -99,7 +99,7 @@ dependencies = [
 
 [[package]]
 name = "argot-bench"
-version = "0.2.86"
+version = "0.2.87"
 dependencies = [
  "anyhow",
  "argot-core",
@@ -112,7 +112,7 @@ dependencies = [
 
 [[package]]
 name = "argot-core"
-version = "0.2.86"
+version = "0.2.87"
 dependencies = [
  "anyhow",
  "argot-engine",
@@ -129,7 +129,7 @@ dependencies = [
 
 [[package]]
 name = "argot-engine"
-version = "0.2.86"
+version = "0.2.87"
 dependencies = [
  "anyhow",
  "argot-lang",
@@ -144,7 +144,7 @@ dependencies = [
 
 [[package]]
 name = "argot-lang"
-version = "0.2.86"
+version = "0.2.87"
 dependencies = [
  "serde",
  "serde_json",
@@ -167,7 +167,7 @@ dependencies = [
 
 [[package]]
 name = "argot-rules-arch"
-version = "0.2.86"
+version = "0.2.87"
 dependencies = [
  "argot-engine",
  "argot-lang",
@@ -178,7 +178,7 @@ dependencies = [
 
 [[package]]
 name = "argot-rules-integrity"
-version = "0.2.86"
+version = "0.2.87"
 dependencies = [
  "argot-engine",
  "argot-lang",
@@ -190,7 +190,7 @@ dependencies = [
 
 [[package]]
 name = "argot-rules-script"
-version = "0.2.86"
+version = "0.2.87"
 dependencies = [
  "argot-engine",
  "argot-lang",
@@ -204,7 +204,7 @@ dependencies = [
 
 [[package]]
 name = "argot-rules-semantic"
-version = "0.2.86"
+version = "0.2.87"
 dependencies = [
  "anyhow",
  "argot-engine",
@@ -221,7 +221,7 @@ dependencies = [
 
 [[package]]
 name = "argot-rules-voice"
-version = "0.2.86"
+version = "0.2.87"
 dependencies = [
  "anyhow",
  "argot-engine",
