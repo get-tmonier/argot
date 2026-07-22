@@ -10,13 +10,32 @@ interface Props {
 }
 const { title, description, currentId } = Astro.props;
 
-const GROUP_ORDER = ['Start', 'Guide', 'Reference'];
+const GROUP_ORDER = ['Start', 'Use', 'Configure', 'Understand', 'Help'];
 const all = (await getCollection('docs')).sort((a, b) => a.data.order - b.data.order);
 const href = (id: string): string => (id === 'getting-started' ? '/docs/' : `/docs/${id}/`);
 
+// Keep legacy routes available without requiring their pages to retain the old
+// three-group navigation vocabulary. Journey pages own the primary navigation;
+// reference pages remain discoverable in the group that describes their role.
+const LEGACY_GROUPS: Record<string, string> = {
+  configure: 'Configure',
+  'custom-rules': 'Configure',
+  'how-it-works': 'Understand',
+  languages: 'Understand',
+  performance: 'Understand',
+  'reading-the-output': 'Understand',
+  'real-world-scenarios': 'Understand',
+  'the-commands': 'Understand',
+  'the-scoring-model': 'Understand',
+  'what-it-catches': 'Understand',
+  'health-and-freshness': 'Help',
+};
+const LEGACY_NAV_ONLY = new Set(['setup']);
+const groupFor = (doc: (typeof all)[number]): string => LEGACY_GROUPS[doc.id] ?? doc.data.group;
+
 const groups = GROUP_ORDER.map((name) => ({
   name,
-  items: all.filter((d) => d.data.group === name),
+  items: all.filter((d) => !LEGACY_NAV_ONLY.has(d.id) && groupFor(d) === name),
 })).filter((g) => g.items.length > 0);
 
 const flat = groups.flatMap((g) => g.items);
