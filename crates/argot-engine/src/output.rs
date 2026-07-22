@@ -208,7 +208,7 @@ pub fn render_sarif(meta: &ReportMeta, hits: &[HitRecord]) -> String {
                 "shortDescription": { "text": label },
                 "fullDescription": {
                     "text": format!(
-                        "argot flagged this hunk as out of the repo's voice: {label}."
+                        "argot recorded repository-grounded evidence for this hunk: {label}. Review the evidence before deciding what to do."
                     )
                 },
                 "helpUri": "https://github.com/get-tmonier/argot",
@@ -515,6 +515,9 @@ mod tests {
             .unwrap()
             .contains("foreign import — score 8.25 vs threshold 6.75 (foreign)"));
         assert!(r["message"]["text"].as_str().unwrap().contains("axios"));
+        let description = rule["fullDescription"]["text"].as_str().unwrap();
+        assert!(description.contains("repository-grounded evidence"));
+        assert!(!description.contains("out of the repo's voice"));
     }
 
     #[test]
