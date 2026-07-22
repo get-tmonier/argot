@@ -33,4 +33,11 @@ test('rejects missing provenance and stale percentages', () => {
       claims: [{ ...claim, percentage: 98 }],
     }),
   ).toThrow('percentage does not match');
+  expect(() =>
+    validateManifest({
+      schemaVersion: 1,
+      generatedAt: '2026-07-22',
+      claims: [{ ...claim, status: 'published' as never }],
+    }),
+  ).toThrow('invalid status');
 });

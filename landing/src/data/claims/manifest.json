@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-22",
+  "claims": [
+    {
+      "key": "foreign.visible_symbol",
+      "status": "canonical",
+      "source": "landing/src/data/foreign.json",
+      "revision": "7be8b1eb16addbde9af795d5bd76a4c2d8d3ebb4; generated_at=2026-07-14",
+      "observedAt": "2026-07-14",
+      "scope": "22 corpora / visible foreign-import and foreign-api fixture symbols after excluded-host purge",
+      "qualifier": "detector-specific fixture recall; not a product-wide accuracy claim",
+      "numerator": 595,
+      "denominator": 605,
+      "percentage": 98.34710743801654,
+      "supersedes": ["foreign.legacy"]
+    },
+    {
+      "key": "semantic.aggregate",
+      "status": "unavailable",
+      "source": "landing/src/data/semantic.json",
+      "revision": "a4c9dee5; generated_at=2026-07-14",
+      "observedAt": "2026-07-14",
+      "scope": "reinvention corpus records",
+      "qualifier": "no aggregate public claim approved",
+      "unavailableReason": "the source has per-corpus records but no traced aggregate lineage"
+    },
+    {
+      "key": "architecture.layering",
+      "status": "canonical",
+      "source": "landing/src/data/arch.json",
+      "revision": "7886a7967c6fe5b822a249083c7871894db1efcf; generated_at=2026-07-20",
+      "observedAt": "2026-07-20",
+      "scope": "25 corpora / 12 languages; authored internal layering violations",
+      "qualifier": "detector-specific real recall; control result is separate",
+      "numerator": 264,
+      "denominator": 272,
+      "percentage": 97.05882352941177,
+      "supersedes": ["architecture.legacy"]
+    },
+    {
+      "key": "integrity.catch",
+      "status": "canonical",
+      "source": "docs/research/evidence/test-integrity-capstone.md",
+      "revision": "7886a7967c6fe5b822a249083c7871894db1efcf; Pascal extension dated 2026-07-20",
+      "observedAt": "2026-07-20",
+      "scope": "23 corpora / 12 languages; authored production fit-to-check gaming fixtures",
+      "qualifier": "detector-specific fixture catch; controls and accepted-history results are separate",
+      "numerator": 155,
+      "denominator": 164,
+      "percentage": 94.51219512195122,
+      "supersedes": ["integrity.original"]
+    },
+    {
+      "key": "integrity.controls",
+      "status": "canonical",
+      "source": "docs/research/evidence/test-integrity-capstone.md",
+      "revision": "7886a7967c6fe5b822a249083c7871894db1efcf; Pascal extension dated 2026-07-20",
+      "observedAt": "2026-07-20",
+      "scope": "23 corpora / 12 languages; authored legitimate-refactor controls",
+      "qualifier": "control false fires, not a general false-positive rate",
+      "numerator": 0,
+      "denominator": 106,
+      "percentage": 0,
+      "supersedes": ["integrity.original.controls"]
+    },
+    {
+      "key": "integrity.accepted_history",
+      "status": "canonical",
+      "source": "docs/research/evidence/test-integrity-capstone.md",
+      "revision": "7886a7967c6fe5b822a249083c7871894db1efcf; Pascal extension dated 2026-07-20",
+      "observedAt": "2026-07-20",
+      "scope": "accepted-history gating-severity test-touching commits",
+      "qualifier": "replay false-fire rate at gating severity only",
+      "numerator": 45,
+      "denominator": 3602,
+      "percentage": 1.249305941143809
+    },
+    {
+      "key": "performance.audit_timing",
+      "status": "unavailable",
+      "source": "docs/research/evidence/EV-04",
+      "revision": "not measured",
+      "observedAt": "2026-07-22",
+      "scope": "ordinary-repository cold, warm, and offline audit timing",
+      "qualifier": "no performance claim approved",
+      "unavailableReason": "EV-04 is deferred: no released artifact exists for the assigned v0.2.84 revision"
+    }
+  ]
+}

@@ -43,6 +43,8 @@ export function validateManifest(manifest: ClaimManifest): ClaimManifest {
     fail('schemaVersion, generatedAt, and claims are required');
   const keys = new Set<string>();
   for (const claim of manifest.claims) {
+    if (!['candidate', 'canonical', 'unavailable'].includes(claim.status))
+      fail(`invalid status for ${claim.key || 'a claim'}`);
     for (const field of ['key', 'source', 'revision', 'observedAt', 'scope', 'qualifier'] as const)
       if (!claim[field]) fail(`${field} is required for ${claim.key || 'a claim'}`);
     if (keys.has(claim.key)) fail(`duplicate key ${claim.key}`);
@@ -56,6 +58,8 @@ export function validateManifest(manifest: ClaimManifest): ClaimManifest {
         fail(`unavailable claim ${claim.key} requires a reason and no numeric value`);
       continue;
     }
+    if (claim.unavailableReason)
+      fail(`numeric claim ${claim.key} cannot have an unavailable reason`);
     if (
       !hasCounts ||
       claim.numerator === undefined ||
@@ -65,6 +69,11 @@ export function validateManifest(manifest: ClaimManifest): ClaimManifest {
       fail(`numeric claim ${claim.key} requires numerator, denominator, and percentage`);
     if (Math.abs(percentage(claim.numerator, claim.denominator) - claim.percentage) > 1e-9)
       fail(`percentage does not match ${claim.key}`);
+    if (
+      claim.supersedes &&
+      (!Array.isArray(claim.supersedes) || claim.supersedes.some((key) => !key))
+    )
+      fail(`supersedes must contain non-empty keys for ${claim.key}`);
   }
   return manifest;
 }
