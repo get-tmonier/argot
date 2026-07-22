@@ -1,7 +1,7 @@
 # PR-07 work log — combined briefing evaluation
 
-**Branch:** `codex/pr-07-bench-20260722t1334`  
-**Base:** `origin/main` `223bed8e913d9fe2e1b8a17c94df6bbed15f0af3`  
+**Branch:** `codex/pr-07-bench-20260722t1334`
+**Base:** `origin/main` `223bed8e913d9fe2e1b8a17c94df6bbed15f0af3`
 **Date:** 2026-07-22
 
 ## BM-06 — production-composition adapter

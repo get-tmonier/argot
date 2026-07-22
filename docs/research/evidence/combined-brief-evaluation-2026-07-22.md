@@ -1,7 +1,7 @@
 # Combined briefing evaluation — deferred
 
-**Issues:** BM-06, BM-07, BM-08, BM-09  
-**Date:** 2026-07-22  
+**Issues:** BM-06, BM-07, BM-08, BM-09
+**Date:** 2026-07-22
 **Status:** unmeasured / deferred; this is not a passing gate result.
 
 ## What is reproducible now
