@@ -33,8 +33,10 @@ use streaming_iterator::StreamingIterator;
 const MAX_OPERATIONS: u64 = 1_000_000;
 /// Call-depth cap (recursion guard).
 const MAX_CALL_LEVELS: usize = 32;
-/// Wall-clock budget per (rule, file).
-pub const FILE_BUDGET: Duration = Duration::from_millis(100);
+/// Wall-clock budget per (rule, file). The operation cap remains the primary
+/// guard for interpreted loops; this allowance also covers scheduler pauses
+/// around native tree-sitter callbacks on slower CI runners.
+pub const FILE_BUDGET: Duration = Duration::from_millis(500);
 
 /// One `report(...)` from a script.
 #[derive(Debug, Clone, PartialEq, Eq)]
