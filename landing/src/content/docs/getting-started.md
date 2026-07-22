@@ -52,10 +52,12 @@ Read the result in the [Audit guide](/docs/audit/), then decide whether to set u
 ## Fit, then review a change
 
 `init` is the portable setup command. It writes a commented `argot.toml` when one is absent,
-gitignores personal `argot.local.toml`, fits the voice, and prints its health. Review suggestions
-before excluding files; the suggestions are evidence, not automatic configuration.
+gitignores personal `argot.local.toml`, fits the voice, and prints its health. Create that shared
+configuration before reviewing suggestions: `--suggest` only reports evidence and never edits or
+fits configuration.
 
 ```bash
+argot init
 argot init --suggest
 # Review and edit argot.toml [exclude].paths if appropriate.
 argot init
@@ -68,7 +70,7 @@ on disk. The [Init and Fit guide](/docs/init-and-fit/) explains the artifacts an
 
 `check` scores the change you select. Its exit code is command-specific: 0 means no error-severity
 findings, 1 means review findings, and 2 is a setup or usage error. Read the [Check guide](/docs/check/)
-before using its result as a gate.
+before configuring any local or CI response to those results.
 
 ## Where to next
 

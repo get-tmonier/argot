@@ -48,5 +48,4 @@ evidence, and down-weight findings if the fit is not recommended. The semantic i
 embedding model that may download once to a machine cache. Run `argot model fetch` before going
 offline, or use the offline configuration where semantic checks are unavailable.
 
-For configuration syntax and artifact reference details, see [Configure](/docs/configure/) and
-[Health & freshness](/docs/health-and-freshness/).
+For configuration syntax and artifact reference details, see [Configure](/docs/configure/).

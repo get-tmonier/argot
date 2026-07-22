@@ -42,5 +42,5 @@ requires a meaningful reason:
 argot mute <hash> --reason "intentional parallel implementation"
 ```
 
-See [Reading the output](/docs/reading-the-output/) for the field reference and
-[Configure](/docs/configure/) for severities, inline suppressions, and locked rules.
+See [Configure](/docs/configure/) for severities, machine-format fields, inline suppressions, and
+locked rules.

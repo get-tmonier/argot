@@ -31,7 +31,10 @@ const LEGACY_GROUPS: Record<string, string> = {
   'health-and-freshness': 'Help',
 };
 const LEGACY_NAV_ONLY = new Set(['setup']);
-const groupFor = (doc: (typeof all)[number]): string => LEGACY_GROUPS[doc.id] ?? doc.data.group;
+const groupFor = (doc: (typeof all)[number]): string => {
+  const group = LEGACY_GROUPS[doc.id] ?? doc.data.group;
+  return GROUP_ORDER.includes(group) ? group : 'Help';
+};
 
 const groups = GROUP_ORDER.map((name) => ({
   name,

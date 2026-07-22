@@ -6,8 +6,9 @@ order: 4
 ---
 
 CI and pre-commit are user-wired integrations: they run only after you add their configuration.
-They are not acceptance-time checks, and the default finding behavior differs between the Action
-and the two available pre-commit hooks.
+They report the selected changes at the workflow or commit event you configure; findings do not
+decide what work is accepted, and the default behavior differs between the Action and the two
+available pre-commit hooks.
 
 ## GitHub Action
 
@@ -33,8 +34,9 @@ jobs:
 The composite Action needs checkout history, release-download access, and the permissions needed
 for whichever optional outputs you enable. It fits the base ref for a pull request and scores the
 selected base-to-HEAD range, so the pull request’s code is not learned as the baseline. Its default
-`fail-on-hits` is `false`: findings are reported without failing the job. Set it to `true` only
-when you intentionally want error findings to gate the workflow.
+`fail-on-hits` is `false`: findings are reported without failing the job. When a team deliberately
+sets it to `true`, error-severity results mark that Action job as failed; the team's review policy
+still determines the response.
 
 `format`, `ref`, `cache`, `semantic`, `upload-sarif`, and `comment-pr` are configurable Action
 inputs. Semantic checking may download the local embedding model; use `semantic: false` on a
@@ -52,13 +54,13 @@ repos:
     rev: v0.2.89
     hooks:
       - id: argot-check       # advisory for findings; operational errors still fail
-      # - id: argot-check-gate  # opt-in: error findings reject the commit
+      # - id: argot-check-gate  # opt-in: preserve error-severity exit status
 ```
 
 `argot-check` turns exit 0 and finding exit 1 into a successful hook result; an unfitted repository
 or command failure still fails. `argot-check-gate` preserves normal `argot check --staged` exit
-semantics and rejects error-severity findings. Remove the hook from `.pre-commit-config.yaml` and
-run `pre-commit uninstall` when you no longer want it installed.
+semantics, so an error-severity result makes the hook fail. Remove the hook from
+`.pre-commit-config.yaml` and run `pre-commit uninstall` when you no longer want it installed.
 
 For another CI provider, explicitly run `argot fit` against the chosen baseline and then
 [`argot check`](/docs/check/) against the chosen range. Decide and document your own exit-code
