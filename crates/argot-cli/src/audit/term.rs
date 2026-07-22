@@ -7,7 +7,7 @@
 //! pipe-safe, no ANSI.
 
 use super::attribution::Attribution;
-use super::report::{AuditReport, Finding, GroupStatus};
+use super::report::{AuditReport, Finding, GroupStatus, CI_GUIDE_URL};
 
 const WIDTH: usize = 74;
 
@@ -271,6 +271,16 @@ pub fn render(report: &AuditReport, color: bool) -> String {
         ),
     );
     push(&mut out, "  before they merge.");
+    push(&mut out, "  Then choose a recurring path you configure:");
+    push(
+        &mut out,
+        "    pre-commit: automatic at commit time once configured.",
+    );
+    push(
+        &mut out,
+        "    GitHub Action: automatic in CI once configured.",
+    );
+    push(&mut out, &format!("    {CI_GUIDE_URL}"));
 
     // Share affordance: the copy-pasteable hook, wrapped to the card width.
     if let Some(cap) = super::report::share_caption(report) {
@@ -476,6 +486,9 @@ mod tests {
         assert!(card.contains("skipped: embedding model not available"));
         assert!(card.contains("would have\n  prompted review before merge"));
         assert!(card.contains("argot init"));
+        assert!(card.contains("pre-commit: automatic at commit time once configured"));
+        assert!(card.contains("GitHub Action: automatic in CI once configured"));
+        assert!(card.contains("https://argot.tmonier.com/docs/ci/"));
         // The share affordance carries the hook and the URL.
         assert!(card.contains("Share this"));
         assert!(card.contains("2 patterns it would have raised"));

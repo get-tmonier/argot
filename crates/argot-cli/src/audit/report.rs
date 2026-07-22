@@ -127,6 +127,9 @@ pub const SCHEMA_VERSION: u32 = 1;
 /// authorship census.
 pub const METHOD_NOTE: &str = "Method: findings are patterns that survive the audited base-to-head change. AI-marker attribution is a floor, not a census; \"human\" means no marker was found.";
 
+/// Tested, user-configured recurring check options for the audit-to-habit CTA.
+pub const CI_GUIDE_URL: &str = "https://argot.tmonier.com/docs/ci/";
+
 impl AuditReport {
     pub fn to_json(&self) -> String {
         let mut s = serde_json::to_string_pretty(self).expect("audit report serializes");

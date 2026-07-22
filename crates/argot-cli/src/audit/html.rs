@@ -3,7 +3,9 @@
 //! screenshot-ready: `argot audit --format html > audit.html`.
 
 use super::attribution::Attribution;
-use super::report::{AuditReport, Finding, GroupStatus, RequestedWindow, METHOD_NOTE};
+use super::report::{
+    AuditReport, Finding, GroupStatus, RequestedWindow, CI_GUIDE_URL, METHOD_NOTE,
+};
 
 fn esc(s: &str) -> String {
     s.replace('&', "&amp;")
@@ -253,8 +255,9 @@ pub fn render(report: &AuditReport) -> String {
     body.push_str(&format!(
         "<p class=\"frame\">Merged code is accepted code — read each finding as \
          &ldquo;would have prompted review before merge&rdquo;, not a bug list.<br>{method_note}<br>Next: <code>argot init</code> fits today's voice so \
-         <code>argot check</code> raises these before they merge.</p>\n",
+         <code>argot check</code> raises these before they merge.<br>Then choose a recurring path you configure: pre-commit runs automatically at commit time once configured; the GitHub Action runs automatically in CI once configured. <code>{ci_guide_url}</code></p>\n",
         method_note = esc(METHOD_NOTE),
+        ci_guide_url = CI_GUIDE_URL,
     ));
     body.push_str(
         "<p class=\"brand\"><b>argot</b> · repository-grounded checks from git \
@@ -344,6 +347,9 @@ mod tests {
         assert!(html.contains("class=\"brand\""));
         assert!(html.contains("findings are patterns that survive the audited base-to-head change"));
         assert!(html.contains("no marker was found"));
+        assert!(html.contains("pre-commit runs automatically at commit time once configured"));
+        assert!(html.contains("GitHub Action runs automatically in CI once configured"));
+        assert!(html.contains(CI_GUIDE_URL));
         assert!(!html.contains("og:image"));
     }
 }
