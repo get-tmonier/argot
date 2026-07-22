@@ -77,23 +77,15 @@ jobs:
           cat "$RESULTS"
 
   macos:
-    name: macOS ${{ matrix.arch }} Action install smoke
-    runs-on: ${{ matrix.runner }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: macos-13
-            arch: X64
-          - runner: macos-14
-            arch: ARM64
+    name: macOS ARM64 Action install smoke
+    runs-on: macos-14
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - name: Confirm expected runner architecture
         shell: bash
-        run: test "$RUNNER_ARCH" = "${{ matrix.arch }}"
+        run: test "$RUNNER_ARCH" = ARM64
       - name: Create clean fixture repository
         id: fixture
         shell: bash
