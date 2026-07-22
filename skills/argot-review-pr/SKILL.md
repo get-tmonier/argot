@@ -11,7 +11,10 @@ what fires — argot is statistical; false positives happen. Every hit names a
 recommend. The human decides what to do with the PR.
 
 `argot review` scores the PR's diff without checking it out, using the model
-already fitted in `.argot/`, so it's fast and leaves the working tree untouched.
+already fitted in the local repository's `.argot/`, so it's fast and leaves the
+working tree untouched. That fit is local state: before reviewing a PR, refresh
+it from the intended base branch rather than fitting the PR head and letting the
+change certify itself.
 
 ## Preconditions
 
@@ -19,8 +22,10 @@ already fitted in `.argot/`, so it's fast and leaves the working tree untouched.
    <https://argot.tmonier.com/docs/getting-started/>) and stop.
 2. The repo must be fitted locally: `.argot/scorer-config.json` exists. If not,
    run the **argot-setup** skill (or `argot init`) first, then continue.
-3. For a PR by number/URL, the `gh` CLI must be authenticated (argot fetches the
-   PR diff through it). A `base..head` range or commit sha needs no network.
+3. For a PR by number/URL, the `gh` CLI must be authenticated and network access
+   is required because argot fetches the PR diff through it. A locally available
+   `base..head` range or commit SHA needs no network; fetch the refs first if
+   they are not local.
 
 ## Run it
 
@@ -43,8 +48,9 @@ display-grade only), `evidence` (the lines to show — the foreign symbol and
 what the repo uses instead, or the duplicated function / intended area),
 `hash`, and `path` / `line_start` / `line_end`. Read `rule` and `severity`,
 not the raw `score` / `threshold` (those sit on different scales per signal).
-In `--format human` the meta line reads
-`!  L1-L10  1.00  foreign  · staged · foreign-import [a1b2c3d4]`.
+In `--format human` the meta line identifies the source and rule. PR review
+findings are evidence for review, not a claim that the PR or its author is
+incorrect.
 
 ## The rules
 

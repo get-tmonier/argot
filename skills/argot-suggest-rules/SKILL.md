@@ -22,6 +22,9 @@ into a real scripted rule — same manifest + Rhai + fixture-gate shape as
 `argot-write-rule`, same `custom` group. Full reference:
 <https://argot.tmonier.com/docs/custom-rules/>.
 
+This is a deliberate later workflow after audit and ordinary check activation;
+it does not make a discovered convention a default CI or commit gate.
+
 ## Preconditions
 
 1. `argot --version` — if missing, tell the user how to install it

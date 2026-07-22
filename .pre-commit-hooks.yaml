@@ -7,16 +7,41 @@
 # fitted once (`argot init`) before the hook can score anything; an unfitted
 # repo fails with exit 2 and a "run `argot fit`" hint.
 #
-# The hook scores staged changes only (`argot check --staged`), which keeps
-# it fast and scoped to what the commit will actually contain.
+# Both hooks score staged changes only (`argot check --staged`), which keeps
+# them fast and scoped to what the commit will actually contain. `argot-check`
+# is advisory for findings; `argot-check-gate` preserves the former opt-in
+# blocking behavior.
 - id: argot-check
-  name: argot check (staged changes)
-  description: Score staged hunks against the repo's fitted voice model.
-  entry: argot check --staged
+  name: argot check (advisory, staged changes)
+  description: Report staged findings without blocking; operational failures still fail.
+  entry: "sh -c 'argot check --staged; status=$?; case \"$status\" in 0|1) exit 0;; *) exit \"$status\";; esac'"
   language: system
   # argot reads the staged diff from git itself; filenames would be redundant.
   pass_filenames: false
   # Only fire when files argot can score are staged — every supported language.
+  types_or:
+    [
+      python,
+      ts,
+      tsx,
+      javascript,
+      jsx,
+      go,
+      rust,
+      java,
+      c,
+      c++,
+      c#,
+      ruby,
+      php,
+      header,
+    ]
+- id: argot-check-gate
+  name: argot check (gate, staged changes)
+  description: Block on error-severity staged findings; operational failures still fail.
+  entry: argot check --staged
+  language: system
+  pass_filenames: false
   types_or:
     [
       python,

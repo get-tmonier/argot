@@ -1,6 +1,6 @@
 # argot skills
 
-Five skills that let a coding agent (Claude Code, Cursor, Codex, …) use argot
+Six skills that let a coding agent (Claude Code, Cursor, Codex, …) use argot
 well — set it up locally, check changes, review a PR, wire it into CI, and
 codify the repo's own conventions as custom rules.
 argot watches for five kinds of problem, each with its own rules: code
@@ -19,6 +19,7 @@ Pick the local path, the CI path, or both.
 | [`argot-review-pr`](./argot-review-pr/SKILL.md) | local | On demand — review a specific PR (or range) against the repo's local model, no checkout. |
 | [`argot-setup-ci`](./argot-setup-ci/SKILL.md) | CI | Wire the GitHub Action — a non-blocking score on every PR (no local setup needed). |
 | [`argot-write-rule`](./argot-write-rule/SKILL.md) | local | On demand — codify a repo convention as a scripted custom rule, fixture-tested before it ever sees a real diff. |
+| [`argot-suggest-rules`](./argot-suggest-rules/SKILL.md) | local | On demand — turn a convention that `argot conventions` discovered into a fixture-tested custom rule. |
 
 ## Install
 
@@ -29,8 +30,9 @@ Pick the local path, the CI path, or both.
 /plugin install argot@argot
 ```
 
-Installs all five skills (as `/argot:argot-setup`, `/argot:argot-check`,
-`/argot:argot-review-pr`, `/argot:argot-setup-ci`, `/argot:argot-write-rule`),
+Installs all six skills (as `/argot:argot-setup`, `/argot:argot-check`,
+`/argot:argot-review-pr`, `/argot:argot-setup-ci`, `/argot:argot-write-rule`,
+`/argot:argot-suggest-rules`),
 the argot MCP server, and a pre-write guardrail hook — together. The hook is
 opt-in and non-blocking, and it only ever activates in a repo you've **fitted**
 with argot: in any other repo it's a single filesystem check that runs no
@@ -47,7 +49,7 @@ npx skills add get-tmonier/argot
 **By hand** — copy the folders into your agent's skills dir (Claude Code: `.claude/skills/`):
 
 ```sh
-mkdir -p .claude/skills && cp -R argot-setup argot-check argot-review-pr argot-setup-ci argot-write-rule .claude/skills/
+mkdir -p .claude/skills && cp -R argot-setup argot-check argot-review-pr argot-setup-ci argot-write-rule argot-suggest-rules .claude/skills/
 ```
 
 Every path needs the `argot` CLI installed — see the

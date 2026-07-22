@@ -1,0 +1,126 @@
+{
+  "schema_version": 1,
+  "evidence_date": "2026-07-22",
+  "capabilities": [
+    {
+      "id": "claude-plugin-pre-write",
+      "type": "plugin-hook",
+      "event": "Claude Code PreToolUse (Write, Edit, MultiEdit)",
+      "coverage": "Ask-only foreign-import signal before a write; never a full check or acceptance-time check.",
+      "prerequisites": ["Claude plugin enabled", "argot on PATH", "fitted repository"],
+      "invocation": "automatic-when-configured",
+      "blocking_default": "non-blocking",
+      "tested": true,
+      "tested_version": "0.2.89",
+      "canonical_guide": "https://argot.tmonier.com/docs/agents/"
+    },
+    {
+      "id": "claude-plugin-mcp",
+      "type": "mcp",
+      "event": "agent-selected tool call",
+      "coverage": "Read-only context and checks over stdio; it does not invoke itself.",
+      "prerequisites": ["Claude plugin enabled", "argot on PATH", "fitted repository for model-dependent tools"],
+      "invocation": "passive",
+      "blocking_default": "not-applicable",
+      "tested": true,
+      "tested_version": "0.2.89",
+      "canonical_guide": "https://argot.tmonier.com/docs/agents/"
+    },
+    {
+      "id": "bundled-skills",
+      "type": "skills",
+      "event": "user or agent selects a skill",
+      "coverage": "Six on-demand workflows; skills do not schedule Argot commands.",
+      "prerequisites": ["compatible skill host", "argot CLI as required by the selected skill"],
+      "invocation": "invoked",
+      "blocking_default": "not-applicable",
+      "tested": true,
+      "tested_version": "9",
+      "canonical_guide": "https://argot.tmonier.com/docs/agents/"
+    },
+    {
+      "id": "skills-installer",
+      "type": "skills",
+      "event": "user installs and invokes a skill",
+      "coverage": "Installs skill files only; no hook or MCP configuration is supplied.",
+      "prerequisites": ["Node/npm", "compatible skills installer and host", "argot CLI for executed workflows"],
+      "invocation": "user-wired",
+      "blocking_default": "not-applicable",
+      "tested": true,
+      "tested_version": "9",
+      "canonical_guide": "https://argot.tmonier.com/docs/agents/"
+    },
+    {
+      "id": "standalone-mcp",
+      "type": "mcp",
+      "event": "configured client tool call",
+      "coverage": "Read-only MCP tools; the configured client decides when to call them.",
+      "prerequisites": ["MCP client configuration", "argot on PATH", "fitted repository for model-dependent tools"],
+      "invocation": "passive",
+      "blocking_default": "not-applicable",
+      "tested": true,
+      "tested_version": "0.2.89",
+      "canonical_guide": "https://argot.tmonier.com/docs/agents/"
+    },
+    {
+      "id": "pre-commit",
+      "type": "pre-commit",
+      "event": "git commit after user installation",
+      "coverage": "Checks staged supported files.",
+      "prerequisites": ["pre-commit configuration and install", "argot on PATH", "fitted repository"],
+      "invocation": "automatic-when-configured",
+      "blocking_default": "advisory-for-findings",
+      "tested": true,
+      "tested_version": "0.2.89",
+      "canonical_guide": "https://argot.tmonier.com/docs/ci/"
+    },
+    {
+      "id": "pre-commit-gate",
+      "type": "pre-commit",
+      "event": "git commit after user selects the gate hook",
+      "coverage": "Checks staged supported files with normal Argot finding exit semantics.",
+      "prerequisites": ["pre-commit configuration and install", "argot on PATH", "fitted repository"],
+      "invocation": "automatic-when-configured",
+      "blocking_default": "gates-error-findings",
+      "tested": true,
+      "tested_version": "0.2.89",
+      "canonical_guide": "https://argot.tmonier.com/docs/ci/"
+    },
+    {
+      "id": "github-action",
+      "type": "github-action",
+      "event": "user-configured workflow event",
+      "coverage": "Scores the configured ref or range in a GitHub workflow.",
+      "prerequisites": ["workflow configuration", "checkout history", "release-download access and requested permissions"],
+      "invocation": "automatic-when-configured",
+      "blocking_default": "non-blocking",
+      "tested": true,
+      "tested_version": "0.2.89",
+      "canonical_guide": "https://argot.tmonier.com/docs/ci/"
+    },
+    {
+      "id": "cli-and-review",
+      "type": "cli",
+      "event": "user or agent runs a command",
+      "coverage": "Check, review, audit, and related CLI commands are never host-scheduled by default.",
+      "prerequisites": ["argot CLI", "fitted repository where the selected command requires one"],
+      "invocation": "invoked",
+      "blocking_default": "command-specific",
+      "tested": true,
+      "tested_version": "0.2.89",
+      "canonical_guide": "https://argot.tmonier.com/docs/getting-started/"
+    },
+    {
+      "id": "claude-end-of-turn-lifecycle",
+      "type": "plugin-hook",
+      "event": "not shipped",
+      "coverage": "No automatic end-of-turn full-check lifecycle is packaged for this release.",
+      "prerequisites": [],
+      "invocation": "not-available",
+      "blocking_default": "not-applicable",
+      "tested": false,
+      "tested_version": null,
+      "canonical_guide": "https://argot.tmonier.com/docs/agents/"
+    }
+  ]
+}

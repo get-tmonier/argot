@@ -17,6 +17,10 @@ run — no recompiling argot. Its findings behave exactly like a built-in's:
 same severities, same suppressions, same output formats, one more group,
 `custom`. Full reference: <https://argot.tmonier.com/docs/custom-rules/>.
 
+Rule authoring is a later, explicit workflow: use audit and ordinary checks to
+establish current behavior first. A custom rule must never turn a probabilistic
+finding into an unreviewed default gate.
+
 ## The gate: `argot rules test <name>` must be green
 
 A custom rule is not done until its fixture suite is green. This is not
