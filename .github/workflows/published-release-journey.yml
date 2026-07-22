@@ -1,0 +1,46 @@
+name: Published release installer journey
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Published tag to validate (for example, v0.2.101); defaults to latest.
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: published-release-installer-${{ github.event.release.tag_name || inputs.release_tag || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  installer-journey:
+    name: Published installer (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-13
+            target: x86_64-apple-darwin
+          - os: macos-14
+            target: aarch64-apple-darwin
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+          - os: windows-2025
+            target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Exercise the published installer lifecycle
+        shell: bash
+        env:
+          ARGOT_RELEASE_TAG: ${{ github.event.release.tag_name || inputs.release_tag || 'latest' }}
+        run: scripts/published-release-journey.sh
