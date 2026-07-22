@@ -292,6 +292,10 @@ const tabs = demo.tabs;
 
 <style>
   .demo-terminal {
+    /* The terminal's mixed surfaces are darker than the page panel, so its
+       secondary text needs a local, still-muted step up for AA contrast. */
+    --terminal-muted: #a89a8d;
+    --muted: var(--terminal-muted);
     border-radius: 14px;
     border: 1px solid var(--line);
     background: color-mix(in srgb, var(--panel) 80%, #000);
