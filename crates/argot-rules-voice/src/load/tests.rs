@@ -1,10 +1,14 @@
 use super::*;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+static TEMP_DIR_SEQUENCE: AtomicUsize = AtomicUsize::new(0);
 
 fn temp_argot_dir(case: &str) -> std::path::PathBuf {
+    let sequence = TEMP_DIR_SEQUENCE.fetch_add(1, Ordering::Relaxed);
     let dir = std::env::temp_dir().join(format!(
         "argot_load_{case}_{}_{}",
         std::process::id(),
-        std::thread::current().name().unwrap_or("test")
+        sequence
     ));
     let _ = fs::remove_dir_all(&dir);
     fs::create_dir_all(&dir).unwrap();
