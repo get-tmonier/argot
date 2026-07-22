@@ -33,7 +33,7 @@ jobs:
               - '.github/workflows/ci.yml'
 
   landing:
-    name: Landing (quality · build · routes · a11y · performance)
+    name: Landing (lint · format · astro check)
     needs: changes
     if: ${{ needs.changes.outputs.landing == 'true' }}
     runs-on: ubuntu-latest
