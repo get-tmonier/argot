@@ -191,37 +191,42 @@ pub(super) fn render_results(
     hits: &[&Finding],
     hunk_lines: Option<usize>,
     use_color: bool,
+    settings: &RuleSettings,
     out: &mut String,
 ) -> bool {
-    // Banner tier counts use the per-hit calibrated threshold.
-    let mut counts: HashMap<&str, usize> = HashMap::new();
+    // Severity selects priority. Confidence remains evidence-strength metadata
+    // on each finding, never the reason a finding should be reviewed first.
+    let mut errors = 0usize;
+    let mut warnings = 0usize;
     for h in hits {
-        *counts
-            .entry(confidence(&h.reason, h.score, h.threshold))
-            .or_insert(0) += 1;
-    }
-    let total = hits.len();
-    let mut tier_parts: Vec<String> = Vec::new();
-    for tier in ["foreign", "suspicious", "unusual"] {
-        let c = *counts.get(tier).unwrap_or(&0);
-        if c > 0 {
-            tier_parts.push(format!(
-                "{c} {}",
-                paint(tier, confidence_color(tier), use_color)
-            ));
+        if settings.severity_of_reason(&h.reason).as_str() == "error" {
+            errors += 1;
+        } else {
+            warnings += 1;
         }
     }
-    let mut banner = format!(
-        "argot check · {} hunk{} above threshold",
-        total,
-        if total != 1 { "s" } else { "" }
-    );
-    if !tier_parts.is_empty() {
-        banner.push_str(&format!(" ({})", tier_parts.join(" · ")));
+    let total = hits.len();
+    let mut summary = Vec::new();
+    if errors > 0 {
+        summary.push(format!(
+            "{errors} error{}",
+            if errors == 1 { "" } else { "s" }
+        ));
     }
-    out.push_str(&banner);
+    if warnings > 0 {
+        summary.push(format!(
+            "{warnings} warning{}",
+            if warnings == 1 { "" } else { "s" }
+        ));
+    }
+    out.push_str(&format!(
+        "{total} finding{} need{} a look ({})",
+        if total == 1 { "" } else { "s" },
+        if total == 1 { "s" } else { "" },
+        summary.join(", ")
+    ));
     out.push('\n');
-    out.push_str("note: argot is a probabilistic style linter — verify before action.\n");
+    out.push_str("note: findings are evidence for your judgment, not proof of a defect.\n");
     out.push('\n');
 
     // Group by file; file_max starts at 0.0 (defaultdict(float)) so all-negative
@@ -240,21 +245,34 @@ pub(super) fn render_results(
         file_hits.entry(h.file_path.clone()).or_default().push(h);
     }
     let mut sorted_files = order;
-    // Stable descending sort by file_max (ties keep insertion order).
+    // Stable descending sort by severity, then keep the existing file ordering
+    // for deterministic ties. Individual hits get the same severity-first
+    // ordering below.
     sorted_files.sort_by(|a, b| {
-        file_max[b]
-            .partial_cmp(&file_max[a])
-            .unwrap_or(std::cmp::Ordering::Equal)
+        let priority = |path: &String| {
+            file_hits[path]
+                .iter()
+                .map(|h| usize::from(settings.severity_of_reason(&h.reason).as_str() != "error"))
+                .min()
+                .unwrap_or(1)
+        };
+        priority(a).cmp(&priority(b))
     });
 
     let mut any_truncated = false;
     let n_files = sorted_files.len();
     for (i, fp) in sorted_files.iter().enumerate() {
-        out.push_str(&paint(fp, C_BOLD, use_color));
-        out.push('\n');
-
         let mut fhits: Vec<&Finding> = file_hits[fp].clone();
-        fhits.sort_by_key(|h| h.line); // stable by line asc
+        fhits.sort_by(|left, right| {
+            usize::from(settings.severity_of_reason(&left.reason).as_str() != "error")
+                .cmp(&usize::from(
+                    settings.severity_of_reason(&right.reason).as_str() != "error",
+                ))
+                .then_with(|| {
+                    rules::code_for_reason(&left.reason).cmp(rules::code_for_reason(&right.reason))
+                })
+                .then_with(|| left.line.cmp(&right.line))
+        });
 
         for h in &fhits {
             let sev = confidence(&h.reason, h.score, h.threshold);
@@ -266,21 +284,22 @@ pub(super) fn render_results(
             };
             // The meta line names the rule (`foreign-import`, `redundant`, …);
             // internal reasons without a rule (`none` under --threshold) print raw.
-            let meta = format!("· {} · {}", h.source, rules::code_for_reason(&h.reason));
-            let glyph = match sev {
-                "foreign" => "!",
-                "suspicious" => "?",
-                _ => ".",
-            };
-            // ANSI codes are zero-width, so the `{:<13}`/`{:>6.2}` columns still
-            // align; only the glyph, severity word, and hash carry escapes.
+            let configured_severity = settings.severity_of_reason(&h.reason).as_str();
             out.push_str(&format!(
-                "  {}  {:<13} {:>6.2}  {}  {} {}\n",
-                paint(glyph, color, use_color),
+                "{} · {} · {}:{} · {} [{}]\n",
+                paint(
+                    configured_severity,
+                    if configured_severity == "error" {
+                        C_RED
+                    } else {
+                        C_YELLOW
+                    },
+                    use_color,
+                ),
+                rules::code_for_reason(&h.reason),
+                paint(fp, C_BOLD, use_color),
                 line_str,
-                h.score,
                 paint(sev, color, use_color),
-                meta,
                 paint(&format!("[{}]", h.hash), C_DIM, use_color),
             ));
 
@@ -322,6 +341,10 @@ pub(super) fn render_results(
             if overflow > 0 {
                 any_truncated = true;
             }
+            out.push_str(&format!(
+                "  → inspect the evidence, then mute with `argot mute {} --reason \"…\"` only if intentional.\n",
+                h.hash
+            ));
         }
 
         if i < n_files - 1 {

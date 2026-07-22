@@ -797,9 +797,15 @@ pub fn run_check(args: CheckArgs, detectors: Vec<RegisteredDetector<'_>>) -> Che
                 args.min_confidence
             )
         } else if let Some(t) = threshold_override {
-            format!("All {hunk_count} hunk(s) scored below threshold {t:.2} — looks clean.\n")
+            format!(
+                "No configured findings on {hunk_count} scanned hunk{} (threshold {t:.2}).\n",
+                if hunk_count == 1 { "" } else { "s" }
+            )
         } else {
-            format!("All {hunk_count} hunk(s) scored below calibrated thresholds — looks clean.\n")
+            format!(
+                "No configured findings on {hunk_count} scanned hunk{} — this scan found nothing configured to report.\n",
+                if hunk_count == 1 { "" } else { "s" }
+            )
         };
         if result.hidden_hits > 0 && result.gating_hits > 0 {
             stderr.push_str(&format!(
@@ -820,7 +826,8 @@ pub fn run_check(args: CheckArgs, detectors: Vec<RegisteredDetector<'_>>) -> Che
         Some(args.hunk_lines)
     };
     let mut stdout = String::new();
-    let any_truncated = render_results(&visible, hunk_lines, args.use_color, &mut stdout);
+    let any_truncated =
+        render_results(&visible, hunk_lines, args.use_color, &settings, &mut stdout);
 
     if any_truncated && !args.verbose {
         stdout.push('\n');

@@ -85,6 +85,35 @@ fn status_uses_all_unsuppressed_findings_not_the_displayed_tier() {
 }
 
 #[test]
+fn human_brief_leads_with_severity_then_rule_span_and_action() {
+    let mut error = finding("import", None);
+    error.file_path = "z.py".to_string();
+    error.line = 9;
+    error.hash = "errorhash001".to_string();
+    let mut warn = finding("test_weakened", None);
+    warn.file_path = "a.py".to_string();
+    warn.line = 2;
+    warn.hash = "warnhash0002".to_string();
+    let settings = rules::RuleSettings::resolve(&[]);
+
+    let mut out = String::new();
+    assert!(!super::render::render_results(
+        &[&warn, &error],
+        None,
+        false,
+        &settings,
+        &mut out
+    ));
+    assert!(out.starts_with("2 findings need a look (1 error, 1 warning)\n"));
+    assert!(!out.contains("style linter"));
+    assert!(
+        out.find("error · foreign-import · z.py:L9").unwrap()
+            < out.find("warn · test-weakened · a.py:L2").unwrap()
+    );
+    assert!(out.contains("argot mute errorhash001 --reason"));
+}
+
+#[test]
 fn insert_ignore_comments_bottom_up_with_indentation() {
     let src = "def a():\n    x = 1\n    y = 2\n\ndef b():\n    z = 3\n";
     let out = insert_ignore_comments(

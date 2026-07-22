@@ -1,1 +1,1 @@
-All 1 hunk(s) scored below calibrated thresholds — looks clean.
+No configured findings on 1 scanned hunk — this scan found nothing configured to report.
