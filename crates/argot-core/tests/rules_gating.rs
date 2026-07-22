@@ -149,7 +149,10 @@ fn off_rule_emits_nothing() {
         !out.stdout.contains("foreign-import"),
         "off rule must not report"
     );
-    assert!(out.stdout.contains("looks clean"), "clean summary shown");
+    assert!(
+        out.stdout.contains("No configured findings"),
+        "clean summary shown"
+    );
 }
 
 #[test]
