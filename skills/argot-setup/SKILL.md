@@ -25,11 +25,22 @@ suppressing it).
    how to install it (<https://argot.tmonier.com/docs/getting-started/>) and
    stop.
 
-2. **Identify the primary authored source** — the library or app the repo
+2. **Start with proof, not configuration:** run `argot audit`. It is
+   informational and exits 0; it checks recent first-parent history against the
+   voice fitted just before each change. This is the acquisition front door:
+   show the user what the repository's history says before proposing recurring
+   checks.
+
+3. **Interpret the audit:** a quiet audit means no configured rule fired in the
+   sampled history, not that every historical change was idiomatic. If the
+   window contains no supported source, widen it with `--commits 200` or
+   `--since 6m`. Do not treat audit as an automatic host integration.
+
+4. **Identify the primary authored source** — the library or app the repo
    actually ships. In a monorepo (multiple packages/workspaces), that's usually
    one or a few packages; everything else is peripheral.
 
-3. **Fit and check health:** `argot init`. Read the **Verdict** line
+5. **Fit and check health:** `argot init`. Read the **Verdict** line
    (Ready / Ready with notes / Not recommended) and the corpus summary, and note
    any "files … are shaping the voice" warning it prints — those are config/tooling
    files to exclude in step 5. If it's already **Ready** with a clean corpus and no
@@ -45,13 +56,13 @@ suppressing it).
    points at a local gguf, `ARGOT_OFFLINE=1` skips the download, and
    `ARGOT_MODEL_URL` sets a mirror.
 
-4. **Get argot's suggestions:** `argot init --suggest --format json`. Lists
+6. **Get argot's suggestions:** `argot init --suggest --format json`. Lists
    directories that are mostly auto-generated or data files, with counts. Note
    the `included` count (real code a rule would drop) — and that `--suggest`
    *only* finds generated/data-heavy dirs; on a monorepo it is often empty and
    the peripheral-package call in step 5 is yours.
 
-5. **Read the tree** and find directories that shouldn't shape the voice —
+7. **Read the tree** and find directories that shouldn't shape the voice —
    never the primary source from step 3:
    - peripheral monorepo members: a marketing/landing site, a playground, demo
      or example apps, a benchmark suite, build/dev tooling
@@ -84,7 +95,7 @@ suppressing it).
    still shape the voice until you exclude them (that's what the fit-time note is
    for). Focus on the repo-specific dirs above.
 
-6. **Edit `argot.toml`** at the repo root (`argot init` writes a default one).
+8. **Edit `argot.toml`** at the repo root (`argot init` writes a default one).
    Add the directories you're excluding to `[exclude].paths` — gitignore-style
    patterns, one per entry, each with a trailing `# reason` comment; prefer
    directory patterns. If the repo uses a code generator whose banner isn't in
@@ -109,14 +120,14 @@ suppressing it).
    `superseded` in new code. Re-run `argot init` after the exclude/rule edits
    above — the migration declaration itself doesn't need it.
 
-7. **Verify the catch works** — the important check. In a real primary-source
+9. **Verify the catch works** — the important check. In a real primary-source
    file, add a throwaway import of a package the repo never uses (e.g.
    `import boto3` / `import axios from "axios"`) plus a line using it, run
    `argot check`, and confirm it's flagged. Then revert. If it is NOT flagged,
    the voice is still diluted by non-authored code — exclude more peripheral
    directories and repeat.
 
-8. **Finish with the wow — audit their history:** `argot audit`. It fits the
+10. **Audit details and maintenance:** `argot audit` fits the
    voice as it was ~50 commits ago (in a temp worktree — the user's tree is
    untouched), reports what argot would have caught before merge per rule
    group, and attributes each finding to its introducing commit —
@@ -128,7 +139,7 @@ suppressing it).
    or `--since 6m`). A quiet audit is also a result: their recent history is
    in voice.
 
-9. **The pre-write guardrail (Claude Code):** argot can *ask* before the agent
+11. **The pre-write guardrail (Claude Code):** argot can *ask* before the agent
    introduces a dependency this repo has never used — the reviewer's "is this
    intentional?" beat, moved to write time. It fires only on a genuinely foreign
    dependency (argot's highest-precision signal), **asks** — never silently
@@ -163,12 +174,15 @@ suppressing it).
    hook, and a second copy in `settings.json` would run it twice. To turn it off,
    remove that entry.
 
-10. **Optional finishing artifact:** `argot describe-voice --out STYLE.md`
+12. **Optional finishing artifact:** `argot describe-voice --out STYLE.md`
    generates a human-readable guide to the learned voice (typical callees per
    file cluster, the familiar import surface). Offer it when the user wants a
    committed, reviewable description of what argot learned.
 
-11. **Summarize** for the user: what you excluded and why, and the final Verdict.
+13. **Summarize** for the user: audit result, what you excluded and why, final
+   Verdict, and integration limits. The plugin's shipped automation is the
+   non-blocking pre-write ask; no automatic end-of-turn full-check lifecycle is
+   currently packaged.
    `argot.toml` is committed (the excludes/detect/mutes are a shared, reviewable
    decision); argot also wrote a `.argot/.gitignore` so the rebuildable model
    itself isn't committed (regenerate with `argot fit`), and gitignored

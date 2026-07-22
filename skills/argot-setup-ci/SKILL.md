@@ -1,6 +1,6 @@
 ---
 name: argot-setup-ci
-description: Wire argot into a repository's GitHub Actions as a non-blocking voice check on every pull request — a visual voice-score card plus code-scanning annotations. Use when the user wants argot "in CI", "on PRs", "as a GitHub Action", or asks to "set up argot CI". Distinct from argot-setup (local checking) and argot-review-pr (reviewing one PR on demand).
+description: Wire argot into a repository's GitHub Actions as a non-blocking configured check on every pull request — a job summary plus code-scanning annotations. Use when the user wants argot "in CI", "on PRs", "as a GitHub Action", or asks to "set up argot CI". Distinct from argot-setup (local checking) and argot-review-pr (reviewing one PR on demand).
 ---
 
 # argot-setup-ci
@@ -51,9 +51,10 @@ the user explicitly asks for a gate.
    OAuth App to … workflow … without 'workflow' scope"*, run
    `gh auth refresh -s workflow` (or push over SSH).
 
-5. Tell the user what they'll get on each PR: a **non-blocking** voice-score card
-   (a sticky PR comment + the Actions job summary) and inline code-scanning
-   annotations. It never fails the build.
+5. Tell the user what they'll get on each configured PR workflow: a
+   **non-blocking** job summary, optional sticky PR comment, and inline
+   code-scanning annotations. Findings do not fail the Action by default;
+   operational workflow failures can still fail it.
 
 6. **Offer a live README badge.** If the user wants one, add `contents: write`
    to `permissions` and `publish-badge: true` under the action's `with:`. On
