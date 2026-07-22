@@ -7,12 +7,14 @@
 // co-changed production file); the agent line is a reenactment of the story
 // every team has by now.
 import { emphasize } from '#lib/text';
+import { claimValue } from '../data/claims/claims';
 import type { SiteContent } from '#i18n/types';
 
 interface Props {
   content: SiteContent;
 }
 const { trust } = Astro.props.content;
+const integrityEvidence = claimValue('integrity.catch');
 ---
 
 <section id="trust" class="snap-section relative flex md:min-h-svh items-center">
@@ -82,7 +84,9 @@ const { trust } = Astro.props.content;
           <div class="tt-line dim" style="--i: 9">&nbsp;&nbsp;215 | def test_rate_limit_429():</div>
         </div>
       </div>
-      <p class="text-center text-sm text-muted text-pretty" set:html={emphasize(trust.caption)} />
+      <p class="text-center text-sm text-muted text-pretty">
+        {integrityEvidence}. <a class="text-ember underline" href="/benchmarks">Read the detector scope and controls.</a>
+      </p>
     </div>
   </div>
 </section>

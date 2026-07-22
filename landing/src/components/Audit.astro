@@ -29,7 +29,7 @@ const { audit } = Astro.props.content;
     </div>
 
     <div class="reveal flex flex-col gap-4" style="--reveal-delay: 120ms">
-      <div class="audit-terminal" role="group" aria-label="Example argot audit output">
+        <div class="audit-terminal" role="group" aria-label="Authored argot audit proof receipt">
         <div class="rt-titlebar">
           <span class="rt-dot" style="background: var(--flag)" aria-hidden="true"></span>
           <span class="rt-dot" style="background: var(--amber)" aria-hidden="true"></span>
@@ -43,11 +43,10 @@ const { audit } = Astro.props.content;
               aria-hidden="true"></span>
           </div>
           <div class="rt-line rt-banner" style="--i: 1">
-            ━━ argot audit ━━ last 50 commits · 2026-06-01 → 2026-07-11 ━━
+            ━━ authored proof receipt · argot 0.2.89 · last 1 commit ━━
           </div>
           <div class="rt-line rt-wrap" style="--i: 2">
-            &nbsp;&nbsp;<span class="ink">52% carry AI markers</span> (26 of 50) · 1 finding would
-            have met review
+            &nbsp;&nbsp;<span class="ink">1 commit audited</span> · 1 finding would have prompted review
           </div>
           <div class="rt-line rt-count" style="--i: 3">
             &nbsp;&nbsp;&nbsp;&nbsp;voice&nbsp;&nbsp;<span class="flagword">1</span>&nbsp;&nbsp;code
@@ -55,22 +54,21 @@ const { audit } = Astro.props.content;
           </div>
           <div class="rt-line" style="--i: 4">
             &nbsp;&nbsp;<span class="ink">Worst offender</span><span class="rt-meta">
-              — commit cae8349 ·&nbsp;</span><span class="aiword">ai-assisted</span>
+              — commit 705db9c ·&nbsp;</span><span class="aiword">human</span>
           </div>
           <div class="rt-line" style="--i: 5">
-            &nbsp;&nbsp;<span class="bang">!</span> landing/src/pages/llms-full.txt.ts:L1-32&nbsp;&nbsp;<span
-              class="flagword">foreign-import</span
+            &nbsp;&nbsp;<span class="bang">!</span> src/receipt.py:L1-10&nbsp;&nbsp;<span
+              class="flagword">rare-tokens</span
             >
           </div>
           <div class="rt-line rt-evidence" style="--i: 6">
-            “feat: v1 launch polish…” — <span class="aiword">Co-Authored-By: Claude Opus 4.8</span>
+            authored two-commit fixture · raw JSON and checksum are committed
           </div>
           <div class="rt-line rt-evidence" style="--i: 7">
-            ↳ <span class="flagword">astro</span> (L1) — 0 of 49 module specifiers in repo
+            ↳ <span class="flagword">import, class, def</span> — zero-usage tokens in the fitted fixture
           </div>
           <div class="rt-line rt-footer dim" style="--i: 8">
-            &nbsp;&nbsp;Merged code is accepted code — read each as “would have prompted review”.
-            The AI share is a floor, not a census.
+            &nbsp;&nbsp;A finding is a prompt for human judgment, not proof of a defect.
           </div>
         </div>
       </div>
