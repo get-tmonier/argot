@@ -31,7 +31,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
       - name: Install the candidate binary into an isolated prefix
         shell: bash
         run: cargo install --locked --path crates/argot-cli --root "$RUNNER_TEMP/argot-install"

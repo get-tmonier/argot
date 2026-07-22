@@ -2,6 +2,7 @@
 """Fixture tests for scripts/check-release-version.py."""
 
 import json
+import re
 import shutil
 import subprocess
 import tempfile
@@ -24,14 +25,18 @@ def run(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
 with tempfile.TemporaryDirectory() as directory:
     fixture = Path(directory) / "release-tree"
     shutil.copytree(ROOT, fixture, ignore=shutil.ignore_patterns(".git", "target", "node_modules"))
+    cargo = (fixture / "Cargo.toml").read_text()
+    version = re.search(r'^version = "([^"]+)"', cargo, re.MULTILINE)
+    assert version, "fixture Cargo.toml must declare a workspace version"
+    tag = f"v{version.group(1)}"
 
-    consistent = run(fixture, "--tag", "v0.2.97")
+    consistent = run(fixture, "--tag", tag)
     assert consistent.returncode == 0, consistent.stderr
 
     plugin = fixture / ".claude-plugin/plugin.json"
     document = json.loads(plugin.read_text())
     document["version"] = "0.0.0"
     plugin.write_text(json.dumps(document))
-    mismatch = run(fixture, "--tag", "v0.2.97")
+    mismatch = run(fixture, "--tag", tag)
     assert mismatch.returncode == 1, mismatch.stderr
     assert "Claude plugin is 0.0.0" in mismatch.stderr
