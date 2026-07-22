@@ -36,7 +36,7 @@ export interface CaughtCase {
 export const WILD_PROOF_STATUS: WildProofStatus = {
   verifiedCaseCount: 0,
   inventoryUrl:
-    'https://github.com/get-tmonier/argot/blob/main/docs/research/evidence/caught-in-the-wild-inventory.md',
+    'https://github.com/get-tmonier/argot/blob/b511a1a7efcd43d81a3f8a4349e8a1ca52f7860b/docs/research/evidence/caught-in-the-wild-inventory.md',
   inventoryDate: '2026-07-22',
   summary: {
     en: 'No historical wild-case story is displayed because the committed inventory found no qualifying public receipts.',
