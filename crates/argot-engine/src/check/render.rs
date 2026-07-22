@@ -3,7 +3,8 @@
 use super::{ext_to_lang, extension, CheckArgs, CheckOutcome};
 use crate::finding::{Finding, SourceSpan};
 use crate::output::{
-    render_github, render_json, render_sarif, FileScan, HitRecord, OutputFormat, ReportMeta,
+    render_github, render_json, render_sarif, CheckResult, FileScan, HitRecord, OutputFormat,
+    ReportMeta,
 };
 use crate::rules::{self, RuleSettings};
 use crate::text::splitlines;
@@ -486,6 +487,7 @@ pub(super) fn report_meta(
     hunks_scanned: usize,
     files_scanned: Vec<FileScan>,
     model: &str,
+    result: CheckResult,
 ) -> ReportMeta {
     ReportMeta {
         // The workspace shares one version across crates, so this matches the
@@ -496,6 +498,7 @@ pub(super) fn report_meta(
         hunks_scanned,
         files_scanned,
         model: model.to_string(),
+        result,
     }
 }
 /// Render the complete machine-format document (json/sarif) for stdout.
@@ -506,7 +509,7 @@ pub(super) fn render_machine(
 ) -> String {
     match format {
         OutputFormat::Sarif => render_sarif(meta, records),
-        OutputFormat::Github => render_github(records),
+        OutputFormat::Github => render_github(records, &meta.result),
         _ => render_json(meta, records),
     }
 }

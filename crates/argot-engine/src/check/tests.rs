@@ -4,6 +4,50 @@ use super::*;
 use crate::rules;
 use crate::suppress::parse_inline;
 
+fn finding(
+    reason: &str,
+    suppressed_by: Option<crate::finding::SuppressedBy>,
+) -> crate::finding::Finding {
+    crate::finding::Finding {
+        score: 1.0,
+        file_path: "src/app.py".to_string(),
+        line: 1,
+        line_end: 1,
+        source: "workdir".to_string(),
+        reason: reason.to_string(),
+        flagged: true,
+        threshold: 1.0,
+        hunk_content: "x\n".to_string(),
+        evidence: None,
+        hash: "a1b2c3d4e5f6".to_string(),
+        suppressed_by,
+    }
+}
+
+#[test]
+fn hidden_findings_keep_their_gate_and_are_counted() {
+    let error = finding("import", None);
+    let warn = finding("test_weakened", None);
+    let suppressed = finding("import", Some(crate::finding::SuppressedBy::Mute));
+    let settings = rules::RuleSettings::resolve(&[]);
+    let summary = super::orchestrate::result_summary(
+        &[&error, &warn],
+        &[&warn],
+        usize::from(suppressed.suppressed_by.is_some()),
+        &settings,
+        false,
+    );
+
+    assert_eq!(summary.exit_code, 1, "a hidden error still fails the run");
+    assert_eq!(summary.unsuppressed_hits, 2);
+    assert_eq!(summary.visible_hits, 1);
+    assert_eq!(summary.hidden_hits, 1);
+    assert_eq!(summary.suppressed_hits, 1);
+    assert_eq!(summary.error_hits, 1);
+    assert_eq!(summary.warn_hits, 1);
+    assert_eq!(summary.gating_hits, 1);
+}
+
 #[test]
 fn insert_ignore_comments_bottom_up_with_indentation() {
     let src = "def a():\n    x = 1\n    y = 2\n\ndef b():\n    z = 3\n";
