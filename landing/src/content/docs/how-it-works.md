@@ -1,14 +1,16 @@
 ---
 title: How it works
-description: Five detectors — a statistical voice model, two embedding-based checks (reinvention, placement), a module-dependency architecture graph, and a test-integrity pass — all learned from your git history.
+description: A local statistical voice model plus optional semantic, architecture, integrity, and custom-rule checks — with explicit limits on what a clean result means.
 group: Start
 order: 3
 ---
 
-argot has **six detectors**, all learned entirely from your git history — plus one kind that
-isn't learned at all: [custom rules](/docs/custom-rules/) you script yourself. Each detector emits
-findings under a named **rule** (`argot rules` lists them all), and every rule's severity is yours
-to configure — see [Configure](/docs/configure/#rules--rule-severities).
+argot composes a statistical **voice** pass with independently registered semantic,
+architecture, integrity, and scripted-rule passes. The voice model and the fit-time
+artifacts learn from repository history; custom rules are authored by the repo.
+Each pass emits findings under named **rules** (`argot rules` lists the live
+registry), and every configurable rule's severity is yours to set — see
+[Configure](/docs/configure/#rules--rule-severities).
 
 The **statistical voice model** is deliberately simple: **no neural network**, just two
 token-frequency distributions and a maximum log-likelihood ratio. That's what catches *foreign*
@@ -24,7 +26,7 @@ way raises `superseded` (warn by default), citing the migrating commits themselv
 also be [declared in two lines of `argot.toml`](/docs/configure/#migration--declare-a-migration).
 Pure git2 and tree-sitter — no model, no network.
 
-The **reinvention** and **placement** detectors share the one neural component: a per-repo
+The **reinvention** and **placement** checks share the one neural component: a per-repo
 code-embedding index, built at fit with a small local model (`jina-code`, ~100 MB, statically
 linked via llama.cpp — CPU-first, Metal-accelerated on macOS, fetched once to a local cache on
 first use). Reinvention flags a new function that duplicates one the repo already has (rule
@@ -34,11 +36,11 @@ cloud, no text generation; turn a function into a vector, look up its neighbours
 free. Offline,
 the download is skipped with a printed note — never silently — and the other detectors still run.
 
-The **architecture detector** builds a module-dependency graph of your repo at fit and flags an
+The **architecture check** builds a module-dependency graph of your repo at fit and flags an
 added internal import that reverses the repo's established layer direction (rule `layering`). Pure
 graph analysis — no model, no network.
 
-The **test-integrity detector** reads *both sides* of a changeset's diff, builds a per-version test
+The **test-integrity check** reads *both sides* of a changeset's diff, builds a per-version test
 inventory with the same tree-sitter parsers as the rest of argot, and diffs the two inventories into
 events: a test deleted while the code it exercised survives (rule `test-deleted`), a skip/ignore
 marker added or a test gutted (rule `test-disabled`), or an assertion excised, tautologized, or
@@ -167,3 +169,7 @@ language doesn't inflate the signal.
 
 For the full scoring model — the call-receiver penalty, file clustering, and the per-corpus
 auto-detect probe — see [The scoring model](/docs/the-scoring-model/).
+
+For the boundaries that matter when interpreting a clean run — fit suitability,
+masked or in-vocabulary changes, and the diff/net-range limits — see
+[Limitations](/docs/limitations/).
