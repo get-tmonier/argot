@@ -27,7 +27,9 @@ jobs:
           grep -Fq 'argot-configured-findings' action.yml
           grep -Fq '"message":"unknown","color":"lightgrey"' action.yml
           grep -Fq 'Fail the job when argot finds hunks above the calibrated threshold.' action.yml
-          grep -Fq "if: \${{ inputs.fail-on-hits == 'true' && steps.check.outputs.exit-code == '1' }}" action.yml
+          expected_condition='if: $'
+          expected_condition+='{{ inputs.fail-on-hits == '\''true'\'' && steps.check.outputs.exit-code == '\''1'\'' }}'
+          grep -Fq "$expected_condition" action.yml
           ! grep -Eiq 'in-voice|out-of-voice|voice score|score card' action.yml
 
   linux:
