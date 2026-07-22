@@ -109,17 +109,22 @@ fn malformed_config_fails_open() {
 
 #[test]
 fn only_repo_relative_paths_are_assessed() {
-    let repo = Path::new("/repo");
+    let repo = std::env::temp_dir().join("argot-hook-path-repo");
+    let inside = repo.join("src/app.py");
+    let outside = repo
+        .parent()
+        .expect("temporary directory has a parent")
+        .join("argot-hook-path-elsewhere/app.py");
     assert_eq!(
-        repo_relative_path(repo, "/repo/src/app.py"),
+        repo_relative_path(&repo, &inside.to_string_lossy()),
         Some("src/app.py".to_string())
     );
     assert_eq!(
-        repo_relative_path(repo, "src/app.py"),
+        repo_relative_path(&repo, "src/app.py"),
         Some("src/app.py".to_string())
     );
-    assert_eq!(repo_relative_path(repo, "/elsewhere/app.py"), None);
-    assert_eq!(repo_relative_path(repo, "../elsewhere/app.py"), None);
+    assert_eq!(repo_relative_path(&repo, &outside.to_string_lossy()), None);
+    assert_eq!(repo_relative_path(&repo, "../elsewhere/app.py"), None);
 }
 
 #[test]
