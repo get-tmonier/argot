@@ -64,40 +64,44 @@ const skillCmds = [
           <span class="copy-icon ml-auto pl-2 text-muted transition-colors group-hover:text-ink">⧉</span>
         </button>
 
-        <p class="lane-label mt-5">{setup.skillsLabel}</p>
-        <button
-          type="button"
-          class="copy-install setup-chip group"
-          data-copy={skillCmd}
-          aria-label="Copy the skill-install command"
-        >
-          <span class="text-ember">$</span>
-          <span class="text-ink-dim">npx skills add <span class="text-ink">get-tmonier/argot</span></span>
-          <span class="copy-icon ml-auto pl-2 text-muted transition-colors group-hover:text-ink"
-            >⧉</span
-          >
-        </button>
+        <details class="agent-skills">
+          <summary>{setup.skillsLabel}</summary>
+          <div class="agent-skills-body">
+            <button
+              type="button"
+              class="copy-install setup-chip group"
+              data-copy={skillCmd}
+              aria-label="Copy the skill-install command"
+            >
+              <span class="text-ember">$</span>
+              <span class="text-ink-dim">npx skills add <span class="text-ink">get-tmonier/argot</span></span>
+              <span class="copy-icon ml-auto pl-2 text-muted transition-colors group-hover:text-ink"
+                >⧉</span
+              >
+            </button>
 
-        <p class="lane-note">{setup.skillsIntro}</p>
-        <ul class="skill-list">
-          {
-            skillCmds.map((cmd, i) => (
-              <li class="skill-row">
-                <code class="skill-cmd">{cmd}</code>
-                <span class="skill-desc">{setup.skillDescs[i]}</span>
-              </li>
-            ))
-          }
-        </ul>
+            <p class="lane-note">{setup.skillsIntro}</p>
+            <ul class="skill-list">
+              {
+                skillCmds.map((cmd, i) => (
+                  <li class="skill-row">
+                    <code class="skill-cmd">{cmd}</code>
+                    <span class="skill-desc">{setup.skillDescs[i]}</span>
+                  </li>
+                ))
+              }
+            </ul>
 
-        <p class="lane-note mt-4">
-          {setup.pluginNote}{' '}
-          <a
-            href="/docs/plugin/"
-            class="font-medium text-ember transition-colors hover:text-ember-bright"
-            >{setup.pluginCta} →</a
-          >
-        </p>
+            <p class="lane-note mt-4">
+              {setup.pluginNote}{' '}
+              <a
+                href="/docs/plugin/"
+                class="font-medium text-ember transition-colors hover:text-ember-bright"
+                >{setup.pluginCta} →</a
+              >
+            </p>
+          </div>
+        </details>
 
         <p class="mt-5 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
           <a
@@ -136,6 +140,36 @@ const skillCmds = [
     font-size: 0.8125rem;
     line-height: 1.4;
     color: var(--ink-dim);
+  }
+  .agent-skills {
+    margin-top: 1.25rem;
+    border-top: 1px solid var(--line);
+    padding-top: 1rem;
+  }
+  .agent-skills summary {
+    display: flex;
+    cursor: pointer;
+    list-style: none;
+    align-items: center;
+    justify-content: space-between;
+    color: var(--ink);
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+  .agent-skills summary::-webkit-details-marker {
+    display: none;
+  }
+  .agent-skills summary::after {
+    content: '+';
+    color: var(--ember);
+    font-family: var(--font-mono);
+    font-size: 1.1rem;
+  }
+  .agent-skills[open] summary::after {
+    content: '−';
+  }
+  .agent-skills-body {
+    margin-top: 0.9rem;
   }
   .setup-chip {
     display: flex;

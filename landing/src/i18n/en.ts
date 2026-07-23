@@ -26,7 +26,7 @@ const en: SiteContent = {
     watchFilm: 'Watch the film',
   },
   demo: {
-    label: 'The second question',
+    label: 'A concrete example',
     title: 'Type checkers ask if it compiles. argot asks if it’s yours.',
     body: 'Clean, type-correct PRs can still be foreign to your repository. [[This is its real output.]]',
     tabs: [
@@ -68,7 +68,7 @@ const en: SiteContent = {
     seeLive: 'See it on real repos',
   },
   trust: {
-    label: 'The other failure mode',
+    label: 'Why this matters',
     title: 'An agent that can’t fix the code will “fix” the test.',
     body: 'A green check can hide a weakened test. argot pairs it with the changed code and names both.',
     moves: [
@@ -81,13 +81,13 @@ const en: SiteContent = {
       '[[94%]] of authored gaming edits caught · 0 of 102 legitimate refactors flagged · ships as warn — informs, never blocks.',
   },
   audit: {
-    label: 'Start here',
+    label: 'Evidence you can reproduce',
     title: 'Audit accepted changes before making it a habit.',
     body: '[[argot audit]] compares accepted changes with the repository history before them. Findings are prompts to inspect, not defect verdicts.',
     caption: 'Then run [[argot init]] and choose a recurring check path.',
   },
   customRules: {
-    label: 'Your conventions',
+    label: 'Advanced capabilities',
     title: 'See your conventions — then enforce them.',
     body: '[[argot conventions]] finds the shared API and where code belongs. Turn one convention into a small, testable rule.',
     points: [
@@ -182,7 +182,7 @@ const en: SiteContent = {
     caughtCta: 'See it caught in the wild →',
   },
   setup: {
-    label: 'Setup · built for agents',
+    label: 'How it works',
     title: 'From audit to a recurring check you choose.',
     body: 'Run [[argot init]], then choose the CLI, skills, a commit hook, or a GitHub Action. The Claude plugin adds a narrow pre-write prompt — not a full acceptance-time check.',
     installLabel: 'Install the CLI',
@@ -204,7 +204,7 @@ const en: SiteContent = {
     caption: 'The fitted model stays out of your git history.',
   },
   ciScore: {
-    label: 'In CI, without the friction',
+    label: 'Integrations',
     title: 'A workflow-configured PR or push signal.',
     body: 'The GitHub Action is [[non-blocking by default]]. Intentional divergence remains a human decision, recorded as an audit trail.',
     caption: 'Lands in the Actions summary, a sticky PR comment, and the Security tab.',

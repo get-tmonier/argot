@@ -26,7 +26,7 @@ const fr: SiteContent = {
     watchFilm: 'Voir le film',
   },
   demo: {
-    label: 'La deuxième question',
+    label: 'Un exemple concret',
     title: 'Le type-checker demande si ça compile. argot demande si c’est le vôtre.',
     body: 'Des PR propres et bien typées peuvent rester étrangères au dépôt. [[Voici sa vraie sortie.]]',
     tabs: [
@@ -66,7 +66,7 @@ const fr: SiteContent = {
     seeLive: 'Voyez-le sur de vrais dépôts',
   },
   trust: {
-    label: 'L’autre mode de défaillance',
+    label: 'Pourquoi cela compte',
     title: 'L’agent qui ne sait pas corriger le code « corrige » le test.',
     body: 'Un check vert peut masquer un test affaibli. argot l’associe au code modifié et nomme les deux.',
     moves: [
@@ -79,13 +79,13 @@ const fr: SiteContent = {
       '[[94 %]] des éditions truquées détectées · 0 des 102 refactorings légitimes signalés · sort en warn — informe, ne bloque jamais.',
   },
   audit: {
-    label: 'Commencez ici',
+    label: 'Une preuve reproductible',
     title: 'Auditez les changements acceptés avant d’en faire une habitude.',
     body: '[[argot audit]] compare les changements acceptés à l’historique qui les précède. Un signalement invite à examiner, il ne prouve pas un défaut.',
     caption: 'Ensuite, lancez [[argot init]] et choisissez un chemin de vérification récurrent.',
   },
   customRules: {
-    label: 'Vos conventions',
+    label: 'Fonctionnalités avancées',
     title: 'Voyez vos conventions — puis imposez-les.',
     body: '[[argot conventions]] trouve l’API partagée et où vit le code. Transformez une convention en une petite règle testable.',
     points: [
@@ -181,7 +181,7 @@ const fr: SiteContent = {
     caughtCta: 'À voir sur le vif →',
   },
   setup: {
-    label: 'Configuration · conçu pour les agents',
+    label: 'Comment ça marche',
     title: 'De l’audit à une vérification récurrente que vous choisissez.',
     body: 'Lancez [[argot init]], puis choisissez la CLI, les skills, un hook de commit ou une GitHub Action. Le plugin Claude ajoute une invite étroite avant écriture — pas une vérification complète à l’acceptation.',
     installLabel: 'Installer la CLI',
@@ -203,7 +203,7 @@ const fr: SiteContent = {
     caption: 'Le modèle calibré reste hors de votre historique git.',
   },
   ciScore: {
-    label: 'En CI, sans la friction',
+    label: 'Intégrations',
     title: 'Un signal PR ou push configuré dans le workflow.',
     body: 'L’Action GitHub est [[non bloquante par défaut]]. Une divergence intentionnelle reste une décision humaine, enregistrée comme piste d’audit.',
     caption: 'Atterrit dans le résumé Actions, un commentaire de PR épinglé, et l’onglet Security.',
