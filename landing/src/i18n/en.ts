@@ -13,12 +13,12 @@ const en: SiteContent = {
     docs: 'Docs',
   },
   hero: {
-    eyebrow: 'Repository-grounded review · audit first · human judgment',
+    eyebrow: 'Repository-grounded checks',
     titleLead: 'Find the code your repository',
     titleGradient: 'would question.',
     subtitle:
-      'Start with [[argot audit]]: it compares accepted changes with the repository history that came before them, then gives people evidence to review. For recurring checks, choose and wire the path that fits your workflow.',
-    ctaPrimary: 'See the audit',
+      'Audit accepted changes against your repository’s history. Review the evidence, then decide.',
+    ctaPrimary: 'Start with an audit',
     ctaSecondary: 'Star on GitHub',
     install: 'npm i -g @tmonier/argot',
     installNote:
@@ -29,7 +29,7 @@ const en: SiteContent = {
   demo: {
     label: 'The second question',
     title: 'Type checkers ask if it compiles. argot asks if it’s yours.',
-    body: 'Clean, type-correct PRs bury that question. argot answers it at the diff — [[this is its real output]].',
+    body: 'Clean, type-correct PRs can still be foreign to your repository. [[This is its real output.]]',
     tabs: [
       {
         id: 'foreign-import',
@@ -71,7 +71,7 @@ const en: SiteContent = {
   trust: {
     label: 'The other failure mode',
     title: 'An agent that can’t fix the code will “fix” the test.',
-    body: 'The diff looks tidy, CI turns green — and your safety net has a hole [[exactly where the code is newest]]. argot pairs the weakened test with the code it covers, and names both.',
+    body: 'A green check can hide a weakened test. argot pairs it with the changed code and names both.',
     moves: [
       { name: 'skip it', example: '@pytest.mark.skip("flaky")' },
       { name: 'gut it', example: 'assertions removed, test kept' },
@@ -84,13 +84,13 @@ const en: SiteContent = {
   audit: {
     label: 'Start here',
     title: 'Audit accepted changes before making it a habit.',
-    body: '[[argot audit]] evaluates the base-to-HEAD net diff with a historical fit. Its commit-marker attribution is a floor, not a census; findings are prompts to inspect, never a defect verdict. The displayed receipt is an [[authored two-commit fixture]] with its command, version, raw output, and checksum committed.',
-    caption: 'Then run [[argot init]] to fit today’s repository and choose a recurring check path.',
+    body: '[[argot audit]] compares accepted changes with the repository history before them. Findings are prompts to inspect, not defect verdicts.',
+    caption: 'Then run [[argot init]] and choose a recurring check path.',
   },
   customRules: {
     label: 'Your conventions',
     title: 'See your conventions — then enforce them.',
-    body: '[[argot conventions]] reads your repo and shows you what it already does: its shared API, and [[where each kind of code lives]] — validation in schema files, DB access in migrations, business logic in the service layer. Pick one and the sixth detector is yours: a manifest and a tiny script in .argot/rules/, any language, down to the [[.env a linter never opens]].',
+    body: '[[argot conventions]] finds the shared API and where code belongs. Turn one convention into a small, testable rule.',
     points: [
       {
         title: 'Discovered, not guessed',
@@ -117,8 +117,8 @@ const en: SiteContent = {
   },
   engine: {
     label: 'Under the hood',
-    title: 'Semantic understanding. No generative LLM anywhere.',
-    body: 'Four engines, one static [[Rust]] binary, all learned from your git history — nothing leaves your machine.',
+    title: 'Semantic understanding. No generative LLM in the core.',
+    body: 'Four local engines, one static [[Rust]] binary, all grounded in your git history.',
     cards: [
       {
         title: 'A code-embedding model on your laptop',
@@ -185,9 +185,10 @@ const en: SiteContent = {
   setup: {
     label: 'Setup · built for agents',
     title: 'From audit to a recurring check you choose.',
-    body: 'Run [[argot init]] to fit a repository, then choose an invoked CLI/skill, a user-wired commit hook, or a workflow-configured GitHub Action. The Claude plugin can ask before a write introduces a foreign dependency in a fitted repository; it is not a full acceptance-time check.',
-    installLabel: 'Six on-demand skills for compatible agent hosts',
-    skillsIntro: 'six slash-commands your agent runs:',
+    body: 'Run [[argot init]], then choose the CLI, skills, a commit hook, or a GitHub Action. The Claude plugin adds a narrow pre-write prompt — not a full acceptance-time check.',
+    installLabel: 'Install the CLI',
+    skillsLabel: 'Add agent skills',
+    skillsIntro: 'six on-demand skills for compatible hosts:',
     skillDescs: [
       'reads your tree, writes argot.toml, verifies the catch',
       'scores each diff, flags what’s foreign — never blocks',
@@ -206,14 +207,14 @@ const en: SiteContent = {
   ciScore: {
     label: 'In CI, without the friction',
     title: 'A workflow-configured PR or push signal.',
-    body: 'The GitHub Action is [[non-blocking by default]]; a workflow may opt into gating. Intentional divergence is a human decision, with a mute recorded as an audit trail.',
+    body: 'The GitHub Action is [[non-blocking by default]]. Intentional divergence remains a human decision, recorded as an audit trail.',
     caption: 'Lands in the Actions summary, a sticky PR comment, and the Security tab.',
     badge:
       'Pin it in your README — a [[live badge]] that refreshes on every push. Every visitor, every fork, sees the repo still speaks its own voice.',
   },
   cta: {
     title: 'Add the layer your CI is missing.',
-    body: 'MIT-licensed open source. Audit first, then fit a repository and choose the check path you want to run.',
+    body: 'MIT-licensed open source. Audit first, then choose the recurring check that fits your workflow.',
     primary: 'Get started',
     secondary: 'View on GitHub',
   },

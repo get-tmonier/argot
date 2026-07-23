@@ -1,7 +1,6 @@
 ---
 import Logo from '#components/Logo.astro';
 import VoiceField from '#components/VoiceField.astro';
-import { SITE, localePath } from '#lib/site';
 import { emphasize } from '#lib/text';
 import type { SiteContent } from '#i18n/types';
 
@@ -9,150 +8,48 @@ interface Props {
   content: SiteContent;
   locale: 'en' | 'fr';
 }
-const { content, locale } = Astro.props;
+const { content } = Astro.props;
 const { hero } = content;
-
-// The five rules, as a legible preview right in the hero — same slugs as the
-// Demo tabs and the Catches cards below, so the vocabulary reads as one
-// thread through the page. foreign-import carries the "foreign" (flag) tier;
-// the rest carry the amber tier (unusual or suspicious confidence) — a
-// confidence tier, not a ranking.
-const rules = [
-  { id: 'foreign-import', tier: 'flag' },
-  { id: 'redundant', tier: 'amber' },
-  { id: 'misplaced', tier: 'amber' },
-  { id: 'layering', tier: 'amber' },
-  { id: 'test-disabled', tier: 'amber' },
-] as const;
 ---
 
-<section class="snap-section relative flex min-h-svh items-center overflow-hidden">
+<section class="snap-section relative flex overflow-hidden md:min-h-svh md:items-center">
   <div class="hero-grid" aria-hidden="true"></div>
   <div class="hero-aurora" aria-hidden="true"></div>
-
-  <!-- the living backdrop: the repo's voice, with divergent hunks flaring -->
   <VoiceField />
 
-  <div class="reveal relative z-10 mx-auto w-full max-w-3xl px-5 pt-20 pb-10 md:py-10 text-center">
-    <div class="mb-5 inline-flex items-center gap-2.5">
+  <div class="reveal relative z-10 mx-auto w-full max-w-3xl px-5 pt-28 pb-16 text-center md:py-10">
+    <div class="mb-4 inline-flex items-center gap-2.5">
       <Logo size={36} draw />
       <span
         class="rounded-full border border-line-2 bg-panel/70 px-3 py-1 text-[0.65rem] font-semibold tracking-wide uppercase shadow-[0_0_24px_-6px_var(--ember-bright)] backdrop-blur-sm sm:text-xs"
       >
-        <span class="voice-text-shimmer">
-          {
-            hero.eyebrow.split(' · ').map((part, i, all) => (
-              <span
-                class:list={[
-                  i > 0 && i < all.length - 1 && 'eyebrow-mid',
-                  i > 0 && i === all.length - 1 && 'eyebrow-end',
-                ]}
-              >
-                {i > 0 ? ' · ' : ''}
-                {part}
-              </span>
-            ))
-          }
-        </span>
+        <span class="voice-text-shimmer">{hero.eyebrow}</span>
       </span>
     </div>
 
-    <h1 class="text-4xl leading-[1.08] font-bold tracking-tight text-balance sm:text-5xl lg:text-6xl">
+    <h1 class="text-4xl leading-[1.05] font-bold tracking-tight text-balance sm:text-5xl lg:text-6xl">
       {hero.titleLead}{' '}
       <span class="voice-text">{hero.titleGradient}</span>
     </h1>
 
     <p
-      class="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-balance text-ink-dim"
+      class="mx-auto mt-5 max-w-lg text-base leading-relaxed text-balance text-ink-dim sm:text-lg"
       set:html={emphasize(hero.subtitle)}
     />
 
-    <ul class="hero-rules mt-5 flex flex-wrap items-center justify-center gap-2" aria-label="What argot catches">
-      {
-        rules.map((rule, i) => (
-          <li class="hero-rule-chip" data-tier={rule.tier} style={`--i:${i}`}>
-            <a href={`#demo-tab-${rule.id}`}>{rule.id}</a>
-          </li>
-        ))
-      }
-    </ul>
-
-    <div class="mt-7 flex flex-wrap items-center justify-center gap-3">
+    <div class="mt-7 flex justify-center">
       <a
         href="#audit"
-        class="group inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-ember to-ember-deep px-5 py-3 text-sm font-semibold text-bg shadow-lg shadow-ember/20 transition-transform hover:-translate-y-0.5"
+        class="group inline-flex min-h-12 w-full max-w-xs items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-ember to-ember-deep px-5 py-3 text-sm font-semibold text-bg shadow-lg shadow-ember/20 transition-transform hover:-translate-y-0.5 sm:w-auto"
       >
         {hero.ctaPrimary}
         <span class="transition-transform group-hover:translate-x-0.5">→</span>
       </a>
-      <a
-        href={SITE.github}
-        target="_blank"
-        rel="noopener"
-        class="inline-flex items-center gap-2 rounded-xl border border-line bg-panel/50 px-5 py-3 text-sm font-semibold backdrop-blur-sm transition-colors hover:border-line-2 hover:bg-panel"
-      >
-        ★ {hero.ctaSecondary}
-      </a>
     </div>
-
-    <div class="mt-5 flex flex-col items-center gap-2">
-      <button
-        type="button"
-        class="copy-install group flex max-w-full items-center gap-3 overflow-x-auto rounded-lg border border-line bg-bg-2/70 px-4 py-2.5 font-mono text-xs whitespace-nowrap backdrop-blur-sm transition-colors hover:border-line-2 sm:text-sm"
-        data-copy={hero.install}
-        aria-label="Copy install command"
-      >
-        <span class="text-ember">$</span>
-        <span class="text-ink-dim">npm i -g <span class="text-ink">@tmonier/argot</span></span>
-        <span class="copy-icon pl-2 text-muted transition-colors group-hover:text-ink">⧉</span>
-      </button>
-      <p class="max-w-sm text-xs text-balance text-muted sm:max-w-none">
-        {hero.installNote.replaceAll(' \u00b7', '\u00a0\u00b7')}
-      </p>
-      <a
-        href={localePath('/docs/#install', locale)}
-        class="text-xs text-muted underline decoration-dotted underline-offset-4 transition-colors hover:text-ink"
-      >
-        {hero.installAlt} ↗
-      </a>
-    </div>
-
   </div>
-
-  <a href="#audit" class="hero-scroll" aria-label="Scroll to the audit">
-    <svg
-      width="22"
-      height="22"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="2"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M6 9l6 6 6-6"></path>
-    </svg>
-  </a>
 </section>
 
 <style>
-  /* The eyebrow reads as three claims separated by dots; on a phone the
-     middle one wraps it into a shouting three-line pill — keep the first and
-     last claims only. */
-  @media (max-width: 639px) {
-    .eyebrow-mid {
-      display: none;
-    }
-  }
-  /* The narrowest phones keep the first claim only — the others already live
-     in the subtitle and the install note right below. */
-  @media (max-width: 399px) {
-    .eyebrow-end {
-      display: none;
-    }
-  }
-
   .hero-grid {
     position: absolute;
     inset: -2px;
@@ -175,124 +72,4 @@ const rules = [
     filter: blur(40px);
     pointer-events: none;
   }
-
-  /* --- the five rules, previewed as chips: same slugs the Demo tabs and the
-     Catches cards use, colour-coded by confidence tier, deep-linking down to
-     their card. They pop in just after the rest of the hero settles. --- */
-  .hero-rules {
-    list-style: none;
-    padding: 0;
-  }
-  .hero-rule-chip a {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.45em;
-    border-radius: 999px;
-    border: 1px solid var(--line-2);
-    background: color-mix(in srgb, var(--panel) 55%, transparent);
-    padding: 0.32em 0.8em;
-    font-family: var(--font-mono);
-    font-size: 0.72rem;
-    color: var(--ink-dim);
-    text-decoration: none;
-    backdrop-filter: blur(4px);
-    transition:
-      border-color 0.2s,
-      color 0.2s,
-      background-color 0.2s;
-  }
-  .hero-rule-chip a:hover,
-  .hero-rule-chip a:focus-visible {
-    color: var(--ink);
-    border-color: var(--line-2);
-    background: var(--panel);
-  }
-  .hero-rule-chip a::before {
-    content: '';
-    width: 5px;
-    height: 5px;
-    border-radius: 999px;
-    background: var(--amber);
-    box-shadow: 0 0 6px color-mix(in srgb, var(--amber) 70%, transparent);
-  }
-  .hero-rule-chip[data-tier='flag'] a::before {
-    background: var(--flag);
-    box-shadow: 0 0 6px color-mix(in srgb, var(--flag) 70%, transparent);
-  }
-  :global(.js) .hero-rule-chip {
-    opacity: 0;
-    transform: translateY(6px) scale(0.94);
-  }
-  .reveal.is-visible .hero-rule-chip {
-    animation: hero-chip-in 0.5s var(--ease-out-expo) forwards;
-    animation-delay: calc(0.5s + var(--i) * 90ms);
-  }
-  @keyframes hero-chip-in {
-    to {
-      opacity: 1;
-      transform: none;
-    }
-  }
-
-  /* a discreet "there's more below" cue for the full-screen hero */
-  .hero-scroll {
-    position: absolute;
-    bottom: 1.4rem;
-    left: 50%;
-    translate: -50% 0;
-    color: var(--muted);
-    opacity: 0;
-    animation:
-      hero-scroll-in 0.6s ease 0.9s forwards,
-      hero-bob 2.2s ease-in-out 1.5s infinite;
-    transition: color 0.2s;
-  }
-  .hero-scroll:hover {
-    color: var(--ember-bright);
-  }
-  @keyframes hero-scroll-in {
-    to {
-      opacity: 0.75;
-    }
-  }
-  @keyframes hero-bob {
-    0%,
-    100% {
-      translate: -50% 0;
-    }
-    50% {
-      translate: -50% 6px;
-    }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .hero-scroll {
-      animation: hero-scroll-in 0.4s ease 0.6s forwards;
-    }
-    .hero-rule-chip {
-      opacity: 1;
-      transform: none;
-      animation: none;
-    }
-  }
 </style>
-
-<script>
-  document.querySelectorAll<HTMLButtonElement>('.copy-install').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      const text = btn.dataset.copy ?? '';
-      try {
-        await navigator.clipboard.writeText(text);
-        const icon = btn.querySelector('.copy-icon');
-        if (icon) {
-          const prev = icon.textContent;
-          icon.textContent = '✓';
-          setTimeout(() => {
-            icon.textContent = prev;
-          }, 1400);
-        }
-      } catch {
-        /* clipboard unavailable */
-      }
-    });
-  });
-</script>

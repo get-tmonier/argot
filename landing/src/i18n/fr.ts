@@ -13,12 +13,12 @@ const fr: SiteContent = {
     docs: 'Docs',
   },
   hero: {
-    eyebrow: 'Revue ancrée dans le dépôt · audit d’abord · jugement humain',
+    eyebrow: 'Vérifications ancrées dans le dépôt',
     titleLead: 'Trouvez le code que votre dépôt',
     titleGradient: 'questionnerait.',
     subtitle:
-      'Commencez avec [[argot audit]] : la commande compare les changements acceptés à l’historique antérieur du dépôt, puis donne des éléments à examiner. Pour la récurrence, choisissez et configurez le chemin adapté à votre équipe.',
-    ctaPrimary: 'Voir l’audit',
+      'Auditez les changements acceptés face à l’historique du dépôt. Examinez les éléments, puis décidez.',
+    ctaPrimary: 'Commencer par un audit',
     ctaSecondary: 'Star sur GitHub',
     install: 'npm i -g @tmonier/argot',
     installNote:
@@ -29,7 +29,7 @@ const fr: SiteContent = {
   demo: {
     label: 'La deuxième question',
     title: 'Le type-checker demande si ça compile. argot demande si c’est le vôtre.',
-    body: 'Des PR propres et bien typées enterrent cette question. argot y répond au diff — [[voici sa vraie sortie]].',
+    body: 'Des PR propres et bien typées peuvent rester étrangères au dépôt. [[Voici sa vraie sortie.]]',
     tabs: [
       {
         id: 'foreign-import',
@@ -69,7 +69,7 @@ const fr: SiteContent = {
   trust: {
     label: 'L’autre mode de défaillance',
     title: 'L’agent qui ne sait pas corriger le code « corrige » le test.',
-    body: 'Le diff est propre, la CI repasse au vert — et votre filet de sécurité se troue [[exactement là où le code est le plus récent]]. argot associe le test affaibli au code qu’il couvre, et nomme les deux.',
+    body: 'Un check vert peut masquer un test affaibli. argot l’associe au code modifié et nomme les deux.',
     moves: [
       { name: 'le sauter', example: '@pytest.mark.skip("flaky")' },
       { name: 'le vider', example: 'assertions supprimées, test conservé' },
@@ -82,14 +82,13 @@ const fr: SiteContent = {
   audit: {
     label: 'Commencez ici',
     title: 'Auditez les changements acceptés avant d’en faire une habitude.',
-    body: '[[argot audit]] évalue le diff net base-vers-HEAD avec un fit historique. L’attribution par marqueurs de commit est un plancher, pas un recensement ; un signalement invite à examiner, il ne prouve jamais un défaut. Le reçu affiché est une [[fixture rédigée en deux commits]] dont la commande, la version, la sortie brute et le checksum sont commités.',
-    caption:
-      'Ensuite, [[argot init]] calibre le dépôt actuel et vous choisissez un chemin de vérification récurrent.',
+    body: '[[argot audit]] compare les changements acceptés à l’historique qui les précède. Un signalement invite à examiner, il ne prouve pas un défaut.',
+    caption: 'Ensuite, lancez [[argot init]] et choisissez un chemin de vérification récurrent.',
   },
   customRules: {
     label: 'Vos conventions',
     title: 'Voyez vos conventions — puis imposez-les.',
-    body: '[[argot conventions]] lit votre dépôt et vous montre ce qu’il fait déjà : son API partagée, et [[où vit chaque type de code]] — la validation dans les fichiers schema, l’accès base dans les migrations, la logique métier dans la couche service. Choisissez-en une et le sixième détecteur est à vous : un manifeste et un petit script dans .argot/rules/, n’importe quel langage, jusqu’aux [[.env qu’un linter n’ouvre jamais]].',
+    body: '[[argot conventions]] trouve l’API partagée et où vit le code. Transformez une convention en une petite règle testable.',
     points: [
       {
         title: 'Découvertes, pas devinées',
@@ -116,8 +115,8 @@ const fr: SiteContent = {
   },
   engine: {
     label: 'Sous le capot',
-    title: 'De la compréhension sémantique. Aucun LLM génératif nulle part.',
-    body: 'Quatre moteurs, un binaire [[Rust]] statique, tous appris de votre historique git — rien ne quitte votre machine.',
+    title: 'De la compréhension sémantique. Aucun LLM génératif dans le cœur.',
+    body: 'Quatre moteurs locaux, un binaire [[Rust]] statique, tous ancrés dans votre historique git.',
     cards: [
       {
         title: 'Un modèle d’embeddings de code sur votre laptop',
@@ -185,9 +184,10 @@ const fr: SiteContent = {
   setup: {
     label: 'Configuration · conçu pour les agents',
     title: 'De l’audit à une vérification récurrente que vous choisissez.',
-    body: 'Lancez [[argot init]] pour calibrer le dépôt, puis choisissez une CLI/skill invoquée, un hook de commit configuré par l’utilisateur, ou une Action GitHub configurée dans le workflow. Le plugin Claude peut demander avant une écriture qui introduit une dépendance étrangère dans un dépôt calibré ; ce n’est pas une vérification complète à l’acceptation.',
-    installLabel: 'Six skills à la demande pour les hôtes d’agents compatibles',
-    skillsIntro: 'six slash-commands que votre agent lance :',
+    body: 'Lancez [[argot init]], puis choisissez la CLI, les skills, un hook de commit ou une GitHub Action. Le plugin Claude ajoute une invite étroite avant écriture — pas une vérification complète à l’acceptation.',
+    installLabel: 'Installer la CLI',
+    skillsLabel: 'Ajouter les skills agent',
+    skillsIntro: 'six skills à la demande pour les hôtes compatibles :',
     skillDescs: [
       'lit votre arbre, écrit argot.toml, vérifie la détection',
       'score chaque diff, signale l’étranger — ne bloque jamais',
@@ -206,14 +206,14 @@ const fr: SiteContent = {
   ciScore: {
     label: 'En CI, sans la friction',
     title: 'Un signal PR ou push configuré dans le workflow.',
-    body: 'L’Action GitHub est [[non bloquante par défaut]] ; un workflow peut choisir une barrière. Une divergence intentionnelle reste une décision humaine, et un mute devient une trace d’audit.',
+    body: 'L’Action GitHub est [[non bloquante par défaut]]. Une divergence intentionnelle reste une décision humaine, enregistrée comme piste d’audit.',
     caption: 'Atterrit dans le résumé Actions, un commentaire de PR épinglé, et l’onglet Security.',
     badge:
       'Épinglez-le dans votre README — un [[badge en direct]] rafraîchi à chaque push. Chaque visiteur, chaque fork, voit que le dépôt parle toujours sa propre voix.',
   },
   cta: {
     title: 'Ajoutez la couche qui manque à votre CI.',
-    body: 'Open source sous licence MIT. Auditez d’abord, calibrez ensuite un dépôt et choisissez le chemin de vérification à lancer.',
+    body: 'Open source sous licence MIT. Auditez d’abord, puis choisissez la vérification récurrente adaptée à votre workflow.',
     primary: 'Commencer',
     secondary: 'Voir sur GitHub',
   },

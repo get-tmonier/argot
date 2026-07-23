@@ -20,7 +20,7 @@ const { cta } = content;
       {cta.title}
     </h2>
     <p class="relative mx-auto mt-5 max-w-xl leading-relaxed text-ink-dim text-pretty">{cta.body}</p>
-    <div class="relative mt-9 flex flex-wrap justify-center gap-3">
+    <div class="relative mt-9 flex flex-col items-center gap-4">
       <a
         href={localePath('/docs/', locale)}
         class="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-ember to-ember-deep px-6 py-3 text-sm font-semibold text-bg shadow-lg shadow-ember/20 transition-transform hover:-translate-y-0.5"
@@ -31,7 +31,7 @@ const { cta } = content;
         href={SITE.github}
         target="_blank"
         rel="noopener"
-        class="inline-flex items-center gap-2 rounded-xl border border-line bg-bg-2/60 px-6 py-3 text-sm font-semibold transition-colors hover:border-line-2"
+        class="text-sm font-medium text-muted underline decoration-dotted underline-offset-4 transition-colors hover:text-ink"
       >
         {cta.secondary}
       </a>
