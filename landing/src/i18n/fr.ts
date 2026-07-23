@@ -4,7 +4,7 @@ const fr: SiteContent = {
   meta: {
     title: 'argot — trouvez le code que votre dépôt questionnerait',
     description:
-      'Auditez votre historique, puis vérifiez les changements face aux usages déjà établis par votre dépôt. Argot présente des éléments pour le jugement humain.',
+      'Un analyseur statistique de code construit à partir de l’historique de votre dépôt. Auditez les changements acceptés et examinez les éléments.',
   },
   nav: {
     demo: 'Démo',
@@ -14,10 +14,9 @@ const fr: SiteContent = {
   },
   hero: {
     eyebrow: 'Vérifications ancrées dans le dépôt',
-    titleLead: 'Trouvez le code que votre dépôt',
-    titleGradient: 'questionnerait.',
-    subtitle:
-      'Auditez les changements acceptés face à l’historique du dépôt. Examinez les éléments, puis décidez.',
+    titleLead: 'Un analyseur statistique de code',
+    titleGradient: 'construit à partir de l’historique de votre dépôt.',
+    subtitle: 'Auditez les changements acceptés. Examinez les éléments, puis décidez.',
     ctaPrimary: 'Commencer par un audit',
     ctaSecondary: 'Star sur GitHub',
     install: 'npm i -g @tmonier/argot',
@@ -218,7 +217,7 @@ const fr: SiteContent = {
     secondary: 'Voir sur GitHub',
   },
   footer: {
-    tagline: 'Un linter de voix pour les règles non écrites.',
+    tagline: 'Un analyseur statistique de code construit à partir de l’historique de votre dépôt.',
     builtBy: 'Créé par Damien Meur',
     docs: 'Docs',
     npm: 'npm',

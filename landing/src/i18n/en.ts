@@ -4,7 +4,7 @@ const en: SiteContent = {
   meta: {
     title: 'argot — find code your repository would question',
     description:
-      'Audit your history, then check changes against patterns your repository already established. Argot presents evidence for human judgment.',
+      "A statistical code analyzer built from your repository's history. Audit accepted changes and review the evidence.",
   },
   nav: {
     demo: 'Demo',
@@ -14,10 +14,9 @@ const en: SiteContent = {
   },
   hero: {
     eyebrow: 'Repository-grounded checks',
-    titleLead: 'Find the code your repository',
-    titleGradient: 'would question.',
-    subtitle:
-      'Audit accepted changes against your repository’s history. Review the evidence, then decide.',
+    titleLead: 'A statistical code analyzer',
+    titleGradient: "built from your repository's history.",
+    subtitle: 'Audit accepted changes. Review the evidence, then decide.',
     ctaPrimary: 'Start with an audit',
     ctaSecondary: 'Star on GitHub',
     install: 'npm i -g @tmonier/argot',
@@ -219,7 +218,7 @@ const en: SiteContent = {
     secondary: 'View on GitHub',
   },
   footer: {
-    tagline: 'A voice linter for the unwritten rules.',
+    tagline: "A statistical code analyzer built from your repository's history.",
     builtBy: 'Built by Damien Meur',
     docs: 'Docs',
     npm: 'npm',
