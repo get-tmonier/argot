@@ -9,6 +9,7 @@ for (const route of routes) {
       isMobile,
       'mobile layouts are covered by the recorded responsive matrix and navigation smoke',
     );
+    await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto(route);
     const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
     expect(
