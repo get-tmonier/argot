@@ -431,6 +431,13 @@ struct LangConfig {
     convention_bonus: f64,
     import_modules: Vec<String>,
     import_module_prefixes: Vec<String>,
+    /// Modules imported *only* by `[exclude].check-only` files (the repo's
+    /// tests, by default) — the vocabulary those files are judged against, on
+    /// top of `import_modules`. Never consulted for a voice-corpus file, so a
+    /// test-only dependency stays foreign in production code. Omitted when
+    /// empty, keeping a repo with no such files byte-identical.
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    check_only_import_modules: Vec<String>,
     calibration: CalibrationMeta,
     evidence_corpus: EvidenceCorpusJson,
     /// Fingerprint of `model` (deterministic serialization → stable hash).
@@ -1024,6 +1031,25 @@ pub fn run_calibrate(
     // against. Byte-identical to a working-tree read on a clean checkout.
     let head = HeadSource::new(repo_dir);
 
+    // `[exclude].check-only` files (tests, by default): outside the corpus, so
+    // they never reach BPE, the call-receiver clusters, typicality or the
+    // threshold candidates — their *style* is not learned. Only their import
+    // specifiers are harvested, per language, so a library only these files use
+    // stops reading as foreign when one of them is checked. A membership set,
+    // not a distribution: three such files are enough for the three imports
+    // they name, and none at all leaves the model exactly as it was.
+    let t_vocab = argot_engine::timing::phase("calibrate: check-only vocabulary");
+    let mut check_only_by_lang: BTreeMap<&'static str, Vec<PathBuf>> = BTreeMap::new();
+    for f in argot_engine::corpus::walk_corpus(repo_dir, &path_suppressions).check_only {
+        if let Some(lang) = language_for_filename_ctx(&basename(&f), header_cpp) {
+            check_only_by_lang
+                .entry(language_name(lang))
+                .or_default()
+                .push(f);
+        }
+    }
+    t_vocab.done();
+
     // Supersession mining: one bounded walk of the accepted first-parent
     // history, shared by every language below. Paths the corpus excludes
     // never shape supersessions either (lock-step principle).
@@ -1112,6 +1138,21 @@ pub fn run_calibrate(
         import_modules.sort_by(|a, b| counts[b].cmp(&counts[a]).then_with(|| a.cmp(b)));
         let mut import_module_prefixes: Vec<String> = resolved.prefixes.into_iter().collect();
         import_module_prefixes.sort();
+        // Only what the check-only files ADD: storing the difference keeps the
+        // artifact small and makes the field self-describing — it is exactly
+        // "the vocabulary the tests contribute".
+        let mut check_only_import_modules: Vec<String> = check_only_by_lang
+            .get(name)
+            .map(|files| {
+                let mut extra: HashSet<String> = HashSet::new();
+                for source in files.iter().filter_map(|p| head.read(p)) {
+                    extra.extend(adapter.extract_imports(&source));
+                }
+                extra.retain(|m| !counts.contains_key(m));
+                extra.into_iter().collect()
+            })
+            .unwrap_or_default();
+        check_only_import_modules.sort();
         let mut call_receiver = CallReceiverScorer::new(
             corpus,
             language,
@@ -1390,6 +1431,7 @@ pub fn run_calibrate(
                 },
                 import_modules,
                 import_module_prefixes,
+                check_only_import_modules,
                 calibration: CalibrationMeta {
                     n_cal: effective_n_cal,
                     seed: opts.seed,

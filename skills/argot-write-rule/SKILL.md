@@ -94,6 +94,15 @@ substitutes for the fixture gate: the harness is what catches over-fire
    - **`file.old_text` / `changeset_paths()`** give the pre-image text and the
      other paths in the same change, for coupled-file rules (*"this file
      changed but its sibling didn't"*).
+   - **`read_repo_file(path)` / `repo_paths(glob)`** (host API 2 — set
+     `api = 2` in `[engine]`) read the *rest of the repo*, not just the
+     changed file: the contract a backend must answer, the schema a migration
+     belongs to, the API description a route should appear in. Read-only,
+     refused outside the repo root, and metered. Prefer them over inlining the
+     other file's contents as a constant — a copied list goes stale silently,
+     and the rule keeps passing while it does. These **do** work in
+     `argot rules test`: repo access is rooted at the fixture case directory,
+     so ship the sibling files next to `input.<ext>`.
 
 3. **Scaffold `.argot/rules/<name>/`** — `rule.toml` (`schema = 1`, `name`
    matching the directory) and `check.rhai`. **Scope in the manifest, not the
@@ -104,18 +113,35 @@ substitutes for the fixture gate: the harness is what catches over-fire
    about the *pattern*, never about *which files run* — that belongs in the
    manifest, where a reader sees the scope at a glance.
 
-4. **Fixtures first, then the script** — this is the gate above. Create
+4. **Start from a working example rather than a blank file.** The argot
+   repository ships copyable rules under `examples/rules/` — `route-documented`
+   (reads the committed OpenAPI description) and `contract-answered` (a member
+   added to a shared contract must be answered by every implementation). Both
+   carry a firing and a silent fixture and are covered by argot's own tests.
+
+   Two traps that cost real time when writing the script:
+   - **`trim()`, `replace()` and friends mutate in place and return `()`.**
+     `let t = line.to_lower().trim();` leaves `t` as `()` and every later call
+     on it fails with *"Function not found: starts_with (())"*. Write
+     `let t = line.to_lower(); t.trim();`.
+   - **The sandbox stops a script at 1M operations per file.** A per-character
+     scan of a large source will hit it. Work line by line, prefer `contains` /
+     `index_of` (one native op) over interpreted loops. When a rule trips a cap
+     argot prints it on **stderr** and disables the rule for that run — if a rule
+     you expect goes quiet, read stderr before believing the silence.
+
+5. **Fixtures first, then the script** — this is the gate above. Create
    `tests/<case>/{input.<ext>, expected.json}` for the firing case and the
    silent case (add an `old.<ext>` sibling too if the rule reads
    `ts_query_old` for what a change *removed*). Loop
    `argot rules test <name>` until every case is green.
 
-5. **Verify live.** Reproduce the violation in a real (throwaway) diff and
+6. **Verify live.** Reproduce the violation in a real (throwaway) diff and
    run `argot check`. Confirm the finding's message points at the repo's
    canonical example — the fix should be one hop away, not a guess. Then
    revert the throwaway diff.
 
-6. **Finish.** Run `argot rules test <name>` one last time if the script
+7. **Finish.** Run `argot rules test <name>` one last time if the script
    changed since the last green run. Show the user `argot rules` so they see
    the new entry in the repo's vocabulary, group `custom`. Tell them the rule
    ships in `.argot/rules/<name>/` — committed, so every contributor and CI

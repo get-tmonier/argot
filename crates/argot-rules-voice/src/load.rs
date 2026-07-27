@@ -97,6 +97,7 @@ fn py_repr(v: &Value) -> String {
 pub(super) fn load_scorers(
     argot_dir: &Path,
     detect: &DetectConfig,
+    check_only_patterns: &[String],
 ) -> Result<Loaded, (String, i32)> {
     let generic_baseline_json = argot_dir.join("generic-baseline.json");
     let config_json = argot_dir.join("scorer-config.json");
@@ -231,6 +232,8 @@ pub(super) fn load_scorers(
             convention_bonus: get_f64("convention_bonus", 5.0),
             import_modules: get_strings("import_modules"),
             import_module_prefixes: get_strings("import_module_prefixes"),
+            check_only_import_modules: get_strings("check_only_import_modules"),
+            check_only_patterns: check_only_patterns.to_vec(),
             // Parse the optional `evidence_corpus` block. Evidence is optional:
             // a config without the block simply renders no `↳` evidence lines,
             // so the pre-evidence check goldens stay byte-identical.
@@ -439,10 +442,16 @@ pub struct SupersededMatch {
 
 impl RepoScorers {
     /// Load from a repo's `.argot/`. `detect` is the repo's `[detect]` config
-    /// (governs the check-time auto-generated skip). The error carries a
-    /// human-readable message (e.g. "run `argot fit` first").
-    pub fn load(argot_dir: &Path, detect: &DetectConfig) -> std::result::Result<Self, String> {
-        let loaded = load_scorers(argot_dir, detect).map_err(|(msg, _)| msg)?;
+    /// (governs the check-time auto-generated skip) and `check_only_patterns`
+    /// its `[exclude].check-only` globs. The error carries a human-readable
+    /// message (e.g. "run `argot fit` first").
+    pub fn load(
+        argot_dir: &Path,
+        detect: &DetectConfig,
+        check_only_patterns: &[String],
+    ) -> std::result::Result<Self, String> {
+        let loaded =
+            load_scorers(argot_dir, detect, check_only_patterns).map_err(|(msg, _)| msg)?;
         Ok(RepoScorers {
             scorers: loaded.scorers,
             model_hash: loaded.model_hash,

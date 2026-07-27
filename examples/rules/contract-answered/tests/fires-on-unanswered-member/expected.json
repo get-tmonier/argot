@@ -1,0 +1,1 @@
+[{"line": 1, "message": "windows/mseguiintf.pas does not answer gui_setopaqueregion — every backend that includes this contract must implement it"}]

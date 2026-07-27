@@ -40,6 +40,6 @@ pub use glob::fnmatch;
 pub use hit_hash::hit_hash;
 pub use inline::{parse_inline, InlineRule, InlineSuppressions, InlineWarning};
 pub use last_check::{read_last_check, write_last_check, LastCheckHit, LAST_CHECK_FILE};
-pub use mute::{mute_hash, DEFAULT_MUTE_REASON};
+pub use mute::{mute_hash, mute_path, DEFAULT_MUTE_REASON};
 pub use path_rules::{recommended_excluded, rel_string, PathScope, PathSuppressions};
 pub use rules_file::{build_mutes, RawMute, SuppressionRule, SuppressionsFile};

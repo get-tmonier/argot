@@ -97,8 +97,14 @@ in-voice option exists, prefer it. If the foreign choice is deliberate (adopting
 a new dependency repo-wide), **record the decision** so the noise stops:
 
 ```
-argot mute <hash> --reason "adopting axios repo-wide"
+argot mute <hash> --reason "adopting axios repo-wide"          # this hit only
+argot mute --path 'src/legacy/**' --rule foreign-import \
+           --reason "legacy tree, migrating in Q3"             # a standing rule
 ```
+
+A hash mute is **per hit**: the same finding in a sibling file has its own hash
+and stays flagged. When the decision covers a tree, use `--path` — otherwise you
+end up committing one mute per file.
 
 ## When a hit is a false positive
 
@@ -111,7 +117,8 @@ optionally scoped to one rule or group:
 ```
 
 See [Configure](https://argot.tmonier.com/docs/configure/) for all three
-suppression surfaces. Housekeeping: `argot list-mutes` shows every active
+suppression surfaces, and [llms.txt](https://argot.tmonier.com/llms.txt) for the
+agent-readable docs mirror. Housekeeping: `argot list-mutes` shows every active
 suppression; `argot review-mutes` reports which ones no longer fire
 (`--prune` removes them).
 
@@ -140,8 +147,9 @@ isn't allowed outside the query builder"), you can write the rule yourself:
 
 1. Create `.argot/rules/<name>/rule.toml` (`schema = 1`, `name` matching the directory,
    `languages` scoped to where the convention applies) and `check.rhai` (a `ts_query(...)` loop
-   calling `report`/`report_span` — host API v1: `file`, `hunks`, `ts_query`,
-   `import_attested`/`callee_attested`, `changeset_paths`).
+   calling `report`/`report_span` — host API v2: `file`, `hunks`, `ts_query`,
+   `import_attested`/`callee_attested`, `changeset_paths`, and — with `api = 2` in
+   `[engine]` — `read_repo_file`/`repo_paths` for rules that must read another file).
 2. Add `tests/<case>/{input.<ext>, expected.json}` fixtures — at least one that should fire and
    one that shouldn't.
 3. Loop `argot rules test <name>` until every case passes, then let a real `argot check` confirm

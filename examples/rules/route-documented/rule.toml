@@ -1,0 +1,12 @@
+[rule]
+schema = 1
+name = "route-documented"
+label = "route missing from the API description"
+description = "a route registered under src/routes must appear in the committed openapi.yaml"
+languages = ["typescript"]
+severity = "warn"
+include = ["src/routes/**"]
+
+[engine]
+api = 2
+script = "check.rhai"

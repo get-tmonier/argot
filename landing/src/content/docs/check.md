@@ -39,8 +39,12 @@ named existing function, and treat an intentional exception as a human decision.
 requires a meaningful reason:
 
 ```bash
-argot mute <hash> --reason "intentional parallel implementation"
+argot mute <hash> --reason "intentional parallel implementation"     # this hit only
+argot mute --path 'src/legacy/**' --rule redundant --reason "…"      # a standing rule
 ```
+
+A hash mute covers **that hit alone** — the same finding in a sibling file has its own hash. Reach
+for `--path` when the decision covers a tree, or you will be committing one mute per file.
 
 See [Configure](/docs/configure/) for severities, machine-format fields, inline suppressions, and
 locked rules.

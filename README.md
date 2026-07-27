@@ -68,7 +68,9 @@ current detector composition can surface a foreign dependency/API/idiom, a
 function that duplicates one already present, code placed away from its peers,
 an internal import that reverses a learned direction, or a test weakened,
 disabled, or deleted alongside the production change it covers. Repositories
-can also add their own versioned scripted rules.
+can also add their own versioned scripted rules — a TOML manifest plus a
+sandboxed Rhai script under `.argot/rules/`, with working ones to copy in
+[`examples/rules/`](examples/rules/).
 
 Each finding carries repository evidence. Treat it as a prompt to inspect and
 make the human decision explicit—never as proof that the code is wrong.

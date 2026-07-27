@@ -1,6 +1,6 @@
 //! The Rhai host — sandboxed execution of one rule's script over one file.
 //!
-//! The contract with rule authors (host API v1):
+//! The contract with rule authors (host API v2):
 //! - The script's top-level statements run once per in-scope changed file.
 //! - In scope: `file` (a map: `path`, `language` — `""` for a file argot
 //!   doesn't score, `ext`, `new_text`, `old_text` —
@@ -12,15 +12,20 @@
 //!   → array of `#{capture, text, line, end_line}` matches),
 //!   `import_attested(module)` / `callee_attested(name)` (the fitted voice
 //!   model's learned facts for this file's language),
-//!   `changeset_paths()` (every path in the changeset), and
+//!   `changeset_paths()` (every path in the changeset),
+//!   `read_repo_file(path)` / `repo_paths(glob)` (host API v2 — read-only
+//!   access to the rest of the repository, for rules about *two* files), and
 //!   `report(line, message)` / `report_span(start, end, message, opts)`
 //!   (`opts` map: optional `evidence` array, optional `symbol`).
 //!
-//! Sandbox: no filesystem, no network, no module imports (Rhai's core has
-//! none, and `print`/`debug` are captured, never reaching stdout). Runaway
-//! scripts trip hard operation / depth / size caps or the per-file
-//! wall-clock budget; the caller disables the rule for the rest of the run.
+//! Sandbox: no writes, no network, no module imports (Rhai's core has none,
+//! and `print`/`debug` are captured, never reaching stdout). Repository reads
+//! are read-only, refused outside the root, and bounded by a per-file read
+//! budget (see [`crate::repo`]). Runaway scripts trip hard operation / depth /
+//! size caps or the per-file wall-clock budget; the caller disables the rule
+//! for the rest of the run.
 
+use crate::repo::{RepoFiles, MAX_PATHS_CALLS, MAX_READS, MAX_TOTAL_READ_BYTES};
 use argot_engine::detector::ModelFacts;
 use rhai::{Array, Dynamic, Engine, Map, Scope, AST};
 use std::cell::RefCell;
@@ -33,10 +38,45 @@ use streaming_iterator::StreamingIterator;
 const MAX_OPERATIONS: u64 = 1_000_000;
 /// Call-depth cap (recursion guard).
 const MAX_CALL_LEVELS: usize = 32;
+/// Expression-nesting caps, at Rhai's release defaults. Pinned so a script
+/// compiles identically whichever profile built argot (see
+/// [`sandboxed_engine`]).
+const MAX_EXPR_DEPTH: usize = 64;
+const MAX_FUNCTION_EXPR_DEPTH: usize = 32;
 /// Wall-clock budget per (rule, file). The operation cap remains the primary
 /// guard for interpreted loops; this allowance also covers scheduler pauses
 /// around native tree-sitter callbacks on slower CI runners.
 pub const FILE_BUDGET: Duration = Duration::from_millis(500);
+
+/// Repository-read allowance for one (rule, file) run. Exhausting it degrades
+/// the reads to `()` / `[]` — the rule keeps running on what it already has,
+/// which is the same failure shape as an unresolvable `ts_query`.
+#[derive(Default)]
+struct ReadBudget {
+    reads: usize,
+    bytes: usize,
+    listings: usize,
+}
+
+impl ReadBudget {
+    fn allow_read(&mut self) -> bool {
+        if self.reads >= MAX_READS || self.bytes >= MAX_TOTAL_READ_BYTES {
+            return false;
+        }
+        self.reads += 1;
+        true
+    }
+    fn charge(&mut self, bytes: usize) {
+        self.bytes = self.bytes.saturating_add(bytes);
+    }
+    fn allow_listing(&mut self) -> bool {
+        if self.listings >= MAX_PATHS_CALLS {
+            return false;
+        }
+        self.listings += 1;
+        true
+    }
+}
 
 /// One `report(...)` from a script.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -75,6 +115,11 @@ fn sandboxed_engine() -> Engine {
     let mut engine = Engine::new();
     engine.set_max_operations(MAX_OPERATIONS);
     engine.set_max_call_levels(MAX_CALL_LEVELS);
+    // Pinned, not left to Rhai's defaults: those are lower under
+    // `debug_assertions`, so an unpinned engine accepts a script in the shipped
+    // binary and rejects it in a debug build. What a rule is allowed to express
+    // must not depend on how argot was compiled.
+    engine.set_max_expr_depths(MAX_EXPR_DEPTH, MAX_FUNCTION_EXPR_DEPTH);
     engine.set_max_string_size(1 << 20);
     engine.set_max_array_size(100_000);
     engine.set_max_map_size(10_000);
@@ -92,6 +137,7 @@ pub fn run_on_file(
     file: &FileInput<'_>,
     changeset_paths: Vec<String>,
     facts: Option<Arc<dyn ModelFacts>>,
+    repo: Option<Rc<dyn RepoFiles>>,
 ) -> Result<Vec<ScriptFinding>, String> {
     let mut engine = sandboxed_engine();
 
@@ -198,6 +244,43 @@ pub fn run_on_file(
                 .map(|p| Dynamic::from(p.clone()))
                 .collect()
         });
+    }
+    // read_repo_file(path) / repo_paths(glob) — host API v2. Read-only, inside
+    // the root only, and metered: a rule that reads the tree in a loop runs out
+    // of budget and gets `()` rather than turning every check into a disk scan.
+    {
+        let budget = Rc::new(RefCell::new(ReadBudget::default()));
+        {
+            let repo = repo.clone();
+            let budget = budget.clone();
+            engine.register_fn("read_repo_file", move |path: &str| -> Dynamic {
+                let Some(repo) = repo.as_ref() else {
+                    return Dynamic::UNIT;
+                };
+                if !budget.borrow_mut().allow_read() {
+                    return Dynamic::UNIT;
+                }
+                match repo.read(path) {
+                    Some(text) => {
+                        budget.borrow_mut().charge(text.len());
+                        Dynamic::from(text)
+                    }
+                    None => Dynamic::UNIT,
+                }
+            });
+        }
+        {
+            let budget = budget.clone();
+            engine.register_fn("repo_paths", move |glob: &str| -> Array {
+                let Some(repo) = repo.as_ref() else {
+                    return Array::new();
+                };
+                if !budget.borrow_mut().allow_listing() {
+                    return Array::new();
+                }
+                repo.paths(glob).into_iter().map(Dynamic::from).collect()
+            });
+        }
     }
 
     let mut scope = Scope::new();

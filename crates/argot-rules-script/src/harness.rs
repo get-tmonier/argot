@@ -194,7 +194,11 @@ fn run_case(rule: &ScriptRule, ast: &rhai::AST, dir: &Path) -> CaseResult {
         old_text: old_source.as_deref(),
         hunks: &[(1, lines)],
     };
-    let got = match host::run_on_file(ast, &file, vec![file.path.to_string()], None) {
+    // Repo access is rooted at the case directory, so a fixture can ship the
+    // sibling files its rule reads — the cross-file analogue of `old.<ext>`.
+    let repo: std::rc::Rc<dyn crate::repo::RepoFiles> =
+        std::rc::Rc::new(crate::repo::RepoRoot::open(dir));
+    let got = match host::run_on_file(ast, &file, vec![file.path.to_string()], None, Some(repo)) {
         Ok(v) => v,
         Err(e) => return fail(format!("script failed: {e}")),
     };

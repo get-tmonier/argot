@@ -17,12 +17,31 @@ findings behave exactly like a built-in's: the same rule name in every output fo
 `[rules]`/`--rule` severity knobs, the same inline-comment and `[[mute]]` suppression surfaces —
 all under one new group, `custom`.
 
+## Start from a working example
+
+The repository ships rules you can copy, one directory each, under
+[`examples/rules/`](https://github.com/get-tmonier/argot/tree/main/examples/rules):
+
+| rule | language | shows |
+|---|---|---|
+| `route-documented` | typescript | `read_repo_file` — a route must appear in the committed `openapi.yaml` |
+| `contract-answered` | pascal | `read_repo_file` + `repo_paths` + `ts_query_old` — a member added to a shared contract must be answered by every implementation of it |
+
+```sh
+cp -r examples/rules/route-documented /path/to/repo/.argot/rules/
+cd /path/to/repo && argot rules test route-documented
+```
+
+Their fixtures run in argot's own test suite, so they cannot rot: a host-API
+change that breaks one breaks the build. Copy, then make it yours — the paths,
+the severity and the message belong to the repository that runs it.
+
 ## Layout
 
 ```text
 .argot/rules/no-raw-sql/
   rule.toml          # identity, severity, language scope, host-API generation
-  check.rhai         # the detection logic — sandboxed Rhai, host API v1
+  check.rhai         # the detection logic — sandboxed Rhai, host API v2
   tests/             # fixtures for `argot rules test` (see below)
     fires-on-execute/
       input.py
@@ -65,7 +84,7 @@ script = "check.rhai"      # optional — script path, relative to the rule dir;
 | `rule.languages` | no | every language | Restrict to these **scored** languages — `python`, `typescript`, `javascript`, `go`, `rust`, `java`, `csharp`, `php`, `cpp`, `ruby`, `c`, `pascal` (see [Languages](/docs/languages/)). This gate is over *supported source files only*; it can't reach a `.env` — that's what `include` is for. |
 | `rule.include` | no | (none) | Repo-relative **path globs** (dialect: `*`/`**` cross `/`, `?`, `[abc]`). When set, the rule runs on any matching path — **including extensions argot doesn't score**. See *Which files a rule runs on*. |
 | `rule.exclude` | no | (none) | Path globs subtracted from the scope — even from the default language scope, so an `include`-less rule can still skip `**/*.test.ts`. |
-| `engine.api` | no | `1` | The host-API generation the script targets. A script asking for a newer generation than the binary provides is skipped, never half-run. |
+| `engine.api` | no | `1` | The host-API generation the script targets. A script asking for a newer generation than the binary provides is skipped, never half-run. `read_repo_file` / `repo_paths` need `api = 2`. |
 | `engine.script` | no | `check.rhai` | Script file, relative to the rule directory. |
 
 A manifest that fails to parse, names a schema or host-API generation this argot doesn't
@@ -104,7 +123,7 @@ A custom rule's **manifest** narrows or widens that scope with three fields:
 > That's a config-side filter on findings, covered in
 > [Configure → path-scoping a rule](/docs/configure/#path-scoping-a-rule).
 
-## Host API v1
+## Host API
 
 The script's top-level statements run once per in-scope changed file (see *Which files a rule
 runs on* above). Two read-only bindings are in scope:
@@ -125,12 +144,45 @@ And the host functions:
 | `import_attested(module)` | bool | Did the fitted voice model see this module imported anywhere in this language, at fit time? |
 | `callee_attested(name)` | bool | Same, for a called name. |
 | `changeset_paths()` | array of strings | Every path in the current changeset — for rules that need cross-file context (e.g. "flag X unless a sibling test file also changed"). |
+| `read_repo_file(path)` | string or `()` | **API 2.** The text of another file in the repository, repo-relative. `()` when it is missing, escapes the root, is not UTF-8, or exceeds 1 MiB. |
+| `repo_paths(glob)` | array of strings | **API 2.** Repo-relative paths the repository *contains* (git's index when the root is a repo, else a bounded walk) matching `glob` — the same dialect as `[[mute]].path`. Sorted. |
 | `report(line, message)` | — | Records one finding on a single line. |
 | `report_span(start, end, message, opts)` | — | Records one finding over a line range. `opts` is a map: optional `evidence` (array of strings, shown as the finding's evidence lines) and optional `symbol` (string). |
 
 `import_attested`/`callee_attested` reflect the fitted voice model — in `argot rules test`
 there is no fitted model, so both **always return `false`**; test the unattested path there
 and the attested path live.
+
+### Reading the rest of the repository (API 2)
+
+`ts_query` and `hunks` see the changed file. A whole family of conventions is about *two*
+files, though — a contract and the implementations that must answer it, a migration and the
+schema it belongs to, a route and its entry in the API description. Those need
+`read_repo_file` and `repo_paths`, so declare `api = 2` in the manifest.
+
+```rhai
+// Every backend under kernel/<platform>/ must answer every member of the contract.
+let contract = read_repo_file("lib/common/kernel/mseguiintf.inc");
+if contract != () {
+    let missing = [];
+    for line in contract.split("\n") {
+        // … collect the members the contract declares …
+    }
+}
+for backend in repo_paths("lib/common/kernel/*/mseguiintf.pas") {
+    // … and compare each sibling against them.
+}
+```
+
+The sandbox stays closed where it matters: reads are **read-only**, refused outside the
+repository root (`..`, absolute paths, and symlinks that leave it), capped at 1 MiB per file,
+and metered per checked file — 64 reads, 4 MiB, 16 listings. Past the budget the calls return
+`()` / `[]` and the rule keeps running, exactly like an unresolvable `ts_query`. A rule can
+read nothing its author's own clone does not already hold.
+
+Unlike the model facts, **these work in `argot rules test`**: repository access is rooted at
+the fixture case directory, so a case can ship the sibling files its rule reads next to
+`input.<ext>` — the cross-file analogue of `old.<ext>`.
 
 ## Worked example: `domain-imports-stay-inward`
 
@@ -279,7 +331,8 @@ exactly like a built-in rule:
 - **Severity:** `[rules] no-print = "warn"` (one rule) or `[rules] custom = "off"` (the whole
   group) in `argot.toml`, or `argot check --rule no-print=warn` per run.
 - **Inline suppression:** `# argot: ignore-next-line rule=no-print — legacy debug shim`.
-- **Durable mute:** `argot mute <hash> --reason "…"`, or a hand-written `[[mute]]` with
+- **Durable mute:** `argot mute <hash> --reason "…"` for one hit,
+  `argot mute --path <glob> --rule <name> --reason "…"` for a standing one, or a `[[mute]]` with
   `rule = "domain-imports-stay-inward"`.
 - **Output:** the rule name appears in human output, `--format json`'s `rule` field, and
   SARIF's `ruleId` — same as `foreign-import` or `redundant`.
@@ -316,6 +369,24 @@ The script runs in a stripped-down Rhai engine, not a general-purpose scripting 
 - **Degrade, never fail:** a script that fails to compile, trips a cap, or errors at runtime is
   **disabled for the rest of the run** with one diagnostic on stderr (`custom rule <name>: … —
   rule disabled for this run`) — it never takes down `check` itself, and never silently.
+
+## Two things that will bite you
+
+**`trim()`, `replace()` and friends mutate in place and return `()`.** This is
+Rhai, not Rust:
+
+```rhai
+let t = line.to_lower().trim();   // t is (), and every later call on it fails
+let t = line.to_lower(); t.trim(); // what you meant
+```
+
+**A cross-file rule costs real operations.** The sandbox stops a script at 1M
+operations per file, and a per-character scan of a large file will hit it — on a
+7 450-line source, stripping comments character by character does. Work line by
+line, and reach for `contains` / `index_of` (one native op) over interpreted
+loops. When a rule does trip a cap, argot says so on stderr and disables it for
+the run — if a rule you expect goes quiet, read stderr before believing the
+silence.
 
 ## The `argot rules test` harness
 

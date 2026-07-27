@@ -1,6 +1,51 @@
 //! The composition root: which rule groups this build wires into the engine.
 
 use argot_engine::detector::RegisteredDetector;
+use std::path::Path;
+
+/// The run's rule vocabulary: the built-in table plus whatever custom rules
+/// this build's groups discover under the repo's `.argot/`.
+///
+/// One entry point, because a rule name that resolves on `--rule` but not in
+/// `argot.toml` is a governance hole: the only actor who can weaken a rule
+/// would be the one it exists to constrain. Every command that reads `[rules]`,
+/// `[[mute]]` or a rule lock must build its vocabulary here — see
+/// [`load_config`], which pairs the two so they cannot drift.
+pub fn run_registry(repo_root: &Path, warnings: &mut Vec<String>) -> argot_engine::rules::Registry {
+    #[cfg(feature = "script")]
+    {
+        use argot_engine::detector::Detector as _;
+        let custom = argot_rules_script::ScriptDetector::new()
+            .vocabulary(&repo_root.join(".argot"), warnings);
+        argot_engine::rules::Registry::with_custom(custom, warnings)
+    }
+    #[cfg(not(feature = "script"))]
+    {
+        let _ = (repo_root, warnings);
+        argot_engine::rules::Registry::builtin().clone()
+    }
+}
+
+/// Load `argot.toml` against the run's full rule vocabulary, returning both so
+/// callers can keep validating with the same registry the config was parsed
+/// under. Prefer this over `ArgotConfig::load` anywhere rule names, locks or
+/// `[[mute]] rule =` selectors are read.
+///
+/// Discovery warnings land in the returned config's `warnings`, so a caller
+/// that already reports those reports these too.
+pub fn load_config(
+    repo_root: &Path,
+) -> (
+    argot_engine::config::ArgotConfig,
+    argot_engine::rules::Registry,
+) {
+    let mut warnings = Vec::new();
+    let registry = run_registry(repo_root, &mut warnings);
+    let mut config = argot_engine::config::ArgotConfig::load_with(repo_root, &registry);
+    warnings.extend(std::mem::take(&mut config.warnings));
+    config.warnings = warnings;
+    (config, registry)
+}
 
 pub(crate) fn default_detectors() -> Vec<RegisteredDetector<'static>> {
     // Order table (parity-critical): execution_rank runs additive passes

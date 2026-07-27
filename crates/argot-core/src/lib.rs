@@ -17,7 +17,7 @@
 //! `argot_core::...` path so existing callers (the CLI, the bench harness,
 //! this crate's own `tests/` integration suite) keep compiling unchanged.
 
-pub(crate) mod compose;
+pub mod compose;
 
 /// The rule-agnostic engine, re-exported at its historical paths so every
 /// existing `argot_core::{config,rules,output,git_walk,health,

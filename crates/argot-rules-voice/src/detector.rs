@@ -194,12 +194,22 @@ fn score_patches(
             } else {
                 scored.score
             };
-            let (mut flagged, threshold) = match new_file_threshold {
-                Some(t) => (reason == "import" || new_score >= t, t),
-                None => match lang.and_then(|l| slice_threshold(slices, l, &batch.file_path)) {
+            // A `[exclude].check-only` file (tests, by default) never entered
+            // the corpus, so no threshold here was calibrated on phrasing like
+            // its own — re-deciding against one would judge test style by
+            // production's distribution. Only the import verdict survives, and
+            // that one is a membership test the fit did learn for this scope.
+            let (mut flagged, threshold) = if scorer.is_check_only_file(Path::new(&batch.file_path))
+            {
+                (reason == "import", scored.threshold)
+            } else {
+                match new_file_threshold {
                     Some(t) => (reason == "import" || new_score >= t, t),
-                    None => (scored.flagged, scored.threshold),
-                },
+                    None => match lang.and_then(|l| slice_threshold(slices, l, &batch.file_path)) {
+                        Some(t) => (reason == "import" || new_score >= t, t),
+                        None => (scored.flagged, scored.threshold),
+                    },
+                }
             };
             // Per-changeset novel-import dedup: an import alert whose foreign
             // modules were all already alerted in this run is the same decision
@@ -293,12 +303,14 @@ impl Detector for VoiceDetector {
 
     /// Loads the fit-time model snapshot (`scorer-config.json` v3). A failure
     /// here fails the whole check — the base model is mandatory.
-    fn load(
-        &mut self,
-        argot_dir: &Path,
-        detect: &argot_engine::config::DetectConfig,
-    ) -> Result<(), (String, i32)> {
-        let loaded = load_scorers(argot_dir, detect)?;
+    fn load(&mut self, ctx: &argot_engine::detector::LoadContext<'_>) -> Result<(), (String, i32)> {
+        let check_only: Vec<String> = ctx
+            .path_suppressions
+            .check_only_patterns()
+            .into_iter()
+            .map(str::to_string)
+            .collect();
+        let loaded = load_scorers(ctx.argot_dir, ctx.detect, &check_only)?;
         self.info = Some(BaseModelInfo {
             model_hash: loaded.model_hash.clone(),
             fit_sha: loaded.fit_sha.clone(),

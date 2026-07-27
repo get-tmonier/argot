@@ -54,10 +54,46 @@ pub const DEFAULT_RECOMMENDED_PATTERNS: &[&str] = &[
     ".*rc.*",     // .babelrc.js
 ];
 
+/// The built-in `[exclude].check-only` set: paths that are checked like any
+/// other, but never shape the voice. `init` writes these into the config so
+/// they are visible and editable; the code carries no other default.
+///
+/// The default is the repo's tests, and it exists so the corpus walk carries no
+/// hardcoded notion of what a test looks like. It deliberately does *not*
+/// cover build or vendor trees — those are not authored code at all and are
+/// pruned structurally (see `corpus::EXCLUDE_DIRS`), not by a scope decision.
+///
+/// By default these same paths are also in [`DEFAULT_RECOMMENDED_PATTERNS`], so
+/// they are dropped from check entirely and this list only governs the corpus.
+/// A repo that wants its tests guarded removes them from `recommended` and
+/// leaves them here: they are then checked, argot learns their *dependency
+/// vocabulary* (so a library only the tests use stops reading as foreign) but
+/// never their *style*, and the voice reports only `foreign-import` on them.
+pub const DEFAULT_CHECK_ONLY_PATTERNS: &[&str] = &[
+    // Directories (matched at any depth).
+    "test/",
+    "tests/",
+    "__tests__/",
+    "benchmarks/",
+    // Files.
+    "test_*",   // test_foo.py
+    "*.test.*", // x.test.ts
+    "*.spec.*", // x.spec.js
+];
+
 /// The built-in recommended set as owned strings — the resolved default when
 /// `[exclude].recommended` is absent.
 pub fn default_recommended_patterns() -> Vec<String> {
     DEFAULT_RECOMMENDED_PATTERNS
+        .iter()
+        .map(|s| s.to_string())
+        .collect()
+}
+
+/// The built-in check-only set as owned strings — the resolved default when
+/// `[exclude].check-only` is absent.
+pub fn default_check_only_patterns() -> Vec<String> {
+    DEFAULT_CHECK_ONLY_PATTERNS
         .iter()
         .map(|s| s.to_string())
         .collect()
@@ -68,6 +104,17 @@ fn default_recommended_ignore() -> &'static [IgnorePattern] {
     static PARSED: OnceLock<Vec<IgnorePattern>> = OnceLock::new();
     PARSED.get_or_init(|| {
         DEFAULT_RECOMMENDED_PATTERNS
+            .iter()
+            .filter_map(|l| IgnorePattern::parse(l))
+            .collect()
+    })
+}
+
+/// The default check-only patterns, parsed once.
+fn default_check_only_ignore() -> &'static [IgnorePattern] {
+    static PARSED: OnceLock<Vec<IgnorePattern>> = OnceLock::new();
+    PARSED.get_or_init(|| {
+        DEFAULT_CHECK_ONLY_PATTERNS
             .iter()
             .filter_map(|l| IgnorePattern::parse(l))
             .collect()
@@ -169,6 +216,25 @@ impl IgnorePattern {
         };
         (1..=max_prefix).any(|k| segments_match(&self.segments, &parts[..k]))
     }
+
+    /// [`Self::matches`], but a bare name pattern with no trailing `/` names a
+    /// **file**, not any component at any depth.
+    ///
+    /// `[exclude].check-only` classifies each path as "shapes the voice" or
+    /// "only ever judged by it", and there the two readings genuinely differ:
+    /// `test_*` should catch `test_helpers.py` without swallowing rocksdb's
+    /// `test_util/` — a directory of production support code the voice has
+    /// always learned from. Directory patterns (`tests/`) and path-shaped ones
+    /// (`**/__tests__/**`) are unaffected, so the usual way of naming a tree
+    /// still reads the same.
+    fn matches_file_scoped(&self, parts: &[&str]) -> bool {
+        if !self.anchored && self.segments.len() == 1 && !self.dir_only {
+            return parts
+                .last()
+                .is_some_and(|name| fnmatch(name, &self.segments[0]));
+        }
+        self.matches(parts)
+    }
 }
 
 /// How a path resolved against the suppression set.
@@ -183,12 +249,15 @@ pub enum PathScope {
 }
 
 /// The resolved path-level suppression set: the `argot.toml` `[exclude]`
-/// `recommended` patterns (dropped silently) plus the `paths` patterns (scored
-/// but reported).
+/// `recommended` patterns (dropped silently), the `paths` patterns (scored but
+/// reported), and the `check-only` patterns (scored, but never learned from —
+/// orthogonal to the other two, so it is a predicate rather than a
+/// [`PathScope`] variant).
 #[derive(Debug, Clone)]
 pub struct PathSuppressions {
     recommended: Vec<IgnorePattern>,
     patterns: Vec<IgnorePattern>,
+    check_only: Vec<IgnorePattern>,
     /// True when an `argot.toml` backed these values (for display surfaces).
     pub from_file: bool,
 }
@@ -201,23 +270,31 @@ fn parse_patterns(lines: &[String]) -> Vec<IgnorePattern> {
 }
 
 impl PathSuppressions {
-    /// The built-in recommended set only — the behaviour of a repo with no
-    /// `argot.toml`.
+    /// The built-in recommended and check-only sets only — the behaviour of a
+    /// repo with no `argot.toml`.
     pub fn recommended() -> Self {
         PathSuppressions {
             recommended: default_recommended_ignore().to_vec(),
             patterns: Vec::new(),
+            check_only: default_check_only_ignore().to_vec(),
             from_file: false,
         }
     }
 
     /// Build from resolved `argot.toml` `[exclude]` values: the `recommended`
-    /// patterns (dropped silently) and the `paths` patterns (scored, reported).
-    /// `from_file` records whether a config file backed these values.
-    pub fn from_parts(recommended: &[String], patterns: &[String], from_file: bool) -> Self {
+    /// patterns (dropped silently), the `paths` patterns (scored, reported) and
+    /// the `check-only` patterns (scored, never learned from). `from_file`
+    /// records whether a config file backed these values.
+    pub fn from_parts(
+        recommended: &[String],
+        patterns: &[String],
+        check_only: &[String],
+        from_file: bool,
+    ) -> Self {
         PathSuppressions {
             recommended: parse_patterns(recommended),
             patterns: parse_patterns(patterns),
+            check_only: parse_patterns(check_only),
             from_file,
         }
     }
@@ -272,6 +349,33 @@ impl PathSuppressions {
             }
         }
         ignored
+    }
+
+    /// True when the path is checked but must never shape the voice
+    /// (`[exclude].check-only`). Orthogonal to [`Self::classify`]: a path can
+    /// be both in scope and check-only — that is the whole point — and a path
+    /// the recommended set already drops is simply never scored, so this
+    /// predicate is moot for it.
+    pub fn is_check_only(&self, rel_path: &str) -> bool {
+        let parts: Vec<&str> = rel_path.split('/').collect();
+        self.check_only
+            .iter()
+            .any(|p| p.matches_file_scoped(&parts))
+    }
+
+    /// [`Self::is_check_only`] for an absolute path under `root`. Paths outside
+    /// `root` never shape the voice, so they read as check-only.
+    pub fn is_check_only_abs(&self, path: &Path, root: &Path) -> bool {
+        match rel_string(path, root) {
+            Some(rel) => self.is_check_only(&rel),
+            None => true,
+        }
+    }
+
+    /// The `[exclude].check-only` patterns (raw lines, for display and for the
+    /// fitted model, which records them so check applies the fit's scope).
+    pub fn check_only_patterns(&self) -> Vec<&str> {
+        self.check_only.iter().map(|p| p.raw.as_str()).collect()
     }
 
     /// True when the path is suppressed by any surface.
@@ -399,7 +503,7 @@ mod tests {
             Vec::new()
         };
         let patterns: Vec<String> = lines.iter().map(|s| s.to_string()).collect();
-        PathSuppressions::from_parts(&rec, &patterns, true)
+        PathSuppressions::from_parts(&rec, &patterns, &default_check_only_patterns(), true)
     }
 
     #[test]
@@ -410,13 +514,13 @@ mod tests {
             .into_iter()
             .filter(|p| p != "test*/")
             .collect();
-        let s = PathSuppressions::from_parts(&rec, &[], true);
+        let s = PathSuppressions::from_parts(&rec, &[], &default_check_only_patterns(), true);
         assert!(!s.is_suppressed("tests/app.py"), "tests/ now in scope");
         assert!(s.is_suppressed("docs/x.py"), "docs/ still dropped");
         // Adding a repo-wide dir to the recommended set drops it silently.
         let mut rec2 = default_recommended_patterns();
         rec2.push("vendor/".to_string());
-        let s2 = PathSuppressions::from_parts(&rec2, &[], true);
+        let s2 = PathSuppressions::from_parts(&rec2, &[], &default_check_only_patterns(), true);
         assert_eq!(s2.classify("vendor/lib.rs"), PathScope::Recommended);
     }
 

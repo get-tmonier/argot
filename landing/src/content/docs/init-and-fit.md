@@ -14,7 +14,13 @@ argot init --suggest       # suggestions only; does not fit or edit configuratio
 argot init                 # refit after any reviewed configuration change
 argot fit                  # rebuild local artifacts only
 argot inspect              # inspect corpus composition and health
+argot inspect --corpus     # list the files that will shape the voice — before any fit
 ```
+
+`inspect` describes the corpus the fit will actually use: gitignored trees are named, never
+counted, so a dependency directory can never masquerade as part of your voice. `--corpus` prints
+that file list outright, which is the fastest way to check an exclusion decision **before**
+committing it.
 
 ## What each command writes
 

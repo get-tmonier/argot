@@ -281,6 +281,14 @@ fn publish_artifacts(worktree_root: &Path, repo: &Path) -> std::io::Result<()> {
             continue;
         }
         let name = entry.file_name();
+        // `.argot/.gitignore` is source, not a build artifact: a repo may have
+        // committed negations there (keeping `.argot/rules/` tracked, say).
+        // The worktree stands at the merge-base, so publishing its copy would
+        // silently revert edits made on the branch — and un-track the shared,
+        // reviewable half of an argot setup.
+        if name == ".gitignore" {
+            continue;
+        }
         let dst = to.join(&name);
         if name == "repo-corpus.txt" {
             // The fit canonicalizes paths, but cover the raw prefix too so a
@@ -333,8 +341,23 @@ mod tests {
         // Pre-existing local state that the worktree fit doesn't produce
         // must survive the publish untouched.
         std::fs::write(repo.join(".argot/last-check.json"), "[]").unwrap();
+        // The worktree stands at the merge-base, so it carries the scaffolded
+        // `.gitignore`; the repo's own is committed source, edited on the
+        // branch. Publishing must not revert it.
+        std::fs::write(wt.join(".argot/.gitignore"), "*\n").unwrap();
+        std::fs::write(
+            repo.join(".argot/.gitignore"),
+            "*\n\n!.gitignore\n!rules/\n!rules/**\n",
+        )
+        .unwrap();
 
         publish_artifacts(&wt, &repo).unwrap();
+
+        assert_eq!(
+            std::fs::read_to_string(repo.join(".argot/.gitignore")).unwrap(),
+            "*\n\n!.gitignore\n!rules/\n!rules/**\n",
+            "the repo's committed .argot/.gitignore is source, never republished"
+        );
 
         let corpus = std::fs::read_to_string(repo.join(".argot/repo-corpus.txt")).unwrap();
         assert!(

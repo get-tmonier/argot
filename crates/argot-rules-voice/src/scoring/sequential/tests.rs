@@ -21,6 +21,8 @@ fn config(threshold: f64) -> SequentialConfig {
         conventions: None,
         convention_bonus: 0.0,
         import_modules: vec!["math".to_string()],
+        check_only_import_modules: Vec::new(),
+        check_only_patterns: Vec::new(),
         import_module_prefixes: Vec::new(),
         evidence_corpus: None,
         detect: argot_engine::config::DetectConfig::default(),

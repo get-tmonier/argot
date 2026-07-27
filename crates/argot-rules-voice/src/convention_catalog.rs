@@ -21,6 +21,7 @@
 //! surfacing them needs a fit-time change — tracked separately.
 
 use crate::inspect::{inspect_model, ClusterView};
+use crate::scoring::supersede::{SupersessionKind, LEFTOVER_LIST_CAP};
 use anyhow::Result;
 use argot_lang::adapters::{adapter_for, Language, LanguageAdapter};
 use argot_lang::callees::non_none_callees;
@@ -122,6 +123,13 @@ pub struct DeclaredMigration {
     pub to: String,
     pub kind: String,
     pub reason: String,
+    /// Corpus files still using the old pattern. Declaring a migration is how
+    /// a repo asks for this list — it is the worklist for the follow-up PRs
+    /// that finish the move — so a declared migration reports it exactly like
+    /// a mined one.
+    pub leftover_count: usize,
+    /// The first [`LEFTOVER_LIST_CAP`] of them, repo-relative and sorted.
+    pub leftovers: Vec<String>,
 }
 
 /// The repo's conventions, per language.
@@ -142,10 +150,56 @@ pub struct ConventionCatalog {
 struct LangAcc {
     /// Repo-declared symbol names (callable_definitions), repo-wide.
     defined: HashSet<String>,
+    /// Repo-relative path of each entry in `files`, same order.
+    paths: Vec<String>,
     /// Per-file (source, internal bindings, third-party binding leads).
     files: Vec<(String, HashSet<String>, HashSet<String>)>,
     /// internal-import binding name → distinct file indices.
     binding_files: HashMap<String, HashSet<usize>>,
+}
+
+/// Corpus files still using `old`, for a migration declared in `argot.toml`.
+///
+/// The same presence test the mined side applies, over the same corpus walk —
+/// a declared migration and a mined one describe the same thing, so they must
+/// answer "what is left" the same way.
+fn declared_leftovers(
+    accs: &HashMap<&'static str, LangAcc>,
+    adapters: &HashMap<&'static str, Box<dyn LanguageAdapter>>,
+    old: &str,
+    kind: SupersessionKind,
+) -> (usize, Vec<String>) {
+    let mut leftovers: Vec<String> = Vec::new();
+    for (lang, acc) in accs {
+        let Some(adapter) = adapters.get(lang) else {
+            continue;
+        };
+        let Some(language) = Language::from_scoring_name(lang) else {
+            continue;
+        };
+        for (idx, (source, _, _)) in acc.files.iter().enumerate() {
+            if !source.contains(old) {
+                continue;
+            }
+            let present = match kind {
+                SupersessionKind::Import => {
+                    adapter.extract_imports(source).iter().any(|m| m == old)
+                }
+                SupersessionKind::Callee => {
+                    non_none_callees(source, language).iter().any(|c| c == old)
+                }
+            };
+            if present {
+                if let Some(path) = acc.paths.get(idx) {
+                    leftovers.push(path.clone());
+                }
+            }
+        }
+    }
+    leftovers.sort();
+    let leftover_count = leftovers.len();
+    leftovers.truncate(LEFTOVER_LIST_CAP);
+    (leftover_count, leftovers)
 }
 
 /// Build the convention catalog from a fitted repo (`.argot/scorer-config.json`)
@@ -201,6 +255,8 @@ pub fn build_catalog(repo_dir: &Path, top_n: usize) -> Result<ConventionCatalog>
         for b in &ib {
             acc.binding_files.entry(b.clone()).or_default().insert(idx);
         }
+        acc.paths
+            .push(argot_engine::corpus::rel_to_repo(&path, repo_dir));
         acc.files.push((src, ib, tp));
     }
 
@@ -234,14 +290,23 @@ pub fn build_catalog(repo_dir: &Path, top_n: usize) -> Result<ConventionCatalog>
         .migrations()
         .active
         .into_iter()
-        .map(|m| DeclaredMigration {
-            from: m.from,
-            to: m.to,
-            kind: match m.kind {
-                argot_engine::config::MigrationKind::Import => "import".to_string(),
-                argot_engine::config::MigrationKind::Callee => "callee".to_string(),
-            },
-            reason: m.reason,
+        .map(|m| {
+            let kind = match m.kind {
+                argot_engine::config::MigrationKind::Import => SupersessionKind::Import,
+                argot_engine::config::MigrationKind::Callee => SupersessionKind::Callee,
+            };
+            let (leftover_count, leftovers) = declared_leftovers(&accs, &adapters, &m.from, kind);
+            DeclaredMigration {
+                from: m.from,
+                to: m.to,
+                kind: match kind {
+                    SupersessionKind::Import => "import".to_string(),
+                    SupersessionKind::Callee => "callee".to_string(),
+                },
+                reason: m.reason,
+                leftover_count,
+                leftovers,
+            }
         })
         .collect();
 

@@ -89,13 +89,24 @@ pub fn run_hook(repo: PathBuf) -> ExitCode {
 /// dependency foreign to the repo (the `foreign-import` signal — 98% catch /
 /// 0.29% false-alarm). Everything else stays silent so the hook never nags.
 fn assess(repo: &Path, file_path: &str, content: &str) -> Option<String> {
-    let config = ArgotConfig::load(repo);
+    // The run's full vocabulary, not the built-ins: a repo's own rule names
+    // must mean the same thing here as they do in `check`, or `argot.toml`
+    // reads differently depending on which command opened it.
+    let (config, registry) = argot_core::compose::load_config(repo);
     let relative_path = repo_relative_path(repo, file_path)?;
-    if !can_assess(&config, &relative_path) {
+    if let Err(decline) = can_assess(&config, &registry, &relative_path) {
+        if let Some(msg) = decline.message() {
+            eprintln!("{msg}");
+        }
         return None;
     }
 
-    let mut scorers = RepoScorers::load(&repo.join(".argot"), &config.detect).ok()?;
+    let mut scorers = RepoScorers::load(
+        &repo.join(".argot"),
+        &config.detect,
+        &config.exclude.check_only,
+    )
+    .ok()?;
     scorers.language_for(file_path)?;
     let scored = scorers.score(file_path, content, Some(content))?;
     if !scored.flagged
@@ -132,21 +143,69 @@ fn assess(repo: &Path, file_path: &str, content: &str) -> Option<String> {
     })
 }
 
-/// Apply the configuration subset that can be decided before a write. The
-/// hook has no final diff hunk or stable hit hash, so inline and hash mutes are
-/// deliberately unsupported here; treating a proposed partial edit as either
-/// would claim parity the hook cannot provide.
-fn can_assess(config: &ArgotConfig, relative_path: &str) -> bool {
-    // Check reports configuration diagnostics to its caller; the hook has no
-    // diagnostic channel that should interrupt an agent, so malformed config
-    // fails open rather than silently falling back to a possibly unwanted ask.
-    if !config.warnings.is_empty() {
-        return false;
+/// Why the hook declined to assess a write, when the reason is the repo's
+/// configuration rather than the code. Reported on stderr — never the
+/// permission channel, so it interrupts nothing — because a guardrail that is
+/// off is otherwise indistinguishable from one that had nothing to say.
+enum Decline {
+    /// The config file could not be parsed at all; every value fell back to a
+    /// default the repo may not want. Fail open rather than ask on a guess.
+    ConfigUnreadable,
+    /// `foreign-import` is off repo-wide — the hook can never fire.
+    RuleDisabled,
+    /// This particular path is out of scope (`[exclude]`, or a `[rules]` path
+    /// scope). Deliberate, per-path, and visible in the config the author
+    /// wrote, so it is not worth a line per write.
+    PathOutOfScope,
+}
+
+impl Decline {
+    /// Announce only the states in which the guardrail is dead for *every*
+    /// write. Those are the ones indistinguishable from silence; a path the
+    /// author explicitly excluded is not a surprise worth narrating.
+    fn message(&self) -> Option<&'static str> {
+        match self {
+            Decline::ConfigUnreadable => Some(
+                "argot hook: argot.toml could not be parsed — pre-write check skipped for every \
+                 file (run `argot check` to see the error)",
+            ),
+            Decline::RuleDisabled => Some(
+                "argot hook: foreign-import is off in this repo — pre-write check does nothing",
+            ),
+            Decline::PathOutOfScope => None,
+        }
     }
-    let settings = config.rule_settings(&Vec::new());
-    settings.severity_of_reason("import") != Severity::Off
-        && settings.covers_path("import", relative_path)
-        && config.path_suppressions().classify(relative_path) == PathScope::InScope
+}
+
+/// Apply the configuration subset that can be decided before a write: the
+/// hook has no final diff hunk or stable hit hash, so inline and hash mutes are
+/// deliberately unsupported here (treating a proposed partial edit as either
+/// would claim parity the hook cannot provide).
+///
+/// `Ok(())` when the write can be assessed, `Err(reason)` when configuration
+/// rules it out. Only a config that failed to *parse* fails open: a per-entry
+/// warning ("unknown rule 'x' — ignored", a malformed `[[mute]]`) leaves the
+/// import decision perfectly well-defined, and taking the guardrail down for
+/// one unrelated typo is a far larger blast radius than the diagnostic
+/// deserves.
+fn can_assess(
+    config: &ArgotConfig,
+    registry: &argot_core::rules::Registry,
+    relative_path: &str,
+) -> Result<(), Decline> {
+    if config.degraded {
+        return Err(Decline::ConfigUnreadable);
+    }
+    let settings = config.rule_settings_with(registry, &Vec::new());
+    if settings.severity_of_reason("import") == Severity::Off {
+        return Err(Decline::RuleDisabled);
+    }
+    if !settings.covers_path("import", relative_path)
+        || config.path_suppressions().classify(relative_path) != PathScope::InScope
+    {
+        return Err(Decline::PathOutOfScope);
+    }
+    Ok(())
 }
 
 /// Full check attests declared replacement imports before scoring. At pre-write
@@ -163,13 +222,51 @@ fn only_declared_replacements(config: &ArgotConfig, foreign_modules: &[String]) 
         })
 }
 
+/// Canonicalize as much of `path` as exists, re-appending the rest verbatim.
+///
+/// Plain `canonicalize` is not enough here: the pre-write hook is called for
+/// files that do not exist yet — creating one is the whole point — and on
+/// macOS the repo root canonicalizes through `/var` → `/private/var` while the
+/// unresolvable payload path does not, so the two would never share a prefix.
+fn resolve_existing(path: &Path) -> PathBuf {
+    if let Ok(resolved) = std::fs::canonicalize(path) {
+        return resolved;
+    }
+    let mut tail: Vec<&std::ffi::OsStr> = Vec::new();
+    let mut cursor = path;
+    while let Some(parent) = cursor.parent() {
+        let Some(name) = cursor.file_name() else {
+            break;
+        };
+        tail.push(name);
+        if let Ok(resolved) = std::fs::canonicalize(parent) {
+            let mut out = resolved;
+            out.extend(tail.iter().rev());
+            return out;
+        }
+        cursor = parent;
+    }
+    path.to_path_buf()
+}
+
 /// Normalize a Claude file path to the repository-relative, slash-separated
 /// form used by Argot's path scopes and exclusions. Files outside the repo (or
 /// relative paths escaping it) are not candidates for a pre-write ask.
 fn repo_relative_path(repo: &Path, file_path: &str) -> Option<String> {
     let path = Path::new(file_path);
     let candidate = if path.is_absolute() {
-        path.strip_prefix(repo).ok()?.to_path_buf()
+        // Both sides resolved: `--repo` defaults to `.`, and every Claude Code
+        // payload carries an absolute `file_path`, so a raw `strip_prefix(".")`
+        // would fail on the CLI's own default and the hook would go silently
+        // dead. Keep the raw values as a last resort so a repo path that can't
+        // be resolved still strips a literal prefix.
+        let repo_abs = resolve_existing(repo);
+        let path_abs = resolve_existing(path);
+        path_abs
+            .strip_prefix(&repo_abs)
+            .or_else(|_| path.strip_prefix(repo))
+            .ok()?
+            .to_path_buf()
     } else {
         if path
             .components()

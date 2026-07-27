@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 /// The newest host-API generation this build understands. A manifest asking
 /// for a newer one is skipped with a clear message — an old binary must never
 /// half-run a rule written against calls it doesn't have.
-pub const HOST_API_VERSION: u32 = 1;
+pub const HOST_API_VERSION: u32 = 2;
 
 /// The manifest schema generation (the TOML shape itself).
 pub const MANIFEST_SCHEMA_VERSION: u32 = 1;

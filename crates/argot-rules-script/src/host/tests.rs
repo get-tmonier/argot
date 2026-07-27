@@ -12,7 +12,14 @@ fn file<'a>(source: &'a str, hunks: &'a [(usize, usize)]) -> FileInput<'a> {
 
 fn run(script: &str, source: &str, hunks: &[(usize, usize)]) -> Vec<ScriptFinding> {
     let ast = compile(script).unwrap();
-    run_on_file(&ast, &file(source, hunks), vec!["src/app.py".into()], None).unwrap()
+    run_on_file(
+        &ast,
+        &file(source, hunks),
+        vec!["src/app.py".into()],
+        None,
+        None,
+    )
+    .unwrap()
 }
 
 #[test]
@@ -126,6 +133,7 @@ if import_attested("requests") && callee_attested("get") && !import_attested("ht
         &file("x = 1\n", &[]),
         Vec::new(),
         Some(std::sync::Arc::new(Facts)),
+        None,
     )
     .unwrap();
     assert_eq!(out[0].line, 7);
@@ -156,6 +164,7 @@ if before.len() > after.len() && file.old_text != () {
         },
         Vec::new(),
         None,
+        None,
     )
     .unwrap();
     assert_eq!(out.len(), 1);
@@ -165,7 +174,7 @@ if before.len() > after.len() && file.old_text != () {
 #[test]
 fn infinite_loop_trips_the_sandbox() {
     let ast = compile("loop { }").unwrap();
-    let err = run_on_file(&ast, &file("x\n", &[]), Vec::new(), None).unwrap_err();
+    let err = run_on_file(&ast, &file("x\n", &[]), Vec::new(), None, None).unwrap_err();
     // Either the operation cap or the wall clock fires first — both are
     // termination, never a hang.
     assert!(
@@ -181,4 +190,190 @@ fn print_never_reaches_stdout_and_compile_errors_surface() {
     let out = run(r#"print("noise"); report(1, "after print");"#, "x\n", &[]);
     assert_eq!(out.len(), 1);
     assert!(compile("fn {").is_err());
+}
+
+/// A repo the script can read, without touching a real filesystem.
+struct FakeRepo {
+    files: Vec<(String, String)>,
+    reads: std::cell::Cell<usize>,
+}
+
+impl FakeRepo {
+    fn new(files: &[(&str, &str)]) -> Self {
+        Self {
+            files: files
+                .iter()
+                .map(|(p, b)| (p.to_string(), b.to_string()))
+                .collect(),
+            reads: std::cell::Cell::new(0),
+        }
+    }
+}
+
+impl crate::repo::RepoFiles for FakeRepo {
+    fn read(&self, rel: &str) -> Option<String> {
+        self.reads.set(self.reads.get() + 1);
+        self.files
+            .iter()
+            .find(|(p, _)| p == rel)
+            .map(|(_, b)| b.clone())
+    }
+    fn paths(&self, glob: &str) -> Vec<String> {
+        self.files
+            .iter()
+            .map(|(p, _)| p.clone())
+            .filter(|p| argot_engine::suppress::fnmatch(p, glob))
+            .collect()
+    }
+}
+
+fn run_with_repo(script: &str, repo: Rc<dyn crate::repo::RepoFiles>) -> Vec<ScriptFinding> {
+    let ast = compile(script).unwrap();
+    run_on_file(
+        &ast,
+        &file("x = 1\n", &[(1, 1)]),
+        vec!["src/app.py".into()],
+        None,
+        Some(repo),
+    )
+    .unwrap()
+}
+
+#[test]
+fn read_repo_file_reaches_the_script() {
+    let out = run_with_repo(
+        r#"
+let contract = read_repo_file("kernel/gui.inc");
+if contract != () && contract.contains("gui_init") {
+    report(1, "contract has gui_init");
+}
+"#,
+        Rc::new(FakeRepo::new(&[("kernel/gui.inc", "function gui_init;\n")])),
+    );
+    assert_eq!(out.len(), 1);
+    assert_eq!(out[0].message, "contract has gui_init");
+}
+
+#[test]
+fn a_missing_file_is_unit_so_a_rule_can_branch_on_it() {
+    let out = run_with_repo(
+        r#"
+if read_repo_file("nope.inc") == () { report(1, "absent"); }
+"#,
+        Rc::new(FakeRepo::new(&[])),
+    );
+    assert_eq!(out.len(), 1);
+    assert_eq!(out[0].message, "absent");
+}
+
+#[test]
+fn repo_paths_lists_siblings_for_a_cross_file_rule() {
+    let out = run_with_repo(
+        r#"
+let backends = repo_paths("kernel/*/gui.pas");
+report(1, "" + backends.len() + " backends: " + backends[0]);
+"#,
+        Rc::new(FakeRepo::new(&[
+            ("kernel/linux/gui.pas", ""),
+            ("kernel/windows/gui.pas", ""),
+            ("kernel/gui.inc", ""),
+        ])),
+    );
+    assert_eq!(out[0].message, "2 backends: kernel/linux/gui.pas");
+}
+
+#[test]
+fn without_a_repo_the_primitives_degrade_instead_of_failing() {
+    let out = run(
+        r#"
+if read_repo_file("anything") == () && repo_paths("*").is_empty() {
+    report(1, "degraded");
+}
+"#,
+        "x = 1\n",
+        &[(1, 1)],
+    );
+    assert_eq!(out.len(), 1);
+}
+
+#[test]
+fn the_read_budget_caps_a_looping_rule() {
+    let repo = Rc::new(FakeRepo::new(&[("a.txt", "body")]));
+    let out = run_with_repo(
+        r#"
+let got = 0;
+let i = 0;
+while i < 500 {
+    if read_repo_file("a.txt") != () { got += 1; }
+    i += 1;
+}
+report(1, "" + got);
+"#,
+        repo.clone(),
+    );
+    // The rule keeps running; only the reads stop.
+    assert_eq!(out[0].message, crate::repo::MAX_READS.to_string());
+    assert_eq!(repo.reads.get(), crate::repo::MAX_READS);
+}
+
+#[test]
+fn the_listing_budget_caps_a_looping_rule() {
+    let out = run_with_repo(
+        r#"
+let got = 0;
+let i = 0;
+while i < 100 {
+    if !repo_paths("*.txt").is_empty() { got += 1; }
+    i += 1;
+}
+report(1, "" + got);
+"#,
+        Rc::new(FakeRepo::new(&[("a.txt", "")])),
+    );
+    assert_eq!(out[0].message, crate::repo::MAX_PATHS_CALLS.to_string());
+}
+
+#[test]
+fn nesting_a_rule_actually_needs_compiles_in_any_build_profile() {
+    // Rhai lowers its expression-depth defaults under `debug_assertions`, so an
+    // unpinned engine accepts this in a release binary and rejects it in a
+    // debug one — the shape below is the real `contract-answered` example.
+    compile(
+        r#"
+fn members(text) {
+    let out = [];
+    if text == () { return out; }
+    for line in text.split("\n") {
+        let t = line.to_lower();
+        t.trim();
+        if t.starts_with("function gui_") || t.starts_with("procedure gui_") {
+            let rest = t.sub_string(t.index_of("gui_"));
+            let name = "";
+            for ch in rest.split("") {
+                if ch == "(" || ch == ":" || ch == ";" || ch == " " { break; }
+                name += ch;
+            }
+            if name != "" { out.push(name); }
+        }
+    }
+    out
+}
+let before = members(file.old_text);
+let added = [];
+for m in members(file.new_text) {
+    if !before.contains(m) && !added.contains(m) { added.push(m); }
+}
+for path in repo_paths("*/impl.pas") {
+    let body = read_repo_file(path);
+    if body == () { continue; }
+    let low = body.to_lower();
+    for name in added {
+        if !low.contains("function " + name) && !low.contains("procedure " + name) {
+            report(1, path + " does not answer " + name);
+        }
+    }
+}
+"#,
+    )
+    .expect("a rule of this shape must compile in every profile");
 }

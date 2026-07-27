@@ -203,8 +203,9 @@ fn tool_check(args: &Value, repo: &Path, explain: bool) -> Result<Value, String>
 
     let config = argot_core::config::ArgotConfig::load(repo);
     let migrations = config.migrations().active;
+    let check_only = config.exclude.check_only.clone();
     let detect = config.detect;
-    let mut scorers = RepoScorers::load(&argot_dir(repo), &detect)?;
+    let mut scorers = RepoScorers::load(&argot_dir(repo), &detect, &check_only)?;
     if scorers.language_for(file_path).is_none() {
         return Err(format!(
             "unsupported file type for '{file_path}' — argot has no language adapter for this file"
@@ -267,8 +268,10 @@ fn tool_voice_context(args: &Value, repo: &Path) -> Result<Value, String> {
         .map(|n| n as usize)
         .unwrap_or(10);
 
-    let detect = argot_core::config::ArgotConfig::load(repo).detect;
-    let scorers = RepoScorers::load(&argot_dir(repo), &detect)?;
+    let config = argot_core::config::ArgotConfig::load(repo);
+    let check_only = config.exclude.check_only.clone();
+    let detect = config.detect;
+    let scorers = RepoScorers::load(&argot_dir(repo), &detect, &check_only)?;
     let language = scorers
         .language_for(file_path)
         .ok_or_else(|| format!("unsupported file type for '{file_path}'"))?;

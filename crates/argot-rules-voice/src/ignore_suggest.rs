@@ -128,6 +128,10 @@ pub fn suggest_ignores(repo_dir: &Path) -> IgnoreSuggestions {
     let config = argot_engine::config::ArgotConfig::load(repo_dir);
     let path_suppressions = config.path_suppressions();
     let detect = &config.detect;
+    // Same git scope as the fit: a gitignored tree is already outside the
+    // corpus, so proposing an `[exclude].paths` entry for it would be a
+    // permanent, misleading line in a committed config that changes nothing.
+    let git_scope = argot_engine::corpus::GitScope::open(repo_dir);
     let mut adapters: HashMap<Language, Box<dyn LanguageAdapter>> = HashMap::new();
     // Recursive per-directory tallies, keyed by forward-slashed relative path.
     // The repo root ("") is tallied but never emitted.
@@ -157,7 +161,16 @@ pub fn suggest_ignores(repo_dir: &Path) -> IgnoreSuggestions {
                     let excluded_dir = !build_dir
                         && path_suppressions
                             .is_suppressed_abs(&path.join(".argot-probe"), repo_dir);
-                    if name != ".git" && name != ".argot" && !build_dir && !excluded_dir {
+                    let outside_repo = git_scope.as_ref().is_some_and(|scope| {
+                        argot_engine::suppress::rel_string(&path, repo_dir)
+                            .is_some_and(|rel| scope.excludes_dir(&rel))
+                    });
+                    if name != ".git"
+                        && name != ".argot"
+                        && !build_dir
+                        && !excluded_dir
+                        && !outside_repo
+                    {
                         stack.push(path);
                     }
                 }
@@ -165,6 +178,13 @@ pub fn suggest_ignores(repo_dir: &Path) -> IgnoreSuggestions {
                     let Some(language) = language_for_filename(&name) else {
                         continue; // unsupported extension — not corpus
                     };
+                    let outside_repo = git_scope.as_ref().is_some_and(|scope| {
+                        argot_engine::suppress::rel_string(&path, repo_dir)
+                            .is_some_and(|rel| scope.excludes_file(&rel))
+                    });
+                    if outside_repo {
+                        continue; // git already puts it outside the repo
+                    }
                     // Already handled by recommended/[exclude].paths — not a *new*
                     // candidate, and re-counting it would re-suggest a rule the
                     // reader already wrote.

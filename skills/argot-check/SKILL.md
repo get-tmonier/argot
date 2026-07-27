@@ -187,9 +187,12 @@ argot: 2 hits in your changes (1 error · 1 warn)
 
 - One line, in the code:
   `# argot: ignore-next-line rule=<name|group> — reason`
-- Durable, reviewable: `argot mute <hash> --reason "…"` — a committed
-  `[[mute]]` entry in `argot.toml`, which can also target a rule or group with
-  `rule = "<name|group>"`.
+- Per hit: `argot mute <hash> --reason "…"` — a committed `[[mute]]` in
+  `argot.toml` covering **that hit alone**. The same finding in a sibling file
+  has its own hash and stays flagged.
+- Standing: `argot mute --path '<glob>' --rule <name|group> --reason "…"` —
+  covers every future hit under the glob. Reach for this when the decision is
+  about a tree; a hash mute per file is the failure mode it exists to avoid.
 - Housekeeping: `argot list-mutes` shows every active suppression across all
   three surfaces; `argot review-mutes` re-scores muted files and reports which
   suppressions no longer fire (`--prune` removes the dead ones).

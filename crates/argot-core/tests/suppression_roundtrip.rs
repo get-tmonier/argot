@@ -201,7 +201,16 @@ fn mute_roundtrip_via_last_check_and_argot_toml() {
         .iter()
         .find(|h| h.path == "integration.py")
         .expect("integration.py hit");
-    let rule = mute_hash(&repo, &argot_dir, &integration.hash, None, None, TODAY).expect("mute");
+    let rule = mute_hash(
+        &repo,
+        &argot_dir,
+        argot_core::rules::Registry::builtin(),
+        &integration.hash,
+        None,
+        None,
+        TODAY,
+    )
+    .expect("mute");
     assert_eq!(rule.path, "integration.py");
 
     let out = run_check(range_args(&repo));
@@ -219,6 +228,7 @@ fn mute_roundtrip_via_last_check_and_argot_toml() {
     mute_hash(
         &repo,
         &argot_dir,
+        argot_core::rules::Registry::builtin(),
         &hits[0].hash,
         Some("known-good"),
         None,
@@ -323,7 +333,16 @@ fn review_mutes_reports_rot_and_prunes() {
     let hits = read_last_check(&argot_dir).expect("cache");
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].path, "integration.py");
-    mute_hash(&repo, &argot_dir, &hits[0].hash, None, None, TODAY).expect("mute");
+    mute_hash(
+        &repo,
+        &argot_dir,
+        argot_core::rules::Registry::builtin(),
+        &hits[0].hash,
+        None,
+        None,
+        TODAY,
+    )
+    .expect("mute");
 
     let mut args = base_args(&repo);
     args.reference = "HEAD~1..HEAD".to_string();
@@ -335,7 +354,12 @@ fn review_mutes_reports_rot_and_prunes() {
     // current content — that digest is one-way, and a false "stale" here would
     // let --prune delete a mute still guarding live code.)
     let repo_str = repo.to_str().unwrap();
-    let review = run_review_mutes(repo_str, TODAY, false);
+    let review = run_review_mutes(
+        repo_str,
+        argot_core::rules::Registry::builtin(),
+        TODAY,
+        false,
+    );
     assert_eq!(review.exit_code, 0);
     assert!(review.stdout.contains("file present"), "{}", review.stdout);
     assert!(!review.stdout.contains("file gone"));
@@ -345,7 +369,12 @@ fn review_mutes_reports_rot_and_prunes() {
     // Delete the file → the mute can never fire again; --prune removes it.
     git(&["rm", "-q", "integration.py"]);
     git(&["commit", "-q", "-m", "drop integration.py"]);
-    let review = run_review_mutes(repo_str, TODAY, true);
+    let review = run_review_mutes(
+        repo_str,
+        argot_core::rules::Registry::builtin(),
+        TODAY,
+        true,
+    );
     assert_eq!(review.exit_code, 0);
     assert!(review.stdout.contains("file gone"), "{}", review.stdout);
     assert!(review.stdout.contains("Pruned 1"), "{}", review.stdout);

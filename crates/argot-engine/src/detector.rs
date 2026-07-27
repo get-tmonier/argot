@@ -54,6 +54,17 @@ pub struct CheckContext<'a> {
     pub extra_batches: &'a [crate::check::PatchBatch],
 }
 
+/// What a detector needs to load its fitted state ([`Detector::load`]).
+pub struct LoadContext<'a> {
+    /// The repo's `.argot/` — where every fit artifact lives.
+    pub argot_dir: &'a std::path::Path,
+    /// `[detect]` heuristics (generated/data-file recognition).
+    pub detect: &'a crate::config::DetectConfig,
+    /// The resolved path scope, so a detector can tell a file that shapes the
+    /// voice from one that is only ever judged by it (`[exclude].check-only`).
+    pub path_suppressions: &'a crate::suppress::PathSuppressions,
+}
+
 /// What the base scan covered (drives `files scanned` in the report meta).
 #[derive(Default)]
 pub struct ScanReport {
@@ -162,11 +173,7 @@ pub trait Detector {
     /// (the base model is mandatory); additive groups instead degrade inside
     /// [`Detector::check`] (missing artifact → no findings) so the base
     /// guardrail always runs. Default no-op.
-    fn load(
-        &mut self,
-        _argot_dir: &std::path::Path,
-        _detect: &crate::config::DetectConfig,
-    ) -> Result<(), (String, i32)> {
+    fn load(&mut self, _ctx: &LoadContext<'_>) -> Result<(), (String, i32)> {
         Ok(())
     }
 

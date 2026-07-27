@@ -16,7 +16,7 @@ fn temp_argot_dir(case: &str) -> std::path::PathBuf {
 }
 
 fn load_error(argot_dir: &Path) -> (String, i32) {
-    match load_scorers(argot_dir, &DetectConfig::default()) {
+    match load_scorers(argot_dir, &DetectConfig::default(), &[]) {
         Err(error) => error,
         Ok(_) => panic!("fixture must not load"),
     }
