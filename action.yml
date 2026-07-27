@@ -232,25 +232,80 @@ runs:
       shell: bash
       run: argot model fetch
 
-    - name: Cache argot model (keyed on the base)
+    # The model cache is a SLOT that runs off the default branch refresh and
+    # pull requests read — not a per-commit key. Keying it on the base commit
+    # meant it missed whenever the branch moved, which is always, so every pull
+    # request refit: on a 924k-line repository that is 2 min 03 of a 2 min 06
+    # job, against a check that takes ~2 s. Nobody keeps a tool that costs two
+    # minutes a PR.
+    #
+    # The unique suffix exists because `actions/cache` will not overwrite an
+    # existing key: a producer run needs a key nobody has written so its fresh
+    # model is stored, and the `restore-keys` prefix is what every consumer
+    # reads — it resolves to the most recently created cache in the slot.
+    # GitHub makes a cache written on the base branch visible to every pull
+    # request targeting it, which is what makes one producer serve everyone.
+    - name: Restore the voice model
       if: ${{ inputs.cache == 'true' }}
       id: model-cache
       uses: actions/cache@v6
       with:
         path: ${{ inputs.path }}/.argot
-        # Keyed on the base commit, not the working tree: every PR against the
-        # same base reuses one fitted model, and it re-fits only when the base
-        # advances (never on a per-PR head, which would poison the voice).
-        key: argot-model-${{ runner.os }}-${{ inputs.argot-version }}-${{ steps.base.outputs.base_sha }}
-        # On a base advance (cache miss) restore the previous base's .argot
-        # anyway: the fit re-runs (miss ≠ exact hit) but the old semantic
-        # index seeds it, so unchanged functions reuse their embeddings —
-        # an incremental re-fit instead of minutes of full re-embedding.
+        key: argot-model-${{ runner.os }}-${{ inputs.argot-version }}-v1-${{ github.sha }}
         restore-keys: |
-          argot-model-${{ runner.os }}-${{ inputs.argot-version }}-
+          argot-model-${{ runner.os }}-${{ inputs.argot-version }}-v1-
+
+    # Producer or consumer? A run off the default branch refreshes the slot and
+    # pays the fit; a pull request reads it and pays nothing. That split is what
+    # keeps the check at seconds for contributors, and it puts the cost where
+    # every project already accepts it — post-merge, on nobody's critical path.
+    #
+    # A pull request still refits in two cases: no model exists at all (the
+    # first run on a repository, or the slot expired after 7 idle days), and the
+    # base's argot.toml has changed since the model was fitted — a scope change
+    # is not staleness, it means the model learned from a different corpus.
+    - name: Plan this run
+      id: plan
+      shell: bash
+      env:
+        ARGOT_PATH: ${{ inputs.path }}
+        BASE_SHA: ${{ steps.base.outputs.base_sha }}
+        ORIG_SHA: ${{ steps.base.outputs.orig_sha }}
+        CACHE: ${{ inputs.cache }}
+        EVENT: ${{ github.event_name }}
+      run: |
+        set -euo pipefail
+        fit=true
+        reason=refresh
+        behind=
+        if [ "$CACHE" != 'true' ]; then
+          reason=cache-disabled
+        elif [ ! -f "$ARGOT_PATH/.argot/scorer-config.json" ]; then
+          reason=seed
+        elif [ "$EVENT" = 'pull_request' ] || [ "$EVENT" = 'pull_request_target' ]; then
+          # Ask argot the same question its local auto-refresh asks, from the
+          # base — which is the tree the check scores against.
+          git -C "$ARGOT_PATH" checkout -q --detach "$BASE_SHA"
+          status=$(argot status --repo "$ARGOT_PATH" --format json 2>/dev/null || echo '{}')
+          git -C "$ARGOT_PATH" checkout -q --detach "$ORIG_SHA"
+          behind=$(jq -r '.health.commits_behind // empty' <<<"$status")
+          if [ "$(jq -r '.calibrated // false' <<<"$status")" = true ] \
+             && [ "$(jq -r '.health.config_in_sync // false' <<<"$status")" = true ]; then
+            fit=false
+            reason=reuse
+          else
+            reason=config-changed
+          fi
+        fi
+        {
+          echo "fit=$fit"
+          echo "reason=$reason"
+          echo "behind=${behind:-}"
+        } >> "$GITHUB_OUTPUT"
 
     - name: Fit voice model on the base
-      if: ${{ inputs.cache != 'true' || steps.model-cache.outputs.cache-hit != 'true' }}
+      id: fit
+      if: ${{ steps.plan.outputs.fit == 'true' }}
       shell: bash
       env:
         ARGOT_PATH: ${{ inputs.path }}
@@ -266,7 +321,9 @@ runs:
         # The fitted .argot/ model survives the checkout
         # (it's gitignored), so we restore the original ref afterward.
         git -C "$ARGOT_PATH" checkout -q --detach "$BASE_SHA"
+        started=$(date +%s)
         argot fit --repo "$ARGOT_PATH"
+        echo "seconds=$(( $(date +%s) - started ))" >> "$GITHUB_OUTPUT"
         # Defense in depth: `argot fit` is side-effect-free on the tracked tree,
         # but should anything leave the working copy dirty (a stray untracked
         # file, a hook), a plain checkout would abort and fail the non-blocking
@@ -315,6 +372,46 @@ runs:
         else
           echo "argot check clean."
         fi
+
+    # Why did this job take two minutes? Without this, the answer is only in the
+    # raw log: on anything but an exact key hit the whole voice model is
+    # refitted, which dwarfs the check itself.
+    #
+    # Note the distinction the summary draws. `actions/cache` reports
+    # `cache-hit: true` only on an EXACT key match; a restore via `restore-keys`
+    # leaves it false, so the fit still runs and the restored artifact only
+    # serves to seed the semantic index — nothing at all when `semantic: false`.
+    # Saying "restored" would therefore be misleading; what matters is whether
+    # the fit ran.
+    - name: Explain the run's cost
+      if: ${{ always() }}
+      shell: bash
+      env:
+        CACHE_ENABLED: ${{ inputs.cache }}
+        REASON: ${{ steps.plan.outputs.reason }}
+        BEHIND: ${{ steps.plan.outputs.behind }}
+        FIT_SECONDS: ${{ steps.fit.outputs.seconds }}
+        BASE_SHA: ${{ steps.base.outputs.base_sha }}
+      run: |
+        set -euo pipefail
+        {
+          echo
+          case "$REASON" in
+            reuse)
+              echo "<sub>Scored against the cached voice model, ${BEHIND:-0} accepted commit(s) behind base \`${BASE_SHA:0:12}\` — no fit on this pull request."
+              echo "The fit runs after merge, on the default branch, and refreshes the model every pull request reads.</sub>" ;;
+            refresh)
+              echo "<sub>Refreshed the voice model for every pull request to read — fitted in ${FIT_SECONDS:-?}s.</sub>" ;;
+            seed)
+              echo "<sub>No cached voice model yet, so this run fitted one in ${FIT_SECONDS:-?}s and seeded the cache."
+              echo "Pull requests from here on read it and skip the fit. The cache expires after 7 idle days.</sub>" ;;
+            config-changed)
+              echo "<sub>\`argot.toml\` changed since the cached model was fitted, so it was refitted in ${FIT_SECONDS:-?}s."
+              echo "A scope change is not staleness — the model has to learn from the corpus the config now describes.</sub>" ;;
+            cache-disabled)
+              echo "<sub>Model cache disabled (\`cache: false\`) — fitted the base in ${FIT_SECONDS:-?}s.</sub>" ;;
+          esac
+        } >> "$GITHUB_STEP_SUMMARY"
 
     - name: Configured findings card
       id: card

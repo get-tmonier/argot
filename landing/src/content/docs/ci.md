@@ -14,7 +14,10 @@ available pre-commit hooks.
 
 ```yaml
 name: argot
-on: pull_request
+on:
+  pull_request:
+  push:
+    branches: [main]   # the run that fits the model every pull request reads
 
 permissions:
   contents: read
@@ -42,6 +45,32 @@ still determines the response.
 inputs. Semantic checking may download the local embedding model; use `semantic: false` on a
 locked-down or offline runner to keep voice, layering, and integrity checks while skipping semantic
 model work. The Action caches fitted artifacts by base commit when caching is enabled.
+
+### Why a run took minutes
+
+Fitting the base is almost the whole cost of an Action run — the check itself is seconds. On a cache
+hit there is no fit at all, so the job is fast; on a miss it refits from scratch. The job summary now
+says which of the two happened, and how long the fit took.
+
+### What a run costs
+
+Fitting the voice model is almost the whole cost of a run; the check itself takes seconds. So the
+Action splits the two:
+
+- **A run on your default branch is the producer.** It fits and publishes the model into a cache
+  slot. This is the run that costs a couple of minutes, after a merge, on nobody's critical path.
+- **A pull request is a consumer.** It reads that slot and **does not fit** — the check is seconds.
+  The job summary reports how many accepted commits the model is behind, which is the same drift
+  argot tolerates locally between background refreshes (`[fit] refresh-after`).
+
+That is why the workflow above triggers on `push` to the default branch as well as on
+`pull_request`. Drop the `push` trigger and every pull request pays the fit instead.
+
+A pull request refits in only two cases: no model exists yet — the first run on a repository, or the
+slot expired after seven idle days, and the summary says it seeded the cache — or the base's
+`argot.toml` changed since the model was fitted, which is a scope change rather than staleness.
+`cache: false` disables the slot entirely and fits every run, if you want the base's exact model and
+are willing to pay for it.
 
 ## pre-commit
 

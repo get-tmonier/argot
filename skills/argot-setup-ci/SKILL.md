@@ -20,7 +20,10 @@ not install or claim an agent end-of-turn or acceptance lifecycle.
 
    ```yaml
    name: argot
-   on: pull_request
+   on:
+     pull_request:
+     push:
+       branches: [main]   # the run that fits the model every PR then reads
 
    permissions:
      contents: read
@@ -36,6 +39,9 @@ not install or claim an agent end-of-turn or acceptance lifecycle.
              fetch-depth: 0    # argot fits on the PR's base branch, so it needs history
          - uses: get-tmonier/argot@main
    ```
+
+   Both triggers matter: the `push` run fits the model and publishes it, the
+   `pull_request` run reads it and stays at seconds. See step 5.
 
    That's the whole workflow — the Action installs argot, caches and fetches
    the ~100 MB semantic embedding model itself (no manual cache step needed),
@@ -53,12 +59,22 @@ not install or claim an agent end-of-turn or acceptance lifecycle.
    OAuth App to … workflow … without 'workflow' scope"*, run
    `gh auth refresh -s workflow` (or push over SSH).
 
-5. Tell the user what they'll get on each configured PR workflow: a
+5. **Keep the `push:` trigger — it is what makes pull requests fast.** Fitting
+   the model is almost the whole cost of a run; the check is seconds. The run on
+   the default branch is the *producer*: it fits and publishes the model into a
+   cache slot, after a merge, on nobody's critical path. A pull request is a
+   *consumer*: it reads that slot and does not fit. Remove the `push` trigger and
+   every pull request pays the fit instead — which is how a new tool gets
+   uninstalled. A pull request only refits when no model exists yet (the first
+   run, or the slot expired after seven idle days) or when the base's
+   `argot.toml` changed. Tell the user the first run is the slow one.
+
+6. Tell the user what they'll get on each configured PR workflow: a
    **non-blocking** job summary, optional sticky PR comment, and inline
    code-scanning annotations. Findings do not fail the Action by default;
    operational workflow failures can still fail it.
 
-6. **Offer a live README badge.** If the user wants one, add `contents: write`
+7. **Offer a live README badge.** If the user wants one, add `contents: write`
    to `permissions` and `publish-badge: true` under the action's `with:`. On
    each push to the default branch the Action publishes the in-voice score to a
    `badges` branch; give the user the snippet to paste in their README:
@@ -70,7 +86,7 @@ not install or claim an agent end-of-turn or acceptance lifecycle.
    It renders `argot | N% in-voice`, green when in voice. (For a static badge
    with no shields.io round-trip: `argot voice-diff <range> --format svg`.)
 
-7. If the user prefers a hand-rolled workflow over the Action (or already has
+8. If the user prefers a hand-rolled workflow over the Action (or already has
    one), the building blocks are: install argot, `argot model fetch` (cache
    `~/.cache/argot/models` to keep the download out of every run; also cache
    `~/.cache/argot/embeddings` with a loose restore-key so unchanged functions
