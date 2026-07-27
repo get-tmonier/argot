@@ -1,0 +1,3 @@
+unit mseguiintf;
+implementation
+end.

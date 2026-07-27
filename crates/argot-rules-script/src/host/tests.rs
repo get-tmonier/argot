@@ -332,3 +332,48 @@ report(1, "" + got);
     );
     assert_eq!(out[0].message, crate::repo::MAX_PATHS_CALLS.to_string());
 }
+
+#[test]
+fn nesting_a_rule_actually_needs_compiles_in_any_build_profile() {
+    // Rhai lowers its expression-depth defaults under `debug_assertions`, so an
+    // unpinned engine accepts this in a release binary and rejects it in a
+    // debug one — the shape below is the real `contract-answered` example.
+    compile(
+        r#"
+fn members(text) {
+    let out = [];
+    if text == () { return out; }
+    for line in text.split("\n") {
+        let t = line.to_lower();
+        t.trim();
+        if t.starts_with("function gui_") || t.starts_with("procedure gui_") {
+            let rest = t.sub_string(t.index_of("gui_"));
+            let name = "";
+            for ch in rest.split("") {
+                if ch == "(" || ch == ":" || ch == ";" || ch == " " { break; }
+                name += ch;
+            }
+            if name != "" { out.push(name); }
+        }
+    }
+    out
+}
+let before = members(file.old_text);
+let added = [];
+for m in members(file.new_text) {
+    if !before.contains(m) && !added.contains(m) { added.push(m); }
+}
+for path in repo_paths("*/impl.pas") {
+    let body = read_repo_file(path);
+    if body == () { continue; }
+    let low = body.to_lower();
+    for name in added {
+        if !low.contains("function " + name) && !low.contains("procedure " + name) {
+            report(1, path + " does not answer " + name);
+        }
+    }
+}
+"#,
+    )
+    .expect("a rule of this shape must compile in every profile");
+}

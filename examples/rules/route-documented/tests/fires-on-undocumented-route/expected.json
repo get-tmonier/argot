@@ -1,0 +1,1 @@
+[{"line": 4, "message": "route /users/:id/avatar is not in openapi.yaml — add it, or the generated clients will never see this endpoint"}]

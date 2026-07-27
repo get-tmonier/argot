@@ -1,0 +1,13 @@
+[rule]
+schema = 1
+name = "contract-answered"
+label = "contract member no implementation answers"
+description = "a gui_* added to the shared kernel contract must be answered by every platform backend"
+languages = ["pascal"]
+severity = "warn"
+include = ["*/mseguiintf.inc"]
+exclude = ["*/*/mseguiintf.inc"]
+
+[engine]
+api = 2
+script = "check.rhai"

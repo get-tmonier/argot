@@ -38,6 +38,11 @@ use streaming_iterator::StreamingIterator;
 const MAX_OPERATIONS: u64 = 1_000_000;
 /// Call-depth cap (recursion guard).
 const MAX_CALL_LEVELS: usize = 32;
+/// Expression-nesting caps, at Rhai's release defaults. Pinned so a script
+/// compiles identically whichever profile built argot (see
+/// [`sandboxed_engine`]).
+const MAX_EXPR_DEPTH: usize = 64;
+const MAX_FUNCTION_EXPR_DEPTH: usize = 32;
 /// Wall-clock budget per (rule, file). The operation cap remains the primary
 /// guard for interpreted loops; this allowance also covers scheduler pauses
 /// around native tree-sitter callbacks on slower CI runners.
@@ -110,6 +115,11 @@ fn sandboxed_engine() -> Engine {
     let mut engine = Engine::new();
     engine.set_max_operations(MAX_OPERATIONS);
     engine.set_max_call_levels(MAX_CALL_LEVELS);
+    // Pinned, not left to Rhai's defaults: those are lower under
+    // `debug_assertions`, so an unpinned engine accepts a script in the shipped
+    // binary and rejects it in a debug build. What a rule is allowed to express
+    // must not depend on how argot was compiled.
+    engine.set_max_expr_depths(MAX_EXPR_DEPTH, MAX_FUNCTION_EXPR_DEPTH);
     engine.set_max_string_size(1 << 20);
     engine.set_max_array_size(100_000);
     engine.set_max_map_size(10_000);
