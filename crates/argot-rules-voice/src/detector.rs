@@ -342,6 +342,10 @@ impl Detector for VoiceDetector {
         // callees neither the corpus nor the changeset knows keep
         // contributing.
         let mut changeset_bindings: HashMap<&'static str, HashSet<String>> = HashMap::new();
+        // …and the modules it declares. A file carrying `unit foo` makes
+        // `uses foo` elsewhere in the same change a reference to the repo's own
+        // new module rather than to an unknown dependency.
+        let mut changeset_modules: HashMap<&'static str, HashSet<String>> = HashMap::new();
         for b in ctx.batches {
             let ext = extension(&b.file_path);
             let Some(lang) = ext_to_lang(&ext) else {
@@ -355,10 +359,18 @@ impl Detector for VoiceDetector {
                 .entry(lang)
                 .or_default()
                 .extend(adapter.callable_definitions(&source));
+            if let Some(module) = adapter.declared_module(&source) {
+                changeset_modules.entry(lang).or_default().insert(module);
+            }
         }
         for (lang, bindings) in changeset_bindings {
             if let Some(scorer) = loaded.scorers.get_mut(lang) {
                 scorer.set_changeset_bindings(bindings);
+            }
+        }
+        for (lang, modules) in changeset_modules {
+            if let Some(scorer) = loaded.scorers.get_mut(lang) {
+                scorer.attest_changeset_modules(modules);
             }
         }
 
