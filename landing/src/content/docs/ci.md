@@ -43,6 +43,21 @@ inputs. Semantic checking may download the local embedding model; use `semantic:
 locked-down or offline runner to keep voice, layering, and integrity checks while skipping semantic
 model work. The Action caches fitted artifacts by base commit when caching is enabled.
 
+### Why a run took minutes
+
+Fitting the base is almost the whole cost of an Action run — the check itself is seconds. On a cache
+hit there is no fit at all, so the job is fast; on a miss it refits from scratch. The job summary now
+says which of the two happened, and how long the fit took.
+
+The cache is keyed on the **base commit**, so every pull request against the same base can share one
+fitted model — but only if a cache exists that they are allowed to read. GitHub scopes a cache
+written during a `pull_request` run **to that pull request**: a sibling PR against the same base
+cannot restore it and refits from scratch. What every PR *can* read is a cache written by a run on
+their base branch, which is why the workflow above also triggers on `push` to the default branch.
+
+If your pull requests are stacked on a branch other than the default one, add that branch to the
+`push:` trigger too, or each of them pays the fit.
+
 ## pre-commit
 
 The published hooks require `argot` on `PATH`, a fitted repository, a pre-commit configuration, and

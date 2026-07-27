@@ -250,6 +250,7 @@ runs:
           argot-model-${{ runner.os }}-${{ inputs.argot-version }}-
 
     - name: Fit voice model on the base
+      id: fit
       if: ${{ inputs.cache != 'true' || steps.model-cache.outputs.cache-hit != 'true' }}
       shell: bash
       env:
@@ -266,7 +267,9 @@ runs:
         # The fitted .argot/ model survives the checkout
         # (it's gitignored), so we restore the original ref afterward.
         git -C "$ARGOT_PATH" checkout -q --detach "$BASE_SHA"
+        started=$(date +%s)
         argot fit --repo "$ARGOT_PATH"
+        echo "seconds=$(( $(date +%s) - started ))" >> "$GITHUB_OUTPUT"
         # Defense in depth: `argot fit` is side-effect-free on the tracked tree,
         # but should anything leave the working copy dirty (a stray untracked
         # file, a hook), a plain checkout would abort and fail the non-blocking
@@ -315,6 +318,35 @@ runs:
         else
           echo "argot check clean."
         fi
+
+    # Why did this job take two minutes? Without this, the answer is only in the
+    # raw log: a cache miss means the whole voice model is refitted, which
+    # dwarfs the check itself. The distinction matters because the usual cause
+    # is fixable — a cache written during a pull_request run is scoped to that
+    # PR, so sibling PRs against the same base each refit until a run on the
+    # base branch populates a cache they can all restore.
+    - name: Explain the run's cost
+      if: ${{ always() }}
+      shell: bash
+      env:
+        CACHE_ENABLED: ${{ inputs.cache }}
+        CACHE_HIT: ${{ steps.model-cache.outputs.cache-hit }}
+        FIT_SECONDS: ${{ steps.fit.outputs.seconds }}
+        BASE_SHA: ${{ steps.base.outputs.base_sha }}
+      run: |
+        set -euo pipefail
+        {
+          echo
+          if [ "$CACHE_ENABLED" != 'true' ]; then
+            echo "<sub>Model cache disabled (\`cache: false\`) — fitted the base in ${FIT_SECONDS:-?}s.</sub>"
+          elif [ "$CACHE_HIT" = 'true' ]; then
+            echo "<sub>Voice model restored from cache for base \`${BASE_SHA:0:12}\` — no fit this run.</sub>"
+          else
+            echo "<sub>Cache miss for base \`${BASE_SHA:0:12}\` — fitted it in ${FIT_SECONDS:-?}s, which is most of this job."
+            echo "A cache written during a pull-request run is scoped to that PR, so PRs against the same base each refit."
+            echo "Add the base branch to this workflow's \`push:\` trigger and its run will populate a cache they all restore.</sub>"
+          fi
+        } >> "$GITHUB_STEP_SUMMARY"
 
     - name: Configured findings card
       id: card

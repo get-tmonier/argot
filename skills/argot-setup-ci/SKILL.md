@@ -53,12 +53,22 @@ not install or claim an agent end-of-turn or acceptance lifecycle.
    OAuth App to … workflow … without 'workflow' scope"*, run
    `gh auth refresh -s workflow` (or push over SSH).
 
-5. Tell the user what they'll get on each configured PR workflow: a
+5. **Keep the `push:` trigger on the base branch.** Fitting the base is almost
+   the whole cost of a run; the check itself is seconds. The Action caches the
+   fitted model by base commit, but GitHub scopes a cache written during a
+   `pull_request` run *to that PR* — sibling PRs against the same base cannot
+   read it and each refit from scratch. Only a run on the base branch writes a
+   cache they can all restore, which is what the `push:` trigger is for. If the
+   repo stacks PRs on a branch other than the default, list that branch there
+   too. The job summary reports cache hit or miss and the fit's duration, so a
+   slow run explains itself.
+
+6. Tell the user what they'll get on each configured PR workflow: a
    **non-blocking** job summary, optional sticky PR comment, and inline
    code-scanning annotations. Findings do not fail the Action by default;
    operational workflow failures can still fail it.
 
-6. **Offer a live README badge.** If the user wants one, add `contents: write`
+7. **Offer a live README badge.** If the user wants one, add `contents: write`
    to `permissions` and `publish-badge: true` under the action's `with:`. On
    each push to the default branch the Action publishes the in-voice score to a
    `badges` branch; give the user the snippet to paste in their README:
@@ -70,7 +80,7 @@ not install or claim an agent end-of-turn or acceptance lifecycle.
    It renders `argot | N% in-voice`, green when in voice. (For a static badge
    with no shields.io round-trip: `argot voice-diff <range> --format svg`.)
 
-7. If the user prefers a hand-rolled workflow over the Action (or already has
+8. If the user prefers a hand-rolled workflow over the Action (or already has
    one), the building blocks are: install argot, `argot model fetch` (cache
    `~/.cache/argot/models` to keep the download out of every run; also cache
    `~/.cache/argot/embeddings` with a loose restore-key so unchanged functions
