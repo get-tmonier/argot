@@ -279,3 +279,90 @@ fn locking_the_custom_group_freezes_and_protects_scripted_rules() {
     );
     assert_eq!(out.exit_code, 1);
 }
+
+/// A lock on ONE custom rule by name — the form the ticket needed and the
+/// `custom` group cannot substitute for.
+///
+/// A repo that ships five custom rules at `warn` (because the tree still holds
+/// legacy violations) and one at `error` cannot express that with a group lock:
+/// the group form forces every custom rule to the same severity. Until the
+/// config vocabulary knew custom names, `--rule no-vi-mock=off` was accepted at
+/// the same moment `[rules] no-vi-mock = { locked = true }` was discarded as a
+/// typo — so the only actor who could weaken the rule was the one it exists to
+/// constrain.
+#[test]
+#[cfg(feature = "script")]
+fn a_single_custom_rule_can_be_locked_by_name_and_is_tamper_protected() {
+    let repo = prepare_repo("percustomlock");
+    write_custom_rule(&repo, "house-style", true);
+    write_custom_rule(&repo, "legacy-tolerated", false);
+    // One custom rule pinned on; its sibling deliberately left at warn.
+    const PINNED: &str = "[rules]\n\"house-style\" = { severity = \"error\", locked = true }\n\
+                          \"legacy-tolerated\" = \"warn\"\n";
+    std::fs::write(repo.join("argot.toml"), PINNED).unwrap();
+    git(&repo, &["add", "-A"]);
+    git(&repo, &["commit", "-qm", "lock one custom rule by name"]);
+    std::fs::write(repo.join("src_change.py"), "def added():\n    return 1\n").unwrap();
+
+    // The name resolves: no "unknown rule" warning, and the rule gates.
+    let mut a = args(&repo);
+    a.reference = String::new();
+    let out = run_check(a);
+    assert!(
+        !out.stderr.contains("unknown rule"),
+        "a discovered rule read as a typo: {}",
+        out.stderr
+    );
+    assert!(
+        out.stdout.contains("house-style"),
+        "the locked custom rule did not fire: {}",
+        out.stdout
+    );
+    assert_eq!(
+        out.exit_code, 1,
+        "locked at error must gate: {}",
+        out.stdout
+    );
+
+    // A runtime override is refused — the lock is the point.
+    let mut a = args(&repo);
+    a.reference = String::new();
+    a.rule_overrides = vec![("house-style".to_string(), argot_core::rules::Severity::Off)];
+    let out = run_check(a);
+    assert!(
+        out.stdout.contains("house-style"),
+        "--rule bypassed a per-rule custom lock: {}",
+        out.stdout
+    );
+
+    // Weakening that lock in the diff is rule-tampered.
+    std::fs::write(
+        repo.join("argot.toml"),
+        "[rules]\n\"house-style\" = { severity = \"warn\" }\n\"legacy-tolerated\" = \"warn\"\n",
+    )
+    .unwrap();
+    let mut a = args(&repo);
+    a.reference = String::new();
+    let out = run_check(a);
+    assert!(
+        out.stdout.contains("rule-tampered"),
+        "unlocking a per-rule custom lock is tamper: {}",
+        out.stdout
+    );
+
+    // So is gutting the locked rule's own script.
+    std::fs::write(repo.join("argot.toml"), PINNED).unwrap();
+    std::fs::write(
+        repo.join(".argot/rules/house-style/check.rhai"),
+        "// gutted so it never fires",
+    )
+    .unwrap();
+    let mut a = args(&repo);
+    a.reference = String::new();
+    let out = run_check(a);
+    assert!(
+        out.stdout.contains("rule-tampered"),
+        "editing a locked custom rule's script is tamper: {}",
+        out.stdout
+    );
+}
