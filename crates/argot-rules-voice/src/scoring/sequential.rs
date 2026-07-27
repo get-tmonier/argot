@@ -429,6 +429,19 @@ impl SequentialImportBpeScorer {
         self.changeset_bindings = bindings;
     }
 
+    /// Modules the changeset itself declares — a file in the change carrying
+    /// `unit foo` / `package foo`. Adding a module and importing it is one
+    /// act, and the fit-time snapshot cannot know about it: without this a
+    /// backend port that adds three units and wires them into six files reads
+    /// as six foreign dependencies, which is the opposite of the signal.
+    ///
+    /// This does not reopen the hole `load_snapshot` exists to close. A new
+    /// third-party dependency is never *declared* by a file in the diff — it
+    /// arrives as a bare name resolved from outside the repository.
+    pub fn attest_changeset_modules<I: IntoIterator<Item = String>>(&mut self, modules: I) {
+        self.import_scorer.extend_known(modules);
+    }
+
     /// Whether `path` (repo-relative) was in the fit corpus. A path the model
     /// never saw is a new file, judged by `check` against the new-file threshold
     /// rather than the existing-file one (issue #92 new-file flooding). Falls

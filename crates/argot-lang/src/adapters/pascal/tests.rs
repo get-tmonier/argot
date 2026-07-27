@@ -192,3 +192,43 @@ fn name_top_segment_splits_on_dot() {
     assert_eq!(name_top_segment("mormot.core.json"), "mormot");
     assert_eq!(name_top_segment("SysUtils"), "SysUtils");
 }
+
+#[test]
+fn declared_module_reports_the_unit_this_file_defines() {
+    let a = PascalAdapter::new();
+    assert_eq!(
+        a.declared_module("unit mwayland;\ninterface\nimplementation\nend.\n"),
+        Some("mwayland".to_string())
+    );
+    // The licence header every MSEgui unit carries must not hide the name.
+    assert_eq!(
+        a.declared_module("{ Copyright (c) 1999\n  see COPYING }\nunit msegui;\n"),
+        Some("msegui".to_string())
+    );
+    // Reduced to the same top segment `extract_imports` produces, so a
+    // declaration and a `uses` entry compare equal.
+    assert_eq!(
+        a.declared_module("unit mormot.core.json;\n"),
+        Some("mormot".to_string())
+    );
+    assert_eq!(
+        a.declared_module("program demo;\n"),
+        Some("demo".to_string())
+    );
+    assert_eq!(a.declared_module("// nothing declared here\n"), None);
+}
+
+#[test]
+fn a_declared_unit_matches_how_that_unit_is_imported() {
+    // The property that makes the changeset-attestation work: whatever a file
+    // declares is exactly what a `uses` of it resolves to.
+    let a = PascalAdapter::new();
+    let declared = a
+        .declared_module("unit sdl4msegui;\ninterface\nend.\n")
+        .unwrap();
+    let imported = a.extract_imports("unit user;\ninterface\nuses\n sdl4msegui,msetypes;\n");
+    assert!(
+        imported.contains(&declared),
+        "declared {declared:?} not found in {imported:?}"
+    );
+}

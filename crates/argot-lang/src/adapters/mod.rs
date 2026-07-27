@@ -83,6 +83,18 @@ pub trait LanguageAdapter {
     /// function-valued variables). Local-binding attestation: code calling
     /// what it defines is not foreign voice.
     fn callable_definitions(&self, source: &str) -> HashSet<String>;
+
+    /// The module this single source file declares, if the language names one
+    /// (Pascal's `unit`, Go's `package`, a Java/C# namespace). Used at check
+    /// time to recognise a module the changeset itself introduces: a file that
+    /// declares `unit foo` makes `uses foo` a reference to the repo's own new
+    /// module, not to a dependency nobody has ever depended on.
+    ///
+    /// `None` for languages where an import is a path rather than a declared
+    /// name — those resolve through `internal_import_bindings` instead.
+    fn declared_module(&self, _source: &str) -> Option<String> {
+        None
+    }
     /// Names bound by imports from repo-internal (relative) specifiers.
     fn internal_import_bindings(&self, source: &str) -> HashSet<String>;
     /// Names bound by *non-relative* imports, each paired with the top-level

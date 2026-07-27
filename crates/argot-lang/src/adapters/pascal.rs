@@ -224,6 +224,15 @@ impl PascalAdapter {
         modules
     }
 
+    /// The `unit`/`program`/`library` name this source declares, reduced to
+    /// its top segment the same way [`Self::extract_imports`] reduces a `uses`
+    /// entry — so a declaration and a reference to it compare equal.
+    pub fn declared_module(&self, source: &str) -> Option<String> {
+        let name = module_declaration_name(source)?;
+        let seg = name_top_segment(&name);
+        (!seg.is_empty()).then(|| seg.to_string())
+    }
+
     /// Names bound by callable/type definitions — every `declProc`
     /// (proc/func/constructor/destructor, in an interface, a class body, or a
     /// `defProc` header) plus every `declType` (class/record/interface/enum
@@ -450,6 +459,9 @@ impl LanguageAdapter for PascalAdapter {
     }
     fn resolve_repo_modules(&self, repo_root: &Path) -> RepoModules {
         PascalAdapter::resolve_repo_modules(self, repo_root)
+    }
+    fn declared_module(&self, source: &str) -> Option<String> {
+        PascalAdapter::declared_module(self, source)
     }
     fn is_data_dominant(&self, source: &str, threshold: f64) -> bool {
         PascalAdapter::is_data_dominant(self, source, threshold)
