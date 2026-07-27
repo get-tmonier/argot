@@ -913,6 +913,7 @@ impl SequentialImportBpeScorer {
                     file_source,
                     &foreign,
                     &local_bindings,
+                    cr_host_context,
                 );
                 if evidence.as_ref().is_some_and(Evidence::names_something) {
                     chosen = Some((i, evidence));
@@ -958,6 +959,7 @@ impl SequentialImportBpeScorer {
         file_source: Option<&str>,
         foreign: &HashSet<String>,
         local_bindings: &crate::scoring::call_receiver::LocalBindings,
+        host_context: Option<(&str, usize, usize)>,
     ) -> Option<Evidence> {
         let corpus = self.evidence_corpus.as_ref()?;
         match winning_reason {
@@ -1000,7 +1002,7 @@ impl SequentialImportBpeScorer {
                 let cr = self.call_receiver.as_ref()?;
                 let cluster_id = cr.cluster_id_for_hunk_file(file_path, file_source);
                 Some(Evidence::CallReceiver(collect_call_receiver_evidence(
-                    cr.distinct_unattested_excluding(hunk_content, local_bindings),
+                    cr.distinct_unattested_excluding(hunk_content, host_context, local_bindings),
                     cluster_id,
                     corpus,
                 )))

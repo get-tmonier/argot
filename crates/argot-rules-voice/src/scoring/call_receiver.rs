@@ -850,14 +850,41 @@ impl CallReceiverScorer {
 
     /// [`Self::distinct_unattested`] minus local bindings — the evidence view
     /// matching what the contribution actually counted.
+    ///
+    /// `host_context` is the same parse-error fallback
+    /// [`Self::weighted_contribution`] scores through: git cuts hunks, not the
+    /// parser, so a fragment starting mid-`var`-block does not parse standalone
+    /// and [`Self::distinct_unattested_impl`] returns nothing for it. Without
+    /// the fallback such a hunk is scored and gated on callees derived from its
+    /// region of the host file, then explained with none — a finding whose
+    /// whole subject is missing.
     pub fn distinct_unattested_excluding(
         &self,
         hunk: &str,
+        host_context: Option<(&str, usize, usize)>,
         local_bindings: &LocalBindings,
     ) -> Vec<String> {
-        self.distinct_unattested_impl(hunk)
+        let callees: Vec<String> = if has_root_error(hunk, self.language) {
+            match host_context {
+                Some((src, s, e)) => callees_in_source_region(src, self.language, s, e),
+                None => return Vec::new(),
+            }
+        } else {
+            return self
+                .distinct_unattested_impl(hunk)
+                .into_iter()
+                .filter(|c| !local_bindings.attests(c) && !self.method_attested(c))
+                .collect();
+        };
+        let mut seen: HashSet<String> = HashSet::new();
+        callees
             .into_iter()
-            .filter(|c| !local_bindings.attests(c) && !self.method_attested(c))
+            .filter(|c| {
+                !self.attested.contains(c)
+                    && !local_bindings.attests(c)
+                    && !self.method_attested(c)
+                    && seen.insert(c.clone())
+            })
             .collect()
     }
 
