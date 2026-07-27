@@ -40,8 +40,14 @@ fn compile_failure_disables_only_that_rule() {
     let mut warnings = Vec::new();
     let vocab = det.vocabulary(&argot_dir, &mut warnings);
     assert_eq!(vocab.len(), 2, "vocabulary keeps the name addressable");
-    det.load(&argot_dir, &argot_engine::config::DetectConfig::default())
-        .unwrap();
+    let detect = argot_engine::config::DetectConfig::default();
+    let suppressions = argot_engine::suppress::PathSuppressions::recommended();
+    det.load(&argot_engine::detector::LoadContext {
+        argot_dir: &argot_dir,
+        detect: &detect,
+        path_suppressions: &suppressions,
+    })
+    .unwrap();
     assert!(det.disabled.contains("bad"));
     assert!(!det.disabled.contains("good"));
     let _ = std::fs::remove_dir_all(&argot_dir);

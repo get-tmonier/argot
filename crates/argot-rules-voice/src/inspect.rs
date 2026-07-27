@@ -101,12 +101,22 @@ pub struct LanguageCorpus {
 /// What argot would learn from: per-language composition plus polyglotism.
 #[derive(Serialize, Debug, Clone)]
 pub struct CorpusReport {
-    /// All files walked (excluding `.git` internals).
+    /// All files walked (excluding `.git` internals and anything git puts
+    /// outside the repo — see [`gitignored_dirs`](Self::gitignored_dirs)).
     pub total_files: usize,
     /// Files with a supported extension.
     pub supported_files: usize,
     /// Files with an unsupported extension (excluded from the corpus).
     pub unsupported_files: usize,
+    /// Supported-extension files git puts outside the repo (gitignored and
+    /// untracked) that are not already covered by a pruned directory. The fit
+    /// never sees them, so neither do the counts above.
+    pub gitignored_files: usize,
+    /// Whole trees git puts outside the repo, repo-relative and sorted
+    /// (`node_modules`, `dist`, an editor's history dir). Named rather than
+    /// counted, so a reader can tell "argot skipped my dependencies" from
+    /// "argot never looked" without paying for a walk of them.
+    pub gitignored_dirs: Vec<String>,
     /// Per-language breakdown, keyed by config-key name.
     pub languages: BTreeMap<String, LanguageCorpus>,
     /// True when at least two supported languages each exceed
@@ -258,14 +268,24 @@ pub fn resolve_repo_internal_modules(repo: &Path) -> crate::scoring::adapters::R
     out
 }
 
-/// Walk the repo and classify every file the way calibration would: extension
-/// routing, then the resolved path-suppression set (recommended built-ins +
-/// `[exclude].paths` — the same set calibrate and check consult), then the
-/// structural filters.
+/// Walk the repo and classify every file the way calibration would: git's own
+/// view of what belongs to the repo, then extension routing, then the resolved
+/// path-suppression set (recommended built-ins + `[exclude].paths` — the same
+/// set calibrate and check consult), then the structural filters.
+///
+/// The git scope is not optional. Without it this report describes a corpus
+/// that will never be fitted — on a JS monorepo, a `node_modules/` tree can
+/// outnumber the authored code and drive a polyglot warning about a language
+/// the repo does not track a single file of. `inspect` is what a human (or an
+/// agent following the setup skill) reads to decide whether setup is healthy,
+/// so it must answer for the corpus the fit will actually use.
 fn scan_corpus(repo_dir: &Path) -> CorpusReport {
     let config = argot_engine::config::ArgotConfig::load(repo_dir);
     let path_suppressions = config.path_suppressions();
     let detect = &config.detect;
+    let git_scope = argot_engine::corpus::GitScope::open(repo_dir);
+    let mut gitignored_files = 0usize;
+    let mut gitignored_dirs: Vec<String> = Vec::new();
     // Route `.h` to C or C++ by the repo's translation-unit majority, matching
     // how calibrate/check file them, so the composition and verdict agree.
     let header_cpp = header_is_cpp(repo_dir);
@@ -286,13 +306,38 @@ fn scan_corpus(repo_dir: &Path) -> CorpusReport {
             match entry.file_type() {
                 Ok(t) if t.is_dir() => {
                     // `.git` internals are repository plumbing, not corpus;
-                    // everything else is walked so the numbers match what
-                    // `collect_candidates` sees.
-                    if name != ".git" {
-                        stack.push(path);
+                    // a tree git puts outside the repo is pruned whole, exactly
+                    // as the corpus walk prunes it. Everything else is walked so
+                    // the numbers match what `collect_candidates` sees.
+                    // `.git` and argot's own `.argot/` are plumbing, not a
+                    // reader's dependency tree: never walked, never reported.
+                    if name == ".git" || name == ".argot" {
+                        continue;
+                    }
+                    let outside_repo = git_scope.as_ref().and_then(|scope| {
+                        argot_engine::suppress::rel_string(&path, repo_dir)
+                            .filter(|rel| scope.excludes_dir(rel))
+                    });
+                    match outside_repo {
+                        // Pruned whole, and named rather than counted: walking a
+                        // `node_modules/` to tally files it will never learn
+                        // from is the slow half of `inspect` on a JS repo, and
+                        // the useful answer is which tree, not how big.
+                        Some(rel) => gitignored_dirs.push(rel),
+                        None => stack.push(path),
                     }
                 }
                 Ok(t) if t.is_file() => {
+                    let outside_repo = git_scope.as_ref().is_some_and(|scope| {
+                        argot_engine::suppress::rel_string(&path, repo_dir)
+                            .is_some_and(|rel| scope.excludes_file(&rel))
+                    });
+                    if outside_repo {
+                        if language_for_filename_ctx(&name, header_cpp).is_some() {
+                            gitignored_files += 1;
+                        }
+                        continue;
+                    }
                     total_files += 1;
                     let language = match language_for_filename_ctx(&name, header_cpp) {
                         Some(l) => l,
@@ -329,6 +374,7 @@ fn scan_corpus(repo_dir: &Path) -> CorpusReport {
         }
     }
 
+    gitignored_dirs.sort();
     let supported_files: usize = languages.values().map(|l| l.files).sum();
 
     // Candidate hunks per language present in the corpus — the exact
@@ -374,6 +420,8 @@ fn scan_corpus(repo_dir: &Path) -> CorpusReport {
         total_files,
         supported_files,
         unsupported_files,
+        gitignored_files,
+        gitignored_dirs,
         languages,
         meaningfully_mixed,
     }

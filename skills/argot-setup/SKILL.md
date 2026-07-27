@@ -45,7 +45,8 @@ suppressing it).
      creates the local model artifact but not the shared configuration to
      commit.
    - **Already configured repo — both files are present:** run `argot inspect`
-     first. Read its Verdict and corpus summary; if it reports a clean, healthy
+     first. Its corpus summary and Verdict describe the corpus the fit will
+     actually use (gitignored trees are named, never counted). If it reports a clean, healthy
      corpus and you are not changing exclusions, skip directly to step 10. If
      it reports a corpus warning, the repo has drifted, or the user wants to
      change scope, continue through steps 5–9 to recalibrate. Do not re-fit
@@ -100,14 +101,16 @@ suppressing it).
      like "N files argot:recommended would exclude are shaping the voice (…)".
      Add every path that note names to `[exclude].paths`.
 
-   Sanity-check the fitted corpus: `.argot/repo-corpus.txt` lists every file
-   that shaped the voice — skim it and make sure nothing surprising is there.
+   Sanity-check the corpus: `argot inspect --corpus` prints every file that
+   will shape the voice, before any fit — skim it and make sure nothing
+   surprising is there. (After a fit, `.argot/repo-corpus.txt` says the same.)
 
    argot keeps tests and build output (`build/`, `dist/`) out of the voice on its
    own, and the `argot:recommended` set scopes config/rc/docs out of what it
-   *scores* — but the fit corpus only honors `[exclude].paths`, so those files can
-   still shape the voice until you exclude them (that's what the fit-time note is
-   for). Focus on the repo-specific dirs above.
+   *scores* — but the fit corpus only honors `[exclude].paths` and
+   `[exclude].check-only`, so config/doc files can still shape the voice until
+   you exclude them (that's what the fit-time note is for). Focus on the
+   repo-specific dirs above.
 
 9. **Edit `argot.toml`** at the repo root (`argot init` writes a default one).
    Add the directories you're excluding to `[exclude].paths` — gitignore-style
@@ -117,7 +120,10 @@ suppressing it).
    add that phrase there too. If the user wants to soften or disable a rule
    (all default to `error` except `test-weakened` and `superseded`, which ship
    `warn`), the surface is the `[rules]` table in the same file — e.g.
-   `misplaced = "warn"` or `semantic = "off"`; `argot rules` lists the
+   `misplaced = "warn"` or `semantic = "off"`. A rule can also be scoped to
+   paths — `foreign-import = { severity = "error", exclude = ["**/*.bench.ts"] }`
+   (`include`/`exclude` take the same globs as `[exclude].paths`) — which is the
+   right lever when a rule is correct everywhere but one tree. `argot rules` lists the
    registry with effective severities. If the repo is mid-migration (an old
    dependency or call being retired for a new one) and the user wants to
    declare it before history shows enough signal, add a `[[migration]]`
@@ -131,8 +137,21 @@ suppressing it).
    ```
 
    The `to` side stops reading as foreign; the `from` side raises
-   `superseded` in new code. Re-run `argot init` after the exclude/rule edits
-   above — the migration declaration itself doesn't need it.
+   `superseded` in new code, and `argot conventions` lists the files still to
+   migrate. Re-run `argot init` after the exclude/rule edits above — the
+   migration declaration itself doesn't need it.
+
+   **If the user wants their tests checked.** By default `argot:recommended`
+   keeps tests out of scope entirely — neither learned from nor scored. To have
+   them guarded, remove the test patterns (`test*/`, `__tests__/`, `test_*`,
+   `*.test.*`, `*.spec.*`) from `[exclude].recommended` and leave them in
+   `[exclude].check-only`. Tests are then checked, argot learns their
+   **dependency vocabulary** — a library only the tests use stops reading as
+   foreign — but never their **style**, so test phrasing never dilutes the
+   model. On those paths the voice reports only `foreign-import`; every other
+   rule behaves normally. This needs a refit to pick up the vocabulary.
+   Do NOT reach for `foreign-import = { exclude = [...] }` here: that throws
+   away the genuine signal of a test grabbing a brand-new dependency.
 
 10. **Verify the catch works** — the important check. In a real primary-source
    file, add a throwaway import of a package the repo never uses (e.g.
@@ -227,8 +246,21 @@ stays quiet). When the user reports argot got noisy, or that note appears:
 - **Don't chase a spotless verdict.** Notes are expected on small repos; the goal
   is a corpus that reflects how the team actually writes code, not a green label.
 
-See [Configure](https://argot.tmonier.com/docs/configure/) for the full
-suppression system (inline comments and durable mutes too).
+**Suppressing a finding.** Two forms, and the difference matters:
+
+- `argot mute <hash>` records a **per-hit** acceptance. It covers that hit only
+  — the identical finding in a sibling file has its own hash and stays flagged.
+  Right for a genuine one-off.
+- `argot mute --path 'src/legacy/**' --rule foreign-import --reason '…'` (or the
+  same entry hand-written as `[[mute]]` with `path`/`rule`/`expires`/`reason`)
+  records a **standing** decision that covers every future hit under the glob.
+  Right for a tree with a known, accepted exception.
+
+Reaching for the first when you mean the second is how a repo ends up with one
+committed mute per file. See
+[Configure](https://argot.tmonier.com/docs/configure/) for the full suppression
+system, and [llms.txt](https://argot.tmonier.com/llms.txt) for the
+agent-readable reference.
 
 If the CLI's output disagrees with this document, trust the binary: `argot
 rules` and `argot <cmd> --help` are the source of truth — this skill may lag

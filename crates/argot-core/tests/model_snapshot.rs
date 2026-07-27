@@ -139,6 +139,8 @@ fn new_code_cannot_attest_its_own_callees() {
         convention_bonus: 0.0,
         import_modules: Vec::new(),
         import_module_prefixes: Vec::new(),
+        check_only_import_modules: Vec::new(),
+        check_only_patterns: Vec::new(),
         evidence_corpus: None,
         detect: argot_core::config::DetectConfig::default(),
     };

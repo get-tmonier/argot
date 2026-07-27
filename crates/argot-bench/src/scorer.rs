@@ -646,6 +646,10 @@ pub fn build_scorer(
             convention_bonus: knobs.convention_bonus,
             import_modules,
             import_module_prefixes,
+            // The harness scores hunks against a corpus it builds itself; the
+            // check-only scope is a repo config decision it does not model.
+            check_only_import_modules: Vec::new(),
+            check_only_patterns: Vec::new(),
             evidence_corpus: None,
             detect: argot_core::config::DetectConfig::default(),
         },

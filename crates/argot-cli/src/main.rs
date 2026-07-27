@@ -151,7 +151,12 @@ fn fit_timestamp(argot_dir: &Path) -> Option<String> {
 #[command(
     name = "argot",
     version,
-    about = "Surface repository-grounded divergence before code is accepted."
+    about = "Surface repository-grounded divergence before code is accepted.",
+    // The docs site serves an agent-readable mirror, and nothing local used to
+    // point at it — so an agent configuring argot fetched HTML and read it
+    // through a converter, several tool calls after giving up on `--help`.
+    after_help = "Docs: https://argot.tmonier.com/docs/\n\
+                  Coding agents: https://argot.tmonier.com/llms.txt"
 )]
 struct Cli {
     #[command(subcommand)]
@@ -194,7 +199,8 @@ enum Command {
     VoiceDiff(VoiceDiffCmd),
     /// Report corpus composition, calibration health, and repo suitability.
     Inspect(InspectCmd),
-    /// Mute a hit by hash (appends a [[mute]] to argot.toml).
+    /// Accept a finding: by hash for one hit, or `--path` for a standing rule
+    /// covering a whole tree (appends a [[mute]] to argot.toml).
     Mute(MuteCmd),
     /// List active suppressions across argot.toml [exclude], inline comments,
     /// and argot.toml [[mute]].
@@ -374,7 +380,18 @@ fn run_conventions_cmd(c: ConventionsCmd) -> ExitCode {
     if !catalog.declared_migrations.is_empty() {
         println!("── declared migrations (argot.toml) ──");
         for m in &catalog.declared_migrations {
-            println!("  {} → {} ({}) — {}", m.from, m.to, m.kind, m.reason);
+            println!(
+                "  {} → {} ({}) — {} · {} file(s) still to migrate",
+                m.from, m.to, m.kind, m.reason, m.leftover_count
+            );
+            if !m.leftovers.is_empty() {
+                let shown = 5.min(m.leftovers.len());
+                let mut files = m.leftovers[..shown].join(", ");
+                if m.leftover_count > shown {
+                    files.push_str(&format!(", +{} more", m.leftover_count - shown));
+                }
+                println!("    {files}");
+            }
         }
         println!();
     }
@@ -563,7 +580,7 @@ fn run_status(c: StatusCmd) -> ExitCode {
     // freshness (commits behind), config sync, and calibration drift — all
     // read from what the last fit persisted, no tree walk here.
     let health = argot_core::health::read(&ctx.argot_dir);
-    let status_config = argot_core::config::ArgotConfig::load(Path::new(&ctx.git_root));
+    let (status_config, _) = argot_core::compose::load_config(Path::new(&ctx.git_root));
     let behind = health.as_ref().and_then(|h| {
         (!h.fit_sha.is_empty())
             .then(|| {
@@ -997,7 +1014,7 @@ fn fit_repo(repo: &Path, slices: &[String]) -> Result<PathBuf, ()> {
     // never a prompt — and silent when the branch adds nothing in scope,
     // on detached HEAD (audit/refresh worktrees), or when the repo declared
     // branch fits intended via `[fit] refresh-from = "current-branch"`.
-    let fit_config = argot_core::config::ArgotConfig::load(repo);
+    let (fit_config, _) = argot_core::compose::load_config(repo);
     if let Some((branch, n)) = argot_core::check::unmerged_branch_source_commits(
         &repo.to_string_lossy(),
         &fit_config,
@@ -1830,14 +1847,51 @@ struct InspectCmd {
     /// Typical callees shown per cluster under `--model`.
     #[arg(long = "top", value_name = "N", default_value_t = 8)]
     top: usize,
+    /// List the files that would shape the voice, one per line, and exit. The
+    /// same walk `fit` uses — a corpus preview that needs no fit.
+    #[arg(long)]
+    corpus: bool,
     /// Output format: human (terminal) or json (stable machine-readable).
     #[arg(long, default_value = "human", value_parser = ["human", "json"])]
     format: String,
 }
 
+/// `argot inspect --corpus` — the file list a fit would learn from, and the
+/// one it would judge without learning from.
+///
+/// Before this, the only trustworthy answer to "what will shape the voice?"
+/// was `.argot/repo-corpus.txt`, which exists only *after* a fit — so the
+/// decision the setup flow asks you to make first (what to exclude) could only
+/// be checked afterwards.
+fn run_inspect_corpus(c: &InspectCmd) -> ExitCode {
+    let config = argot_core::config::ArgotConfig::load(&c.path);
+    let walk = argot_core::corpus::walk_corpus(&c.path, &config.path_suppressions());
+    let rel = |p: &std::path::Path| argot_core::corpus::rel_to_repo(p, &c.path);
+    if c.format == "json" {
+        let doc = serde_json::json!({
+            "voice": walk.voice.iter().map(|p| rel(p)).collect::<Vec<_>>(),
+            "check_only": walk.check_only.iter().map(|p| rel(p)).collect::<Vec<_>>(),
+        });
+        println!("{}", serde_json::to_string_pretty(&doc).unwrap());
+        return ExitCode::SUCCESS;
+    }
+    for p in &walk.voice {
+        println!("{}", rel(p));
+    }
+    eprintln!(
+        "[argot] {} file(s) shape the voice · {} checked but not learned from ([exclude].check-only)",
+        walk.voice.len(),
+        walk.check_only.len()
+    );
+    ExitCode::SUCCESS
+}
+
 fn run_inspect_cmd(c: InspectCmd) -> ExitCode {
     if c.model {
         return run_inspect_model(&c);
+    }
+    if c.corpus {
+        return run_inspect_corpus(&c);
     }
     let report = match inspect_repo(&c.path) {
         Ok(r) => r,
@@ -1887,9 +1941,25 @@ fn render_inspect_human(report: &InspectReport, use_color: bool, today: &str) ->
     let _ = writeln!(out, "Corpus");
     let _ = writeln!(
         out,
-        "  {} files scanned · {} supported · {} unsupported extension",
+        "  {} files in the repo · {} supported · {} unsupported extension",
         c.total_files, c.supported_files, c.unsupported_files
     );
+    // Name what git puts outside the repo, so "42% javascript" can never again
+    // be a reader's first news that their dependencies were counted as corpus.
+    if !c.gitignored_dirs.is_empty() || c.gitignored_files > 0 {
+        let shown = 4.min(c.gitignored_dirs.len());
+        let mut skipped = c.gitignored_dirs[..shown].join(", ");
+        if c.gitignored_dirs.len() > shown {
+            let _ = write!(skipped, ", +{} more", c.gitignored_dirs.len() - shown);
+        }
+        if c.gitignored_files > 0 {
+            if !skipped.is_empty() {
+                skipped.push_str(" · ");
+            }
+            let _ = write!(skipped, "{} loose file(s)", c.gitignored_files);
+        }
+        let _ = writeln!(out, "  gitignored, not part of the repo: {skipped}");
+    }
     for (lang, stats) in &c.languages {
         let _ = writeln!(
             out,
@@ -2105,7 +2175,18 @@ fn render_model_human(report: &ModelReport, use_color: bool) -> String {
 #[derive(Args)]
 struct MuteCmd {
     /// Hit hash from `argot check` output (the `[abc123def456]` on a hit line).
-    hash: String,
+    /// Mutes exactly that hit — a per-hit acceptance, not a standing rule: the
+    /// same finding in a sibling file gets its own hash. Omit it and pass
+    /// `--path` instead for a durable, pattern-scoped mute.
+    hash: Option<String>,
+    /// Mute by path glob instead of by hash (`src/legacy/**`) — a standing
+    /// `[[mute]]` that covers every future hit under it, not one hash.
+    #[arg(long, value_name = "GLOB", conflicts_with = "hash")]
+    path: Option<String>,
+    /// Narrow a `--path` mute to one rule or group (e.g. `foreign-import`).
+    /// Without it the mute covers every rule on those paths.
+    #[arg(long, value_name = "RULE", requires = "path")]
+    rule: Option<String>,
     /// Why this hit is muted (recorded in argot.toml [[mute]]).
     #[arg(long)]
     reason: Option<String>,
@@ -2150,24 +2231,58 @@ fn run_mute_cmd(c: MuteCmd) -> ExitCode {
     let ctx = resolve_context();
     let repo_root = PathBuf::from(&ctx.git_root);
     let expires = c.expires.map(date_days_from_now);
-    match argot_core::suppress::mute_hash(
-        &repo_root,
-        &ctx.argot_dir,
-        &c.hash,
-        c.reason.as_deref(),
-        expires.clone(),
-        &today_utc(),
-    ) {
+    let (_, mute_registry) = argot_core::compose::load_config(&repo_root);
+
+    // The path form is what a standing decision actually needs, and the CLI
+    // used to be unable to write it: `argot mute <hash>` covers one hit, so
+    // accepting the same dependency across a directory meant one committed
+    // entry per file, forever — or hand-writing TOML the CLI never mentioned.
+    let written = match (&c.hash, &c.path) {
+        (_, Some(path)) => argot_core::suppress::mute_path(
+            &repo_root,
+            &mute_registry,
+            path,
+            c.rule.as_deref(),
+            c.reason.as_deref(),
+            expires.clone(),
+        ),
+        (Some(hash), None) => argot_core::suppress::mute_hash(
+            &repo_root,
+            &ctx.argot_dir,
+            &mute_registry,
+            hash,
+            c.reason.as_deref(),
+            expires.clone(),
+            &today_utc(),
+        ),
+        (None, None) => Err(
+            "expected a hit hash (from `argot check`) or --path <glob> for a durable mute"
+                .to_string(),
+        ),
+    };
+
+    match written {
         Ok(rule) => {
+            let scope = match &rule.hash {
+                Some(h) => format!("[{h}] in {}", rule.path),
+                None => match &rule.rule {
+                    Some(r) => format!("{} (rule {r})", rule.path),
+                    None => rule.path.clone(),
+                },
+            };
             println!(
-                "Muted [{}] in {} — {}{}",
-                c.hash,
-                rule.path,
+                "Muted {scope} — {}{}",
                 rule.reason,
                 expires
                     .map(|e| format!(" (expires {e})"))
                     .unwrap_or_default()
             );
+            if rule.hash.is_some() {
+                println!(
+                    "  note: a hash mute covers this hit only — the same finding in another file \
+                     gets its own hash. `argot mute --path <glob>` covers a whole tree."
+                );
+            }
             println!("  → commit argot.toml to share this decision with your team and CI.");
             ExitCode::SUCCESS
         }
@@ -2212,7 +2327,6 @@ fn supported_files(root: &std::path::Path) -> Vec<PathBuf> {
 }
 
 fn run_list_mutes() -> ExitCode {
-    use argot_core::config::ArgotConfig;
     use argot_core::scoring::calibration::language_for_filename;
     use argot_core::suppress::parse_inline;
 
@@ -2220,7 +2334,7 @@ fn run_list_mutes() -> ExitCode {
     let repo_root = PathBuf::from(&ctx.git_root);
     let today = today_utc();
 
-    let config = ArgotConfig::load(&repo_root);
+    let (config, registry) = argot_core::compose::load_config(&repo_root);
     for w in &config.warnings {
         eprintln!("[argot] {w}");
     }
@@ -2248,7 +2362,7 @@ fn run_list_mutes() -> ExitCode {
     }
 
     // 2. Durable [[mute]] entries, with expiry status.
-    let rules = config.mutes(&today);
+    let rules = config.mutes_with(&registry, &today);
     println!("\nargot.toml  [[mute]]");
     if rules.active.is_empty() && rules.expired.is_empty() {
         println!("  (no entries)");
@@ -2337,7 +2451,9 @@ struct ReviewMutesCmd {
 
 fn run_review_mutes_cmd(c: ReviewMutesCmd) -> ExitCode {
     let ctx = resolve_context();
-    let outcome = argot_core::check::run_review_mutes(&ctx.git_root, &today_utc(), c.prune);
+    let (_, registry) = argot_core::compose::load_config(std::path::Path::new(&ctx.git_root));
+    let outcome =
+        argot_core::check::run_review_mutes(&ctx.git_root, &registry, &today_utc(), c.prune);
     print!("{}", outcome.stdout);
     eprint!("{}", outcome.stderr);
     ExitCode::from(outcome.exit_code as u8)
@@ -2492,6 +2608,9 @@ fn run_score_cmd(c: ScoreCmd) -> ExitCode {
         convention_bonus: 0.0,
         import_modules: mods.into_iter().collect(),
         import_module_prefixes,
+        // Plumbing scores single hunks with no repo scope of their own.
+        check_only_import_modules: Vec::new(),
+        check_only_patterns: Vec::new(),
         // Bench feature extraction reads `stages.bpe_score`; no evidence needed.
         evidence_corpus: None,
         // Bench corpora don't customize [detect]; the built-in defaults match

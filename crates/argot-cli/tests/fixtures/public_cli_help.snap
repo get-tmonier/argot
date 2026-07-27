@@ -12,7 +12,7 @@ Commands:
   review          Score a PR (or diff range) against the local voice without checking it out
   voice-diff      PR-level out-of-voice metric plus ranked hot-spots for a ref/range. Informational: always exits 0 (use `check`/`review` to gate)
   inspect         Report corpus composition, calibration health, and repo suitability
-  mute            Mute a hit by hash (appends a [[mute]] to argot.toml)
+  mute            Accept a finding: by hash for one hit, or `--path` for a standing rule covering a whole tree (appends a [[mute]] to argot.toml)
   list-mutes      List active suppressions across argot.toml [exclude], inline comments, and argot.toml [[mute]]
   review-mutes    Re-score muted files and report which suppressions no longer fire
   status          Show the current repository's argot state
@@ -29,6 +29,8 @@ Options:
   -h, --help     Print help
   -V, --version  Print version
 
+Docs: https://argot.tmonier.com/docs/
+Coding agents: https://argot.tmonier.com/llms.txt
 ===== root-semantic =====
 Surface repository-grounded divergence before code is accepted.
 
@@ -60,6 +62,9 @@ Commands:
 Options:
   -h, --help     Print help
   -V, --version  Print version
+
+Docs: https://argot.tmonier.com/docs/
+Coding agents: https://argot.tmonier.com/llms.txt
 
 ===== model =====
 Manage the local embedding model behind the semantic rules
@@ -238,22 +243,23 @@ Arguments:
 Options:
       --model            Inspect the fitted model artifact (hashes, provenance, and the typical callees per cluster) instead of repo suitability
       --top <N>          Typical callees shown per cluster under `--model` [default: 8]
+      --corpus           List the files that would shape the voice, one per line, and exit. The same walk `fit` uses — a corpus preview that needs no fit
       --format <FORMAT>  Output format: human (terminal) or json (stable machine-readable) [default: human] [possible values: human, json]
   -h, --help             Print help
-
 ===== mute =====
-Mute a hit by hash (appends a [[mute]] to argot.toml)
+Accept a finding: by hash for one hit, or `--path` for a standing rule covering a whole tree (appends a [[mute]] to argot.toml)
 
-Usage: argot mute [OPTIONS] <HASH>
+Usage: argot mute [OPTIONS] [HASH]
 
 Arguments:
-  <HASH>  Hit hash from `argot check` output (the `[abc123def456]` on a hit line)
+  [HASH]  Hit hash from `argot check` output (the `[abc123def456]` on a hit line). Mutes exactly that hit — a per-hit acceptance, not a standing rule: the same finding in a sibling file gets its own hash. Omit it and pass `--path` instead for a durable, pattern-scoped mute
 
 Options:
+      --path <GLOB>      Mute by path glob instead of by hash (`src/legacy/**`) — a standing `[[mute]]` that covers every future hit under it, not one hash
+      --rule <RULE>      Narrow a `--path` mute to one rule or group (e.g. `foreign-import`). Without it the mute covers every rule on those paths
       --reason <REASON>  Why this hit is muted (recorded in argot.toml [[mute]])
       --expires <DAYS>   Auto-expire the mute after N days (e.g. `30d`)
   -h, --help             Print help
-
 ===== list-mutes =====
 List active suppressions across argot.toml [exclude], inline comments, and argot.toml [[mute]]
 

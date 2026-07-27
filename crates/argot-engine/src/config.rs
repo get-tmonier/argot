@@ -26,7 +26,9 @@
 //! (identical values) *and* the next fit writes them out.
 
 use crate::rules::{validate_layer_with, Registry, RuleScope, RuleSettings, RulesLayer};
-use crate::suppress::path_rules::{default_recommended_patterns, PathSuppressions};
+use crate::suppress::path_rules::{
+    default_check_only_patterns, default_recommended_patterns, PathSuppressions,
+};
 use crate::suppress::rules_file::{build_mutes, RawMute, SuppressionRule, SuppressionsFile};
 use serde::Deserialize;
 use std::collections::BTreeMap;
@@ -47,6 +49,10 @@ pub struct ExcludeConfig {
     pub recommended: Vec<String>,
     /// Repo-specific exclude patterns (gitignore-style; scored but reported).
     pub paths: Vec<String>,
+    /// Paths that are checked like any other, but never shape the voice:
+    /// argot learns their dependency vocabulary, not their style.
+    /// Default: [`default_check_only_patterns`].
+    pub check_only: Vec<String>,
 }
 
 impl Default for ExcludeConfig {
@@ -54,6 +60,7 @@ impl Default for ExcludeConfig {
         ExcludeConfig {
             recommended: default_recommended_patterns(),
             paths: Vec::new(),
+            check_only: default_check_only_patterns(),
         }
     }
 }
@@ -324,6 +331,14 @@ pub struct ArgotConfig {
     migrations: Vec<RawMigration>,
     /// True when an `argot.toml` (or local) backed these values.
     pub from_file: bool,
+    /// True when a config file existed but could not be parsed at all, so the
+    /// whole document degraded to defaults. Distinct from [`Self::warnings`],
+    /// which also carries per-entry notes ("unknown rule 'x' — ignored") that
+    /// leave the rest of the config perfectly usable. A consumer that must fail
+    /// open on an unreadable config — the pre-write hook — keys off this, not
+    /// off the warning list: a typo in one `[[mute]]` should not take down a
+    /// guardrail that never reads mutes.
+    pub degraded: bool,
     /// Parse-level notes (malformed config file) for stderr.
     pub warnings: Vec<String>,
 }
@@ -344,6 +359,7 @@ impl Default for ArgotConfig {
             mutes: Vec::new(),
             migrations: Vec::new(),
             from_file: false,
+            degraded: false,
             warnings: Vec::new(),
         }
     }
@@ -387,6 +403,8 @@ struct RawExclude {
     recommended: Option<Vec<String>>,
     #[serde(default)]
     paths: Vec<String>,
+    #[serde(rename = "check-only")]
+    check_only: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -439,10 +457,12 @@ impl ArgotConfig {
     /// vocabulary (built-ins + the repo's custom rules).
     pub fn load_with(repo_root: &Path, registry: &Registry) -> Self {
         let mut warnings = Vec::new();
+        let mut degraded = false;
         let mut collect = |path: &Path| match read_raw(path) {
             Ok(raw) => raw,
             Err(w) => {
                 warnings.push(w);
+                degraded = true;
                 None
             }
         };
@@ -452,8 +472,8 @@ impl ArgotConfig {
         let base = base.unwrap_or_default();
         let local = local.unwrap_or_default();
 
-        // [exclude]: recommended — the base list (or the built-in default when
-        // omitted) plus any local extras; paths — appended.
+        // [exclude]: recommended and check-only — the base list (or the built-in
+        // default when omitted) plus any local extras; paths — appended.
         let mut recommended = base
             .exclude
             .recommended
@@ -463,6 +483,13 @@ impl ArgotConfig {
         }
         let mut paths = base.exclude.paths;
         paths.extend(local.exclude.paths);
+        let mut check_only = base
+            .exclude
+            .check_only
+            .unwrap_or_else(default_check_only_patterns);
+        if let Some(extra) = local.exclude.check_only {
+            check_only.extend(extra);
+        }
 
         // [detect]: data-threshold — local wins; generated-markers — the base
         // list (or the built-in default when omitted) plus any local extras.
@@ -607,7 +634,11 @@ impl ArgotConfig {
         migrations.extend(local.migration);
 
         ArgotConfig {
-            exclude: ExcludeConfig { recommended, paths },
+            exclude: ExcludeConfig {
+                recommended,
+                paths,
+                check_only,
+            },
             detect: DetectConfig {
                 data_threshold,
                 generated_markers,
@@ -623,6 +654,7 @@ impl ArgotConfig {
             mutes,
             migrations,
             from_file,
+            degraded,
             warnings,
         }
     }
@@ -672,6 +704,7 @@ impl ArgotConfig {
         PathSuppressions::from_parts(
             &self.exclude.recommended,
             &self.exclude.paths,
+            &self.exclude.check_only,
             self.from_file,
         )
     }
@@ -708,6 +741,7 @@ pub fn default_toml() -> String {
             .join("\n")
     };
     let recommended = render(crate::suppress::path_rules::DEFAULT_RECOMMENDED_PATTERNS);
+    let check_only = render(crate::suppress::path_rules::DEFAULT_CHECK_ONLY_PATTERNS);
     let markers = render(DEFAULT_GENERATED_MARKERS);
     format!(
         "\
@@ -716,12 +750,15 @@ pub fn default_toml() -> String {
 # Written by `argot init`. Personal, uncommitted overrides go in
 # argot.local.toml (gitignored): scalars there win, list entries append.
 # Full reference: https://argot.tmonier.com/docs/configure/
+# Writing for a coding agent? https://argot.tmonier.com/llms.txt
 
 [exclude]
 # The built-in argot:recommended set — directories and files that rarely carry a
-# repo's authored voice. These are DROPPED silently. Edit freely: remove an entry
-# to learn from that dir (e.g. drop \"test*/\" to include tests), or empty the list
-# to rely on `paths` alone.
+# repo's authored voice. These are DROPPED silently: neither learned from nor
+# checked. Edit freely: remove an entry to bring that dir back into check (e.g.
+# drop \"test*/\" and \"*.test.*\" to have your tests checked — `check-only` below
+# still keeps them from shaping the voice), or empty the list to rely on `paths`
+# alone.
 recommended = [
 {recommended}
 ]
@@ -733,6 +770,17 @@ recommended = [
 #   \"src/generated/\",   # protobuf / OpenAPI stubs
 #   \"vendor/\",          # vendored third-party code
 paths = []
+
+# Paths that are CHECKED like any other, but never shape the voice. argot learns
+# their dependency vocabulary — a library only your tests use stops reading as
+# foreign — but not their style, so test phrasing never dilutes the model. On
+# these paths the voice reports only `foreign-import`; every other rule (custom
+# rules, layering, test integrity …) behaves normally.
+# By default these are also in `recommended` above, so they aren't checked at all;
+# remove them there to turn your tests into a guarded, non-teaching scope.
+check-only = [
+{check_only}
+]
 
 [detect]
 # How argot spots code it should not learn from. `data-threshold` is the share

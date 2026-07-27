@@ -18,6 +18,7 @@ use crate::scoring::model::LanguageModel;
 use crate::scoring::shape_primitive::ShapePrimitiveRegistry;
 use crate::scoring::typicality::TypicalityModel;
 use anyhow::Result;
+use argot_engine::suppress::PathSuppressions;
 use argot_lang::bpe::BpeTokenizer;
 use argot_lang::text::splitlines_keepends;
 use std::collections::HashSet;
@@ -144,6 +145,15 @@ pub struct SequentialConfig {
     pub convention_bonus: f64,
     pub import_modules: Vec<String>,
     pub import_module_prefixes: Vec<String>,
+    /// Modules imported only by `[exclude].check-only` files, from the fit.
+    /// Consulted for those files alone — a test-only dependency never becomes
+    /// familiar in production code.
+    pub check_only_import_modules: Vec<String>,
+    /// The live `[exclude].check-only` globs. Live rather than fitted because
+    /// this is a scope decision, not learned state; a pattern added without a
+    /// refit simply has no vocabulary yet, which withholds findings rather
+    /// than inventing them.
+    pub check_only_patterns: Vec<String>,
     /// Pre-computed evidence corpus parsed from the config's `evidence_corpus`
     /// block. `None` disables evidence collection (matching a config without
     /// the block); the scorer then behaves exactly as before.
@@ -201,6 +211,30 @@ pub struct SequentialImportBpeScorer {
     evidence_corpus: Option<EvidenceCorpus>,
     /// Generated-file comment markers, for the check-time auto-generated skip.
     generated_markers: Vec<String>,
+    /// `[exclude].check-only` matcher. A hunk in one of these files is judged
+    /// on its dependencies alone: the voice never learned their style, so
+    /// surprisal, callee and convention candidates are withheld and only the
+    /// import reason can carry the hunk. `None` when no pattern is configured
+    /// — then this is inert and scoring is byte-identical.
+    check_only: Option<PathSuppressions>,
+}
+
+/// Does `file_path` name a `[exclude].check-only` file? `None` (the bench's
+/// path-less scoring) and a scorer with no configured patterns are never
+/// check-only, so the default path is untouched.
+fn is_check_only_path(check_only: Option<&PathSuppressions>, file_path: Option<&Path>) -> bool {
+    match (check_only, file_path) {
+        (Some(scope), Some(path)) => {
+            scope.is_check_only(&path.to_string_lossy().replace('\\', "/"))
+        }
+        _ => false,
+    }
+}
+
+/// Build the check-only matcher, or `None` when no pattern is configured (then
+/// every check-only branch is dead and scoring is byte-identical).
+fn check_only_scope(patterns: &[String]) -> Option<PathSuppressions> {
+    (!patterns.is_empty()).then(|| PathSuppressions::from_parts(&[], &[], patterns, true))
 }
 
 impl SequentialImportBpeScorer {
@@ -243,6 +277,8 @@ impl SequentialImportBpeScorer {
             cfg.import_modules.clone(),
             cfg.import_module_prefixes.clone(),
         );
+        import_scorer.load_check_only(cfg.check_only_import_modules.clone());
+        let check_only = check_only_scope(&cfg.check_only_patterns);
 
         let sources: Vec<String> = corpus.iter().map(|(_, s)| s.clone()).collect();
         let bpe = BpeScorer::new(BpeTokenizer::load(), generic_baseline_json, &sources)?;
@@ -294,6 +330,7 @@ impl SequentialImportBpeScorer {
             bpe_threshold: cfg.bpe_threshold,
             evidence_corpus: cfg.evidence_corpus,
             generated_markers: cfg.detect.generated_markers,
+            check_only,
         })
     }
 
@@ -328,6 +365,8 @@ impl SequentialImportBpeScorer {
             cfg.import_modules.clone(),
             cfg.import_module_prefixes.clone(),
         );
+        import_scorer.load_check_only(cfg.check_only_import_modules.clone());
+        let check_only = check_only_scope(&cfg.check_only_patterns);
 
         let bpe = BpeScorer::from_stats(BpeTokenizer::load(), generic_baseline_json, &model.bpe)?;
 
@@ -369,6 +408,7 @@ impl SequentialImportBpeScorer {
             bpe_threshold: cfg.bpe_threshold,
             evidence_corpus: cfg.evidence_corpus,
             generated_markers: cfg.detect.generated_markers,
+            check_only,
         })
     }
 
@@ -398,6 +438,14 @@ impl SequentialImportBpeScorer {
         self.call_receiver
             .as_ref()
             .is_none_or(|cr| cr.knows_file(path))
+    }
+
+    /// Is `path` in the `[exclude].check-only` scope — checked, but never part
+    /// of the voice corpus? A caller that re-decides `flagged` against a
+    /// threshold must ask: every threshold argot calibrates describes
+    /// production phrasing, and these files were never measured against it.
+    pub fn is_check_only_file(&self, path: &Path) -> bool {
+        is_check_only_path(self.check_only.as_ref(), Some(path))
     }
 
     /// Per-primitive fire counts from the call-receiver (bench observability).
@@ -475,12 +523,17 @@ impl SequentialImportBpeScorer {
     /// of the repo's own code in a file that merely imports something foreign
     /// stays quiet. Bindings come from the adapter (`import numpy as np` → `np`,
     /// `from colorama import Fore` → `Fore`); foreignness from the import scorer.
-    fn hunk_uses_foreign_import_binding(&self, hunk_content: &str, binding_source: &str) -> bool {
+    fn hunk_uses_foreign_import_binding(
+        &self,
+        hunk_content: &str,
+        binding_source: &str,
+        check_only: bool,
+    ) -> bool {
         let foreign_names: HashSet<String> = self
             .adapter
             .import_bindings(binding_source)
             .into_iter()
-            .filter(|(_, module)| self.import_scorer.is_foreign(module))
+            .filter(|(_, module)| self.import_scorer.is_foreign_in(module, check_only))
             .map(|(name, _)| name)
             .collect();
         if foreign_names.is_empty() {
@@ -592,12 +645,17 @@ impl SequentialImportBpeScorer {
             };
         let masked_input: &str = prose_blanked.as_deref().unwrap_or(hunk_content);
 
+        // A `[exclude].check-only` file is judged on its dependencies alone:
+        // the voice never learned its style, but it did learn which libraries
+        // live there.
+        let check_only = is_check_only_path(self.check_only.as_ref(), file_path);
+
         // 2. Import stage (over the hunk's own imports, prose lines blanked).
         let foreign: HashSet<String> = self
             .adapter
             .extract_imports(masked_input)
             .into_iter()
-            .filter(|spec| self.import_scorer.is_foreign(spec))
+            .filter(|spec| self.import_scorer.is_foreign_in(spec, check_only))
             .collect();
         let import_score = foreign.len() as f64;
 
@@ -724,7 +782,7 @@ impl SequentialImportBpeScorer {
         let hunk_uses_foreign_binding = cr_would_fire
             && !hunk_foreign_reach
             && import_score < IMPORT_THRESHOLD
-            && self.hunk_uses_foreign_import_binding(hunk_content, binding_source);
+            && self.hunk_uses_foreign_import_binding(hunk_content, binding_source, check_only);
         // An explicit foreign namespace (`\Respect\Validation\Validator::key`,
         // `tokio::spawn`) is an unambiguous foreign-dependency reference — as
         // strong a signal as a foreign import — so it fires regardless of the
@@ -804,6 +862,15 @@ impl SequentialImportBpeScorer {
             v.sort();
             v
         };
+
+        // A check-only file is scored by a model that never read one. Its
+        // surprisal, callee clusters and conventions all describe production
+        // phrasing, so judging test phrasing against them is a category error —
+        // withhold every candidate but the import, whose verdict is a
+        // membership test the fit *did* learn for this scope.
+        if check_only {
+            candidates.retain(|c| c.0 == Reason::Import);
+        }
 
         if !candidates.is_empty() {
             let tiebreak = |r: Reason| match r {

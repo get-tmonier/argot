@@ -31,7 +31,7 @@ end lists every file argot writes and whether it's committed.
 **Location:** the `[exclude]` section of `<repo-root>/argot.toml`. Commit it so
 the whole team and CI share the same scope.
 
-`[exclude]` has **two** gitignore-style pattern lists that differ only in how a
+`[exclude]` has **three** gitignore-style pattern lists that differ only in how a
 match is treated:
 
 ```toml
@@ -56,6 +56,13 @@ paths = [
   "*.min.js",               # bundled/minified output, anywhere
   "!keep.min.js",           # `!` re-includes a path an earlier pattern excluded (last match wins)
 ]
+
+# Paths that are CHECKED like any other, but never shape the voice. argot learns
+# their dependency vocabulary, not their style. Defaults to your tests.
+check-only = [
+  "test/", "tests/", "__tests__/", "benchmarks/",
+  "test_*", "*.test.*", "*.spec.*",
+]
 ```
 
 The pattern rules (shared by both lists), precisely:
@@ -78,6 +85,52 @@ Don't hand-guess the directories to exclude — [`argot init --suggest`](/docs/s
 surfaces the generated/data-heavy ones with evidence, and an agent can name the
 vendored/legacy ones from your tree. See [Setup](/docs/setup/).
 
+### `check-only` — checked, but never teaches
+
+The third list answers a question the other two can't: *judge this code, but
+don't learn from it.*
+
+Tests are the reason it exists. A test file's phrasing is deliberately unlike
+production code — arrange/act/assert, fixtures, mocks — so learning style from
+tests dilutes the voice. But a test's **dependencies** are real vocabulary: a
+harness or a clock-control library that only ever appears in tests is not a
+foreign dependency, it's how this repo tests.
+
+A path in `check-only` is:
+
+- **out of the voice corpus** — no surprisal, no callee clusters, no
+  thresholds. Test style never mixes with production conventions.
+- **in the vocabulary** — the import specifiers those files use are learned into
+  a separate set, consulted *only* when scoring one of those same files. A
+  dependency only your tests use stays foreign in production code.
+- **checked** — but by the import signal alone. On these paths the voice reports
+  only `foreign-import`; `rare-tokens`, `unfamiliar-callee` and `convention`
+  are withheld, because the model never read a file like this one. Every other
+  rule — custom rules, `layering`, the test-integrity rules — behaves normally.
+
+**By default this list changes nothing**, because the same paths are also in
+`recommended`, which drops them from checking entirely. To turn your tests into
+a guarded, non-teaching scope, remove the test patterns from `recommended` and
+leave them here:
+
+```toml
+[exclude]
+recommended = [
+  "docs/", "build/", "dist/",     # … the rest of the defaults, minus:
+  # "test*/", "__tests__/", "test_*", "*.test.*", "*.spec.*",
+]
+check-only = ["test*/", "__tests__/", "test_*", "*.test.*", "*.spec.*"]
+```
+
+Re-run `argot fit` afterwards — the test vocabulary is learned at fit time. It
+is a membership set, not a distribution, so it needs no minimum corpus: three
+test files are enough for the three imports they name, and a repo with no tests
+gets an empty set and today's behaviour exactly.
+
+A bare pattern here names a **file** (`test_*` matches `test_helpers.py`, not a
+`test_util/` directory of production support code); add a trailing slash for a
+directory (`tests/`), or use a path shape (`**/__tests__/**`).
+
 ### Editing the `recommended` set
 
 `init` writes the full built-in `argot:recommended` set into `recommended` — the
@@ -90,8 +143,9 @@ directories and files that are almost never part of a repo's authored voice:
 - **Files:** `test_*` and `conftest.py`; `*.test.*` / `*.spec.*` / `*.config.*`
   (so `x.test.ts`, `vite.config.ts`); and dotfile `.*rc.*` configs (`.babelrc.js`).
 
-Because it's a plain list, you tune it **per entry**: remove `"test*/"` to learn
-from your tests, add `"vendor/"` to drop a vendored tree silently, or set
+Because it's a plain list, you tune it **per entry**: remove `"test*/"` to bring
+tests back into scope (`check-only` above still keeps them out of the voice), add
+`"vendor/"` to drop a vendored tree silently, or set
 `recommended = []` to disable the set entirely and rely on `paths` alone.
 (Detecting generated and data files is a separate concern — see `[detect]` next —
 and stays on regardless.)

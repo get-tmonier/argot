@@ -94,8 +94,7 @@ impl Detector for ScriptDetector {
     /// still addressable in config, it just produces nothing this run).
     fn load(
         &mut self,
-        _argot_dir: &std::path::Path,
-        _detect: &argot_engine::config::DetectConfig,
+        _ctx: &argot_engine::detector::LoadContext<'_>,
     ) -> Result<(), (String, i32)> {
         self.compiled = self
             .rules

@@ -20,6 +20,7 @@ pub const DEFAULT_MUTE_REASON: &str = "muted via argot mute";
 pub fn mute_hash(
     repo_root: &Path,
     argot_dir: &Path,
+    registry: &crate::rules::Registry,
     hash: &str,
     reason: Option<&str>,
     expires: Option<String>,
@@ -35,9 +36,9 @@ pub fn mute_hash(
         format!("hit hash '{hash}' not found in the last check results — run `argot check` and copy a [hash] from a hit")
     })?;
 
-    let config = ArgotConfig::load(repo_root);
+    let config = ArgotConfig::load_with(repo_root, registry);
     if config
-        .mutes(today)
+        .mutes_with(registry, today)
         .active
         .iter()
         .any(|r| r.hash.as_deref() == Some(hash))
@@ -57,6 +58,47 @@ pub fn mute_hash(
             .to_string(),
     };
 
+    append_mute(repo_root, &rule)?;
+    Ok(rule)
+}
+
+/// Append a durable, pattern-scoped `[[mute]]` — the form that survives a
+/// re-run, because it names a path shape rather than one hit's hash.
+///
+/// `rule` narrows it to a rule or group; it is validated against `registry`
+/// (built-ins *and* the repo's custom rules) so a typo is refused at the CLI
+/// rather than silently ignored later at check time.
+pub fn mute_path(
+    repo_root: &Path,
+    registry: &crate::rules::Registry,
+    path: &str,
+    rule: Option<&str>,
+    reason: Option<&str>,
+    expires: Option<String>,
+) -> Result<SuppressionRule, String> {
+    let path = path.trim();
+    if path.is_empty() {
+        return Err("--path needs a glob, e.g. 'src/legacy/**'".to_string());
+    }
+    if let Some(selector) = rule {
+        if !registry.known_selector(selector) {
+            return Err(format!(
+                "unknown rule '{selector}' (known: {})",
+                registry.selector_names().join(", ")
+            ));
+        }
+    }
+    let rule = SuppressionRule {
+        path: path.to_string(),
+        rule: rule.map(str::to_string),
+        hash: None,
+        expires,
+        reason: reason
+            .map(str::trim)
+            .filter(|r| !r.is_empty())
+            .unwrap_or(DEFAULT_MUTE_REASON)
+            .to_string(),
+    };
     append_mute(repo_root, &rule)?;
     Ok(rule)
 }
@@ -96,7 +138,16 @@ mod tests {
     fn mute_appends_hash_scoped_rule_with_default_reason() {
         let (root, argot_dir) = scratch("append");
         seed_last_check(&argot_dir);
-        let rule = mute_hash(&root, &argot_dir, "abc123def456", None, None, TODAY).unwrap();
+        let rule = mute_hash(
+            &root,
+            &argot_dir,
+            crate::rules::Registry::builtin(),
+            "abc123def456",
+            None,
+            None,
+            TODAY,
+        )
+        .unwrap();
         assert_eq!(rule.path, "src/app.py");
         assert_eq!(rule.hash.as_deref(), Some("abc123def456"));
         assert_eq!(rule.reason, DEFAULT_MUTE_REASON);
@@ -118,6 +169,7 @@ mod tests {
         mute_hash(
             &root,
             &argot_dir,
+            crate::rules::Registry::builtin(),
             "abc123def456",
             Some("noisy vendored hunk"),
             None,
@@ -137,7 +189,16 @@ mod tests {
     fn mute_unknown_hash_errors() {
         let (root, argot_dir) = scratch("unknown");
         seed_last_check(&argot_dir);
-        let err = mute_hash(&root, &argot_dir, "000000000000", None, None, TODAY).unwrap_err();
+        let err = mute_hash(
+            &root,
+            &argot_dir,
+            crate::rules::Registry::builtin(),
+            "000000000000",
+            None,
+            None,
+            TODAY,
+        )
+        .unwrap_err();
         assert!(err.contains("not found in the last check results"));
         let _ = std::fs::remove_dir_all(&root);
     }
@@ -145,7 +206,16 @@ mod tests {
     #[test]
     fn mute_without_last_check_errors() {
         let (root, argot_dir) = scratch("nocache");
-        let err = mute_hash(&root, &argot_dir, "abc123def456", None, None, TODAY).unwrap_err();
+        let err = mute_hash(
+            &root,
+            &argot_dir,
+            crate::rules::Registry::builtin(),
+            "abc123def456",
+            None,
+            None,
+            TODAY,
+        )
+        .unwrap_err();
         assert!(err.contains("run `argot check` first"));
         let _ = std::fs::remove_dir_all(&root);
     }
@@ -154,9 +224,62 @@ mod tests {
     fn duplicate_mute_errors() {
         let (root, argot_dir) = scratch("dup");
         seed_last_check(&argot_dir);
-        mute_hash(&root, &argot_dir, "abc123def456", None, None, TODAY).unwrap();
-        let err = mute_hash(&root, &argot_dir, "abc123def456", None, None, TODAY).unwrap_err();
+        mute_hash(
+            &root,
+            &argot_dir,
+            crate::rules::Registry::builtin(),
+            "abc123def456",
+            None,
+            None,
+            TODAY,
+        )
+        .unwrap();
+        let err = mute_hash(
+            &root,
+            &argot_dir,
+            crate::rules::Registry::builtin(),
+            "abc123def456",
+            None,
+            None,
+            TODAY,
+        )
+        .unwrap_err();
         assert!(err.contains("already muted"));
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// The path form is a standing rule, not a per-hit acceptance: it needs no
+    /// prior check run, and an unknown rule selector is refused at write time
+    /// rather than silently ignored on the next check.
+    #[test]
+    fn path_mutes_are_durable_and_validate_their_rule() {
+        let (root, _) = scratch("path");
+        let rule = mute_path(
+            &root,
+            crate::rules::Registry::builtin(),
+            "src/legacy/**",
+            Some("foreign-import"),
+            Some("legacy tree, migrating in Q3"),
+            None,
+        )
+        .unwrap();
+        assert_eq!(rule.path, "src/legacy/**");
+        assert_eq!(rule.rule.as_deref(), Some("foreign-import"));
+        assert!(rule.hash.is_none(), "a path mute pins no hash");
+
+        let loaded = ArgotConfig::load(&root).mutes(TODAY);
+        assert_eq!(loaded.active, vec![rule]);
+
+        let err = mute_path(
+            &root,
+            crate::rules::Registry::builtin(),
+            "src/**",
+            Some("no-such-rule"),
+            None,
+            None,
+        )
+        .unwrap_err();
+        assert!(err.contains("unknown rule"), "{err}");
         let _ = std::fs::remove_dir_all(&root);
     }
 
@@ -167,6 +290,7 @@ mod tests {
         let rule = mute_hash(
             &root,
             &argot_dir,
+            crate::rules::Registry::builtin(),
             "abc123def456",
             None,
             Some("2026-08-01".to_string()),

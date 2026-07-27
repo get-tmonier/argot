@@ -16,6 +16,10 @@ const SOURCE_EXTENSIONS: &[&str] = &[
     ".cc", ".hpp", ".cxx", ".rb", ".pas", ".pp", ".dpr", ".lpr", ".inc",
 ];
 
+/// Trees that hold no authored code at all — dependency, build and tool-cache
+/// output. Structural, not a scope decision: there is nothing here anyone
+/// wrote, so no configuration turns it back on. Which *authored* paths shape
+/// the voice is `[exclude].check-only`'s job (see [`collect_source_files`]).
 const EXCLUDE_DIRS: &[&str] = &[
     "node_modules",
     ".git",
@@ -29,10 +33,6 @@ const EXCLUDE_DIRS: &[&str] = &[
     ".mypy_cache",
     ".pytest_cache",
     ".ruff_cache",
-    "test",
-    "tests",
-    "__tests__",
-    "benchmarks",
 ];
 
 /// Python `Path(name).suffix` (case-sensitive) — the substring from the last
@@ -44,13 +44,10 @@ fn suffix(name: &str) -> &str {
     }
 }
 
-fn is_test_filename(name: &str) -> bool {
-    name.starts_with("test_") || name.contains(".test.") || name.contains(".spec.")
-}
-
 /// Recursively collect production source files under `repo_path`, mirroring
 /// `_collect_source_files`: keep `.py/.ts/.tsx`, drop any path with an
-/// excluded directory component, drop test/spec files, drop paths the
+/// excluded directory component, drop `[exclude].check-only` paths (tests by
+/// default — they are checked but never teach), drop paths the
 /// user muted in `[exclude].paths` (user patterns only — the built-in
 /// `argot:recommended` set governs calibration/check scope, not corpus
 /// collection, so a repo without an `argot.toml` gets exactly the corpus
@@ -105,8 +102,15 @@ pub fn collect_source_files_with(
     repo_path: &Path,
     suppressions: &PathSuppressions,
 ) -> Vec<PathBuf> {
+    walk_corpus(repo_path, suppressions).voice
+}
+
+/// The full corpus walk: voice files and `[exclude].check-only` files, each
+/// sorted for reproducibility (the filesystem's order is not stable, and
+/// downstream consumers only build order-independent counters).
+pub fn walk_corpus(repo_path: &Path, suppressions: &PathSuppressions) -> CorpusWalk {
     let git_scope = GitScope::open(repo_path);
-    let mut out = Vec::new();
+    let mut out = CorpusWalk::default();
     collect_recursive(
         repo_path,
         repo_path,
@@ -114,7 +118,8 @@ pub fn collect_source_files_with(
         git_scope.as_ref(),
         &mut out,
     );
-    out.sort();
+    out.voice.sort();
+    out.check_only.sort();
     out
 }
 
@@ -124,14 +129,20 @@ pub fn collect_source_files_with(
 /// voice, so the corpus drops it. Tracked files always stay in, even when an
 /// ignore pattern covers them (force-added wins, matching git's own rule).
 /// On a plain directory with no `.git`, everything stays in.
-struct GitScope {
+///
+/// Public so every surface that *reports* a corpus (`inspect`, `init
+/// --suggest`) can prune exactly what the fit prunes. A report computed
+/// without this filter describes a corpus that will never be fitted.
+pub struct GitScope {
     repo: git2::Repository,
     /// Sorted, `/`-separated, repo-relative tracked paths from the index.
     tracked: Vec<String>,
 }
 
 impl GitScope {
-    fn open(root: &Path) -> Option<Self> {
+    /// Open git's view of `root`, or `None` for a plain directory with no
+    /// `.git` (then nothing is git-excluded).
+    pub fn open(root: &Path) -> Option<Self> {
         let repo = git2::Repository::open(root).ok()?;
         let index = repo.index().ok()?;
         let mut tracked: Vec<String> = index
@@ -147,7 +158,7 @@ impl GitScope {
     }
 
     /// File outside the repo per git: ignored and not in the index.
-    fn excludes_file(&self, rel: &str) -> bool {
+    pub fn excludes_file(&self, rel: &str) -> bool {
         self.ignored(rel)
             && self
                 .tracked
@@ -157,7 +168,7 @@ impl GitScope {
 
     /// Directory prunable per git: ignored (checked with a trailing `/` so
     /// `dir/`-style patterns match) and holding no tracked file beneath it.
-    fn excludes_dir(&self, rel: &str) -> bool {
+    pub fn excludes_dir(&self, rel: &str) -> bool {
         if !self.ignored(rel) && !self.ignored(&format!("{rel}/")) {
             return false;
         }
@@ -171,12 +182,13 @@ impl GitScope {
 
 /// True if `rel_path` (repo-root-relative, `/`-separated) is a corpus source
 /// file — the per-path form of [`collect_source_files`]'s filter: a source
-/// extension, not a test/spec file, no excluded-dir component, and not muted by a
-/// user `.argotignore`/`[exclude].paths` pattern. Lets a caller classify a single
-/// path (e.g. a changed file in a diff) without re-walking the tree.
+/// extension, not `[exclude].check-only`, no excluded-dir component, and not
+/// muted by a user `.argotignore`/`[exclude].paths` pattern. Lets a caller
+/// classify a single path (e.g. a changed file in a diff) without re-walking
+/// the tree.
 pub fn is_corpus_source(rel_path: &str, suppressions: &PathSuppressions) -> bool {
     let file = rel_path.rsplit('/').next().unwrap_or(rel_path);
-    if !SOURCE_EXTENSIONS.contains(&suffix(file)) || is_test_filename(file) {
+    if !SOURCE_EXTENSIONS.contains(&suffix(file)) || suppressions.is_check_only(rel_path) {
         return false;
     }
     let comps: Vec<&str> = rel_path.split('/').collect();
@@ -202,12 +214,25 @@ fn user_ignored(path: &Path, root: &Path, suppressions: &PathSuppressions) -> bo
     }
 }
 
+/// One walk, two buckets: the files that shape the voice, and the
+/// `[exclude].check-only` files that are judged by it but never teach it.
+/// Both survive the same structural, user-pattern and git filters, so the
+/// only thing separating them is the configured scope.
+#[derive(Debug, Default)]
+pub struct CorpusWalk {
+    /// Files the voice model learns from.
+    pub voice: Vec<PathBuf>,
+    /// Files checked but excluded from the voice — only their dependency
+    /// vocabulary is harvested.
+    pub check_only: Vec<PathBuf>,
+}
+
 fn collect_recursive(
     dir: &Path,
     root: &Path,
     suppressions: &PathSuppressions,
     git_scope: Option<&GitScope>,
-    out: &mut Vec<PathBuf>,
+    out: &mut CorpusWalk,
 ) {
     let entries = match fs::read_dir(dir) {
         Ok(e) => e,
@@ -224,7 +249,8 @@ fn collect_recursive(
         if file_type.is_dir() {
             // Prune excluded directories (equivalent to Python's post-filter
             // on path components, but cheaper). Gitignore semantics: a muted
-            // directory prunes its whole subtree.
+            // directory prunes its whole subtree. A check-only directory is
+            // NOT pruned — its files are still walked, for their vocabulary.
             if EXCLUDE_DIRS.contains(&name.as_ref()) {
                 continue;
             }
@@ -242,9 +268,6 @@ fn collect_recursive(
             if !SOURCE_EXTENSIONS.contains(&suffix(&name)) {
                 continue;
             }
-            if is_test_filename(&name) {
-                continue;
-            }
             if user_ignored(&path, root, suppressions) {
                 continue;
             }
@@ -254,7 +277,11 @@ fn collect_recursive(
                     continue;
                 }
             }
-            out.push(path);
+            if suppressions.is_check_only_abs(&path, root) {
+                out.check_only.push(path);
+            } else {
+                out.voice.push(path);
+            }
         }
     }
 }
@@ -337,6 +364,60 @@ mod tests {
         assert_eq!(suffix("a.py"), ".py");
         assert_eq!(suffix("a.PY"), ".PY");
         assert!(!SOURCE_EXTENSIONS.contains(&suffix("a.PY")));
+    }
+
+    /// Verbatim copy of the pre-`check-only` hardcoded predicate: the test
+    /// filename rule and the test/benchmark directory components that used to
+    /// live in `EXCLUDE_DIRS`. The default `[exclude].check-only` set must
+    /// agree with it on every path, or a repo's fitted corpus moved.
+    fn legacy_excluded_from_corpus(rel_path: &str) -> bool {
+        const LEGACY_TEST_DIRS: &[&str] = &["test", "tests", "__tests__", "benchmarks"];
+        let file = rel_path.rsplit('/').next().unwrap_or(rel_path);
+        let is_test_filename =
+            file.starts_with("test_") || file.contains(".test.") || file.contains(".spec.");
+        let comps: Vec<&str> = rel_path.split('/').collect();
+        is_test_filename
+            || comps[..comps.len().saturating_sub(1)]
+                .iter()
+                .any(|c| LEGACY_TEST_DIRS.contains(c))
+    }
+
+    #[test]
+    fn default_check_only_reproduces_the_legacy_corpus_filter() {
+        let s = PathSuppressions::recommended();
+        let matrix = [
+            "app/models/user.py",
+            "src/widget.tsx",
+            "tests/test_app.py",
+            "tests/helpers.py",
+            "test/unit/thing.go",
+            "app/test_helpers.py",
+            "app/foo.test.ts",
+            "app/foo.spec.js",
+            "src/__tests__/deep.test.ts",
+            "src/__tests__/helper.ts",
+            "benchmarks/run.py",
+            "pkg/benchmarks/bench.rs",
+            "src/testing/harness.ts",
+            "src/testdata/sample.go",
+            "src/contest/entry.rb",
+            "src/latest.rs",
+            "a/b/c/d.php",
+            // rocksdb's `test_util/` is production support code the voice has
+            // always learned from: a bare `test_*` names files, not directories.
+            "test_util/sync_point.cc",
+            "test_util/testharness.h",
+            "db/test_util/deep.cc",
+            // …but a test file inside it is still a test file.
+            "test_util/testutil_test.cc",
+        ];
+        for rel in matrix {
+            assert_eq!(
+                s.is_check_only(rel),
+                legacy_excluded_from_corpus(rel),
+                "corpus scope moved for {rel}"
+            );
+        }
     }
 
     #[test]

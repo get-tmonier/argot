@@ -387,11 +387,20 @@ pub fn run_check(args: CheckArgs, detectors: Vec<RegisteredDetector<'_>>) -> Che
         }
     }
 
+    // The resolved path scope, shared by the load lifecycle (which files shape
+    // the voice vs. are only judged by it) and the changeset filter below.
+    let path_suppressions = config.path_suppressions();
+
     // Load lifecycle: the base model is mandatory (its Err fails the check);
     // additive groups degrade inside their pass instead.
     let t_load = crate::timing::phase("check: load scorers");
+    let load_ctx = crate::detector::LoadContext {
+        argot_dir: &args.argot_dir,
+        detect: &config.detect,
+        path_suppressions: &path_suppressions,
+    };
     for reg in &mut detectors {
-        if let Err((msg, code)) = reg.detector.load(&args.argot_dir, &config.detect) {
+        if let Err((msg, code)) = reg.detector.load(&load_ctx) {
             return CheckOutcome::err(msg, code);
         }
     }
@@ -533,7 +542,6 @@ pub fn run_check(args: CheckArgs, detectors: Vec<RegisteredDetector<'_>>) -> Che
     for w in &config.warnings {
         stderr.push_str(&format!("[argot] {w}\n"));
     }
-    let path_suppressions = config.path_suppressions();
     let mutes = config.mutes_with(registry, &args.today);
     for w in &mutes.warnings {
         stderr.push_str(&format!("[argot] {w}\n"));
@@ -863,16 +871,21 @@ pub struct ReviewOutcome {
 /// boundaries) yields a flagged hit with the entry's hash. Hits muted from
 /// transient diff hunks whose boundaries no longer exist resolve as "no longer
 /// fires" — which is exactly mute-rot.
-pub fn run_review_mutes(repo_path: &str, today: &str, prune: bool) -> ReviewOutcome {
+pub fn run_review_mutes(
+    repo_path: &str,
+    registry: &rules::Registry,
+    today: &str,
+    prune: bool,
+) -> ReviewOutcome {
     let mut stdout = String::new();
     let mut stderr = String::new();
 
     let repo_root = Path::new(repo_path);
-    let config = ArgotConfig::load(repo_root);
+    let config = ArgotConfig::load_with(repo_root, registry);
     for w in &config.warnings {
         stderr.push_str(&format!("[argot] {w}\n"));
     }
-    let mutes = config.mutes(today);
+    let mutes = config.mutes_with(registry, today);
     for w in &mutes.warnings {
         stderr.push_str(&format!("[argot] {w}\n"));
     }

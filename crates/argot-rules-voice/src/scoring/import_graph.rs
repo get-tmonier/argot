@@ -20,6 +20,9 @@ use crate::scoring::adapters::python::PythonAdapter;
 pub struct ImportGraphScorer {
     repo_modules: HashSet<String>,
     repo_modules_prefixes: HashSet<String>,
+    /// Modules only `[exclude].check-only` files import — familiar when
+    /// scoring one of those files, foreign everywhere else.
+    check_only_modules: HashSet<String>,
 }
 
 impl ImportGraphScorer {
@@ -62,6 +65,13 @@ impl ImportGraphScorer {
         self.repo_modules.extend(modules);
     }
 
+    /// Widen the snapshot with the modules only `[exclude].check-only` files
+    /// import. Kept in its own set, never folded into `repo_modules`: these are
+    /// familiar *there* and nowhere else.
+    pub fn load_check_only<I: IntoIterator<Item = String>>(&mut self, modules: I) {
+        self.check_only_modules = modules.into_iter().collect();
+    }
+
     /// True if `spec` is not a known internal module specifier.
     ///
     /// `__future__` is a Python compiler directive available in every file, not
@@ -69,6 +79,17 @@ impl ImportGraphScorer {
     /// import …` must not have it read as a foreign import when a later commit
     /// adds one. Treated as always-known.
     pub fn is_foreign(&self, spec: &str) -> bool {
+        self.is_foreign_in(spec, false)
+    }
+
+    /// [`Self::is_foreign`] for a file in the `[exclude].check-only` scope,
+    /// which additionally knows the vocabulary those files established. A
+    /// dependency only the tests use is familiar in a test and foreign in
+    /// production — the asymmetry is the point.
+    pub fn is_foreign_in(&self, spec: &str, check_only: bool) -> bool {
+        if check_only && self.check_only_modules.contains(spec) {
+            return false;
+        }
         spec != "__future__"
             && !self.repo_modules.contains(spec)
             && !self

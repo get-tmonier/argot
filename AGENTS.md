@@ -97,8 +97,14 @@ in-voice option exists, prefer it. If the foreign choice is deliberate (adopting
 a new dependency repo-wide), **record the decision** so the noise stops:
 
 ```
-argot mute <hash> --reason "adopting axios repo-wide"
+argot mute <hash> --reason "adopting axios repo-wide"          # this hit only
+argot mute --path 'src/legacy/**' --rule foreign-import \
+           --reason "legacy tree, migrating in Q3"             # a standing rule
 ```
+
+A hash mute is **per hit**: the same finding in a sibling file has its own hash
+and stays flagged. When the decision covers a tree, use `--path` — otherwise you
+end up committing one mute per file.
 
 ## When a hit is a false positive
 
@@ -111,7 +117,8 @@ optionally scoped to one rule or group:
 ```
 
 See [Configure](https://argot.tmonier.com/docs/configure/) for all three
-suppression surfaces. Housekeeping: `argot list-mutes` shows every active
+suppression surfaces, and [llms.txt](https://argot.tmonier.com/llms.txt) for the
+agent-readable docs mirror. Housekeeping: `argot list-mutes` shows every active
 suppression; `argot review-mutes` reports which ones no longer fire
 (`--prune` removes them).
 

@@ -310,3 +310,68 @@ for h in hunks {
     );
     assert!(out.stdout.contains("deploy.env"), "{}", out.stdout);
 }
+
+/// A repo-local rule name means the same thing wherever it is written.
+///
+/// The two vocabularies used to be able to disagree: `check` built the run
+/// registry from `.argot/rules/`, while every other entry point loaded
+/// `argot.toml` against the built-ins alone — so `--rule no-vi-mock=off` was
+/// accepted at the same moment `[rules] no-vi-mock = { locked = true }` was
+/// discarded as a typo. That asymmetry is a governance hole: the only actor who
+/// could weaken a custom rule was the one it exists to constrain. Assert the
+/// two accepted-name sets are the same set, not merely that a chosen name
+/// happens to work.
+#[test]
+fn the_names_config_accepts_and_the_names_rule_accepts_are_one_set() {
+    let repo = build_fixture_repo("vocabulary_parity");
+    write_rule(&repo, "no-vi-mock", "severity = \"warn\"\n", "");
+    write_rule(&repo, "no-raw-sql", "severity = \"warn\"\n", "");
+
+    let (config, registry) = argot_core::compose::load_config(&repo);
+    assert!(
+        config.warnings.is_empty(),
+        "a discovered rule is not a typo: {:?}",
+        config.warnings
+    );
+
+    // Every name `--rule` would accept, config must accept too.
+    for name in registry.selector_names() {
+        assert!(
+            registry.known_selector(name),
+            "'{name}' is offered by --rule but unknown to argot.toml"
+        );
+    }
+    for name in ["no-vi-mock", "no-raw-sql"] {
+        assert!(
+            registry.selector_names().contains(&name),
+            "'{name}' was discovered but is not addressable"
+        );
+    }
+
+    // …and the committed severity and lock survive the round trip.
+    std::fs::write(
+        repo.join("argot.toml"),
+        "[rules]\nno-vi-mock = { severity = \"error\", locked = true }\n\n\
+         [[mute]]\npath = \"src/**\"\nrule = \"no-vi-mock\"\nreason = \"legacy tree\"\n",
+    )
+    .unwrap();
+    let (config, registry) = argot_core::compose::load_config(&repo);
+    assert!(
+        config.warnings.is_empty(),
+        "custom name rejected in argot.toml: {:?}",
+        config.warnings
+    );
+    let settings = config.rule_settings_with(&registry, &Vec::new());
+    assert_eq!(
+        settings.severity_of_reason("custom:no-vi-mock"),
+        argot_core::rules::Severity::Error,
+        "committed severity did not apply to the custom rule"
+    );
+    let mutes = config.mutes_with(&registry, "2026-07-27");
+    assert!(
+        mutes.warnings.is_empty(),
+        "custom name rejected in [[mute]]: {:?}",
+        mutes.warnings
+    );
+    assert_eq!(mutes.active.len(), 1, "the [[mute]] entry was dropped");
+}

@@ -46,7 +46,12 @@ fn foreign_import_off_disables_the_hook_but_warn_and_error_still_ask() {
     ] {
         let config = config_with_rules(vec![(selector, severity)]);
         assert_eq!(
-            can_assess(&config, "src/app.py"),
+            can_assess(
+                &config,
+                argot_core::rules::Registry::builtin(),
+                "src/app.py"
+            )
+            .is_ok(),
             expected,
             "{selector} = {}",
             severity.as_str()
@@ -58,7 +63,12 @@ fn foreign_import_off_disables_the_hook_but_warn_and_error_still_ask() {
 fn path_excludes_and_rule_scopes_skip_pre_write_assessment() {
     let mut excluded = ArgotConfig::default();
     excluded.exclude.paths.push("generated/**".to_string());
-    assert!(!can_assess(&excluded, "generated/client.py"));
+    assert!(can_assess(
+        &excluded,
+        argot_core::rules::Registry::builtin(),
+        "generated/client.py"
+    )
+    .is_err());
     let mut scoped = ArgotConfig::default();
     scoped.rule_scopes.push((
         "foreign-import".to_string(),
@@ -67,9 +77,24 @@ fn path_excludes_and_rule_scopes_skip_pre_write_assessment() {
             exclude: vec!["src/legacy/**".to_string()],
         },
     ));
-    assert!(can_assess(&scoped, "src/app.py"));
-    assert!(!can_assess(&scoped, "src/legacy/app.py"));
-    assert!(!can_assess(&scoped, "lib/app.py"));
+    assert!(can_assess(
+        &scoped,
+        argot_core::rules::Registry::builtin(),
+        "src/app.py"
+    )
+    .is_ok());
+    assert!(can_assess(
+        &scoped,
+        argot_core::rules::Registry::builtin(),
+        "src/legacy/app.py"
+    )
+    .is_err());
+    assert!(can_assess(
+        &scoped,
+        argot_core::rules::Registry::builtin(),
+        "lib/app.py"
+    )
+    .is_err());
 }
 
 #[test]
@@ -87,7 +112,12 @@ fn declared_import_replacements_do_not_prompt_and_other_mutes_stay_unsupported()
         reason = "a full-check hash mute cannot apply before write"
     "#,
     );
-    assert!(can_assess(&config, "src/app.py"));
+    assert!(can_assess(
+        &config,
+        argot_core::rules::Registry::builtin(),
+        "src/app.py"
+    )
+    .is_ok());
     assert!(only_declared_replacements(
         &config,
         &["approved_dependency".to_string()]
@@ -102,9 +132,44 @@ fn declared_import_replacements_do_not_prompt_and_other_mutes_stay_unsupported()
 }
 
 #[test]
-fn malformed_config_fails_open() {
+fn unparseable_config_fails_open() {
     let config = config_from_toml("[rules\nforeign-import = \"off\"");
-    assert!(!can_assess(&config, "src/app.py"));
+    assert!(config.degraded);
+    assert!(can_assess(
+        &config,
+        argot_core::rules::Registry::builtin(),
+        "src/app.py"
+    )
+    .is_err());
+}
+
+/// A per-entry diagnostic must not take the guardrail down. Every warning here
+/// is about a surface the pre-write import decision never reads.
+#[test]
+fn unrelated_config_warnings_keep_the_hook_alive() {
+    let config = config_from_toml(
+        r#"
+        [rules]
+        no-such-rule = "error"
+
+        [[mute]]
+        path = "src/**"
+        rule = "also-not-a-rule"
+        reason = "typo in a rule name"
+
+        [[migration]]
+        from = "x"
+        to = "y"
+    "#,
+    );
+    assert!(!config.warnings.is_empty(), "the typos still warn");
+    assert!(!config.degraded, "the document itself parsed fine");
+    assert!(can_assess(
+        &config,
+        argot_core::rules::Registry::builtin(),
+        "src/app.py"
+    )
+    .is_ok());
 }
 
 #[test]
@@ -125,6 +190,20 @@ fn only_repo_relative_paths_are_assessed() {
     );
     assert_eq!(repo_relative_path(&repo, &outside.to_string_lossy()), None);
     assert_eq!(repo_relative_path(&repo, "../elsewhere/app.py"), None);
+}
+
+/// `--repo` defaults to `.` and every Claude Code payload carries an absolute
+/// `file_path`, so this exact pair is the shipped default of the CLI. It must
+/// resolve, or the hook is silently dead for anyone who runs it bare.
+#[test]
+fn the_default_repo_argument_resolves_an_absolute_payload_path() {
+    let repo = temporary_repo("default-repo-arg");
+    let absolute = repo.join("src/app.py");
+    let cwd = std::env::current_dir().expect("a current directory");
+    std::env::set_current_dir(&repo).expect("enter the repo");
+    let resolved = repo_relative_path(Path::new("."), &absolute.to_string_lossy());
+    std::env::set_current_dir(cwd).expect("restore the working directory");
+    assert_eq!(resolved, Some("src/app.py".to_string()));
 }
 
 #[test]

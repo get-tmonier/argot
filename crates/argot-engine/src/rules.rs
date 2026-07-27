@@ -237,7 +237,7 @@ pub struct CustomRule {
 /// validation, severity resolution, output labels) resolve through this;
 /// paths where the mapping is syntactic (suppression matching) keep using the
 /// free functions.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Registry {
     custom: Vec<CustomRule>,
 }

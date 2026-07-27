@@ -67,6 +67,8 @@ fn score_hunk_matches_python_golden_no_cr() {
         convention_bonus: 0.0,
         import_modules: golden.import_modules.clone(),
         import_module_prefixes: vec![],
+        check_only_import_modules: vec![],
+        check_only_patterns: vec![],
         evidence_corpus: None,
         detect: argot_core::config::DetectConfig::default(),
     };
