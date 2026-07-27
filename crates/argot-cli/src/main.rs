@@ -503,7 +503,11 @@ fn write_settings(s: &GlobalSettings) {
 /// (`argot_core::git_walk::repo_workdir`) — no external `git` binary, so it
 /// behaves identically on Windows, macOS, and Linux.
 fn git_toplevel() -> Option<String> {
-    argot_core::git_walk::repo_workdir(".")
+    git_toplevel_at(".")
+}
+
+fn git_toplevel_at(path: &str) -> Option<String> {
+    argot_core::git_walk::repo_workdir(path)
 }
 
 /// Upsert `git_root` into the global registry (`~/.argot/settings.json`) —
@@ -531,9 +535,16 @@ fn register_repo(git_root: &str) -> String {
 }
 
 fn resolve_context() -> RepoCtx {
-    let git_root = git_toplevel().unwrap_or_else(|| {
-        std::env::current_dir()
-            .unwrap_or_default()
+    resolve_context_at(".")
+}
+
+/// The repo context for an explicitly named path, so a command can answer for
+/// a repository the process is not sitting in — what every other `--repo`
+/// taking command already does.
+fn resolve_context_at(path: &str) -> RepoCtx {
+    let git_root = git_toplevel_at(path).unwrap_or_else(|| {
+        std::fs::canonicalize(path)
+            .unwrap_or_else(|_| std::env::current_dir().unwrap_or_default())
             .display()
             .to_string()
     });
@@ -560,13 +571,16 @@ fn format_bytes(bytes: u64) -> String {
 
 #[derive(Args)]
 struct StatusCmd {
+    /// Path to the repository to report on.
+    #[arg(long, default_value = ".")]
+    repo: String,
     /// Output format: human (terminal) or json (stable machine-readable).
     #[arg(long, default_value = "human", value_parser = ["human", "json"])]
     format: String,
 }
 
 fn run_status(c: StatusCmd) -> ExitCode {
-    let ctx = resolve_context();
+    let ctx = resolve_context_at(&c.repo);
     let dataset = fs::metadata(&ctx.dataset_path).ok().map(|m| {
         let count = fs::read_to_string(&ctx.dataset_path)
             .map(|s| s.lines().filter(|l| !l.trim().is_empty()).count())

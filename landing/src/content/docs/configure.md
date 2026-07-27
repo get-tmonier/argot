@@ -541,7 +541,8 @@ to recalibrate:
   run-level PR annotations),
 - **editing `[exclude]`/`[detect]` is itself a refresh trigger**: the next
   check notices the config fingerprint changed and refits in the background,
-- **`argot status`** is the one-stop health view: fitted SHA, commits behind,
+- **`argot status`** (`--repo <path>` for a repository you are not sitting in)
+  is the one-stop health view: fitted SHA, commits behind,
   config in sync or not, and unexcluded noisy directories,
 - a failing background refit stops retrying silently and tells you to run
   `argot fit` yourself.
