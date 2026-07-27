@@ -281,7 +281,16 @@ pub fn render_sarif(meta: &ReportMeta, hits: &[HitRecord]) -> String {
                 }
             },
             "results": results,
-            "invocations": [{ "toolExecutionNotifications": notifications }],
+            // `executionSuccessful` is REQUIRED on an invocation by the SARIF
+            // 2.1.0 schema, and GitHub's upload-sarif validates against it: a
+            // document without it is rejected outright, which fails a check
+            // that is meant to be non-blocking. It reports whether the *tool*
+            // ran to completion, not whether it found anything — reaching this
+            // renderer at all means it did.
+            "invocations": [{
+                "executionSuccessful": true,
+                "toolExecutionNotifications": notifications,
+            }],
             "properties": {
                 "model": meta.model,
                 "repo": meta.repo,
