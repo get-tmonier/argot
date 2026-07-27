@@ -20,7 +20,10 @@ not install or claim an agent end-of-turn or acceptance lifecycle.
 
    ```yaml
    name: argot
-   on: pull_request
+   on:
+     pull_request:
+     push:
+       branches: [main]   # the run that fits the model every PR then reads
 
    permissions:
      contents: read
@@ -36,6 +39,9 @@ not install or claim an agent end-of-turn or acceptance lifecycle.
              fetch-depth: 0    # argot fits on the PR's base branch, so it needs history
          - uses: get-tmonier/argot@main
    ```
+
+   Both triggers matter: the `push` run fits the model and publishes it, the
+   `pull_request` run reads it and stays at seconds. See step 5.
 
    That's the whole workflow — the Action installs argot, caches and fetches
    the ~100 MB semantic embedding model itself (no manual cache step needed),
@@ -53,15 +59,15 @@ not install or claim an agent end-of-turn or acceptance lifecycle.
    OAuth App to … workflow … without 'workflow' scope"*, run
    `gh auth refresh -s workflow` (or push over SSH).
 
-5. **Know where a run's time goes.** Fitting the base is almost the whole cost;
-   the check itself is seconds. The model cache is keyed on the base commit, and
-   because an active branch moves, the Action falls back to the nearest cached
-   model and refits only when it is more than `max-staleness` accepted commits
-   behind (default 10, mirroring argot's local `[fit] refresh-after`) or when
-   `argot.toml` changed. The job summary says which path the run took. Two
-   knobs if a repo needs them: `max-staleness: 0` to demand the exact base
-   commit, and `semantic: false` — the embedding index is what makes a fit
-   expensive.
+5. **Keep the `push:` trigger — it is what makes pull requests fast.** Fitting
+   the model is almost the whole cost of a run; the check is seconds. The run on
+   the default branch is the *producer*: it fits and publishes the model into a
+   cache slot, after a merge, on nobody's critical path. A pull request is a
+   *consumer*: it reads that slot and does not fit. Remove the `push` trigger and
+   every pull request pays the fit instead — which is how a new tool gets
+   uninstalled. A pull request only refits when no model exists yet (the first
+   run, or the slot expired after seven idle days) or when the base's
+   `argot.toml` changed. Tell the user the first run is the slow one.
 
 6. Tell the user what they'll get on each configured PR workflow: a
    **non-blocking** job summary, optional sticky PR comment, and inline

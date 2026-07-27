@@ -14,7 +14,10 @@ available pre-commit hooks.
 
 ```yaml
 name: argot
-on: pull_request
+on:
+  pull_request:
+  push:
+    branches: [main]   # the run that fits the model every pull request reads
 
 permissions:
   contents: read
@@ -38,7 +41,7 @@ selected base-to-HEAD range, so the pull request’s code is not learned as the 
 sets it to `true`, error-severity results mark that Action job as failed; the team's review policy
 still determines the response.
 
-`format`, `ref`, `cache`, `max-staleness`, `semantic`, `upload-sarif`, and `comment-pr` are configurable Action
+`format`, `ref`, `cache`, `semantic`, `upload-sarif`, and `comment-pr` are configurable Action
 inputs. Semantic checking may download the local embedding model; use `semantic: false` on a
 locked-down or offline runner to keep voice, layering, and integrity checks while skipping semantic
 model work. The Action caches fitted artifacts by base commit when caching is enabled.
@@ -49,19 +52,25 @@ Fitting the base is almost the whole cost of an Action run — the check itself 
 hit there is no fit at all, so the job is fast; on a miss it refits from scratch. The job summary now
 says which of the two happened, and how long the fit took.
 
-The cache is keyed on the **base commit**. An exact key hit skips the fit outright, but on an active
-branch the base moves constantly and the exact key rarely hits — so the Action restores the nearest
-cached model and asks argot how far behind the base it actually is. Within **`max-staleness`**
-(default 10 accepted commits, mirroring argot's own local `[fit] refresh-after`) it uses that model
-as-is and skips the fit; beyond it, or when `argot.toml` has changed since, it refits.
+### What a run costs
 
-The tolerance is the same judgment argot's local auto-refresh already makes: a voice model is a
-repo-wide statistical summary, and a handful of commits moves it by a rounding error. Without it
-every pull request refits, and the fit is almost the whole cost of a run — on a 924k-line repository,
-2 min 03 of a 2 min 06 job, with the check itself at about 2 s.
+Fitting the voice model is almost the whole cost of a run; the check itself takes seconds. So the
+Action splits the two:
 
-Set `max-staleness: 0` to demand the exact base commit. The job summary always says which of the
-three paths a run took, and how long any fit took.
+- **A run on your default branch is the producer.** It fits and publishes the model into a cache
+  slot. This is the run that costs a couple of minutes, after a merge, on nobody's critical path.
+- **A pull request is a consumer.** It reads that slot and **does not fit** — the check is seconds.
+  The job summary reports how many accepted commits the model is behind, which is the same drift
+  argot tolerates locally between background refreshes (`[fit] refresh-after`).
+
+That is why the workflow above triggers on `push` to the default branch as well as on
+`pull_request`. Drop the `push` trigger and every pull request pays the fit instead.
+
+A pull request refits in only two cases: no model exists yet — the first run on a repository, or the
+slot expired after seven idle days, and the summary says it seeded the cache — or the base's
+`argot.toml` changed since the model was fitted, which is a scope change rather than staleness.
+`cache: false` disables the slot entirely and fits every run, if you want the base's exact model and
+are willing to pay for it.
 
 ## pre-commit
 
