@@ -153,6 +153,12 @@ impl GitScope {
         Some(Self { repo, tracked })
     }
 
+    /// Every tracked path, `/`-separated, repo-relative, sorted — git's own
+    /// answer to "what is in this repo", without a filesystem walk.
+    pub fn tracked(&self) -> &[String] {
+        &self.tracked
+    }
+
     fn ignored(&self, rel: &str) -> bool {
         self.repo.is_path_ignored(rel).unwrap_or(false)
     }

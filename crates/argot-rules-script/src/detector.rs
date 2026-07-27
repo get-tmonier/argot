@@ -135,6 +135,11 @@ impl Detector for ScriptDetector {
                     .filter_map(move |f| f.old.map(|old| ((source.clone(), f.path), old)))
             })
             .collect();
+        // Read-only repository access for host API v2, opened once per check:
+        // the listing is git's index, not a walk.
+        let repo_files: std::rc::Rc<dyn crate::repo::RepoFiles> = std::rc::Rc::new(
+            crate::repo::RepoRoot::open(std::path::Path::new(&ctx.args.repo_path)),
+        );
         let mut findings = Vec::new();
         // Scored batches plus the unscored ones (unsupported extensions —
         // `.env`, CI configs…): a rule's `files` globs may claim the latter.
@@ -188,7 +193,13 @@ impl Detector for ScriptDetector {
                 let Some(ast) = self.compiled.get(i).and_then(|a| a.as_ref()) else {
                     continue;
                 };
-                match host::run_on_file(ast, &file, changeset_paths.clone(), ctx.facts.clone()) {
+                match host::run_on_file(
+                    ast,
+                    &file,
+                    changeset_paths.clone(),
+                    ctx.facts.clone(),
+                    Some(repo_files.clone()),
+                ) {
                     Ok(reports) => {
                         for r in reports {
                             // The finding body is the reported source span
