@@ -199,6 +199,69 @@ fn check_sarif_format_emits_valid_sarif_with_hits() {
         assert!(loc["region"]["startLine"].as_u64().unwrap() >= 1);
         assert!(!r["message"]["text"].as_str().unwrap().is_empty());
     }
+    assert_sarif_required_properties(&doc);
+}
+
+#[test]
+fn check_sarif_format_is_valid_with_no_hits() {
+    // The empty document is the one a passing PR uploads, and it went unchecked:
+    // `invocations` is emitted either way, so a missing required property breaks
+    // the clean run just as hard as a dirty one.
+    let repo = prepare_repo("sarif_clean");
+    let mut args = base_args(&repo, OutputFormat::Sarif);
+    args.reference = "HEAD~2..HEAD".to_string();
+    args.threshold = Some(1e9);
+    let out = run_check(args);
+
+    assert_eq!(out.exit_code, 0, "no hits → exit 0");
+    let doc: Value = serde_json::from_str(&out.stdout).expect("stdout is pure JSON");
+    assert!(
+        doc["runs"][0]["results"].as_array().unwrap().is_empty(),
+        "threshold this high leaves no results"
+    );
+    assert_sarif_required_properties(&doc);
+}
+
+/// Assert every property SARIF 2.1.0 marks **required** on the objects argot
+/// emits. The point is to encode the *consumer's* contract, not our own output:
+/// `runs[].invocations[].executionSuccessful` shipped missing for months
+/// because the suite only ever asserted the fields we had chosen to write, and
+/// nothing exercised `github/codeql-action/upload-sarif`, which rejects the
+/// whole document over it — failing a check that is meant to be non-blocking.
+///
+/// <https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html>
+fn assert_sarif_required_properties(doc: &Value) {
+    assert!(doc["version"].is_string(), "sarifLog.version is required");
+    let runs = doc["runs"].as_array().expect("sarifLog.runs is required");
+    for run in runs {
+        let driver = &run["tool"]["driver"];
+        assert!(
+            driver.is_object(),
+            "run.tool and tool.driver are both required"
+        );
+        assert!(
+            driver["name"].is_string(),
+            "toolComponent.name is required on the driver"
+        );
+        for rule in driver["rules"].as_array().unwrap_or(&Vec::new()) {
+            assert!(
+                rule["id"].is_string(),
+                "reportingDescriptor.id is required: {rule}"
+            );
+        }
+        for invocation in run["invocations"].as_array().unwrap_or(&Vec::new()) {
+            assert!(
+                invocation["executionSuccessful"].is_boolean(),
+                "invocation.executionSuccessful is required: {invocation}"
+            );
+        }
+        for result in run["results"].as_array().unwrap_or(&Vec::new()) {
+            assert!(
+                result["message"]["text"].is_string(),
+                "result.message is required and needs a text: {result}"
+            );
+        }
+    }
 }
 
 /// Strip CSI (`ESC [ … m`) sequences so a colored render can be compared to the
