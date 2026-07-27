@@ -95,6 +95,13 @@ pub trait LanguageAdapter {
     fn declared_module(&self, _source: &str) -> Option<String> {
         None
     }
+    /// Whether the language treats identifiers that differ only in case as the
+    /// same name. `false` everywhere but Object Pascal, where `DIV` and `div`
+    /// are one operator and `Self` and `self` one keyword — so a noise list
+    /// written in one casing must still match the others.
+    fn identifiers_are_case_insensitive(&self) -> bool {
+        false
+    }
     /// Names bound by imports from repo-internal (relative) specifiers.
     fn internal_import_bindings(&self, source: &str) -> HashSet<String>;
     /// Names bound by *non-relative* imports, each paired with the top-level

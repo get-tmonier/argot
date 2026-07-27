@@ -321,3 +321,77 @@ fn foreign_import_wins_over_import_gated_call_receiver() {
         "the foreign import — not an import-gated call-receiver — carries the hit: {scored:?}"
     );
 }
+
+#[test]
+fn evidence_knows_whether_it_names_anything() {
+    // The predicate the reason arbitration reads: a payload that names nothing
+    // leaves the reader the "common here" corpus line and no finding. On a real
+    // Object Pascal backend port that was four `unfamiliar-callee` hits naming
+    // zero callees and two `foreign-import` hits naming zero modules.
+    use crate::scoring::evidence::types::{
+        BpeEvidence, CallReceiverEvidence, CommonEntry, ImportEvidence, RarityStat,
+    };
+    let rarity = || RarityStat {
+        flagged_count: 0,
+        attested_total: 9,
+        noun: "callee".to_string(),
+        where_: "repo".to_string(),
+    };
+    let named = CommonEntry {
+        name: "msgspec".to_string(),
+        count: 0,
+    };
+    let cases: &[(Evidence, bool)] = &[
+        (
+            Evidence::Bpe(BpeEvidence {
+                surprising_identifiers: vec![named.clone()],
+            }),
+            true,
+        ),
+        (
+            Evidence::Bpe(BpeEvidence {
+                surprising_identifiers: Vec::new(),
+            }),
+            false,
+        ),
+        (
+            Evidence::Import(ImportEvidence {
+                foreign_specifiers: vec!["msgspec".to_string()],
+                rarity: rarity(),
+                common_here: vec![named.clone()],
+                foreign_specifier_spans: Vec::new(),
+            }),
+            true,
+        ),
+        (
+            // The shape that shipped: the corpus line is populated, the thing
+            // the finding is about is not.
+            Evidence::Import(ImportEvidence {
+                foreign_specifiers: Vec::new(),
+                rarity: rarity(),
+                common_here: vec![named.clone()],
+                foreign_specifier_spans: Vec::new(),
+            }),
+            false,
+        ),
+        (
+            Evidence::CallReceiver(CallReceiverEvidence {
+                unfamiliar_callees: vec!["decode".to_string()],
+                rarity: rarity(),
+                common_here: Vec::new(),
+            }),
+            true,
+        ),
+        (
+            Evidence::CallReceiver(CallReceiverEvidence {
+                unfamiliar_callees: Vec::new(),
+                rarity: rarity(),
+                common_here: vec![named],
+            }),
+            false,
+        ),
+    ];
+    for (evidence, want) in cases {
+        assert_eq!(evidence.names_something(), *want, "{evidence:?}");
+    }
+}

@@ -508,6 +508,9 @@ impl LanguageAdapter for PascalAdapter {
     fn identifier_noise(&self) -> &HashSet<String> {
         PascalAdapter::identifier_noise(self)
     }
+    fn identifiers_are_case_insensitive(&self) -> bool {
+        true
+    }
     fn line_comment_prefix(&self) -> &'static str {
         "//"
     }

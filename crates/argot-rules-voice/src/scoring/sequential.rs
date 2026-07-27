@@ -897,16 +897,31 @@ impl SequentialImportBpeScorer {
                     .unwrap_or(std::cmp::Ordering::Equal)
                     .then_with(|| tiebreak(a.0).cmp(&tiebreak(b.0)))
             });
-            let winner = candidates[0];
-            let evidence = self.collect_evidence(
-                winner.0,
-                hunk_content,
-                masked_input,
-                file_path,
-                file_source,
-                &foreign,
-                &local_bindings,
-            );
+            // Among the reasons that fired, report the strongest one that can
+            // actually name what it saw. They describe the same hunk, so this
+            // never changes whether it is flagged — only which rule speaks for
+            // it, and a rule with nothing to name leaves the reader a "common
+            // here" line and no finding. Falls back to the strongest reason
+            // when none of them can name anything.
+            let (mut chosen, mut strongest) = (None, None);
+            for (i, c) in candidates.iter().enumerate() {
+                let evidence = self.collect_evidence(
+                    c.0,
+                    hunk_content,
+                    masked_input,
+                    file_path,
+                    file_source,
+                    &foreign,
+                    &local_bindings,
+                );
+                if evidence.as_ref().is_some_and(Evidence::names_something) {
+                    chosen = Some((i, evidence));
+                    break;
+                }
+                strongest.get_or_insert((i, evidence));
+            }
+            let (idx, evidence) = chosen.or(strongest).expect("candidates is non-empty");
+            let winner = candidates[idx];
             return ScoredHunk {
                 score: winner.1,
                 threshold: winner.2,
@@ -999,6 +1014,7 @@ impl SequentialImportBpeScorer {
                     &score_fn,
                     Some(&is_meaningful),
                     corpus,
+                    self.adapter.as_ref(),
                 )))
             }
             _ => None,

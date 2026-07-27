@@ -1555,7 +1555,7 @@ fn build_evidence_corpus(
             blank_prose_lines(&source, &prose)
         };
         for ident in extract_identifiers(&clean) {
-            if !noise.contains(&ident) {
+            if !crate::scoring::evidence::bpe::is_noise(&ident, noise, adapter) {
                 *identifier_counts.entry(ident).or_insert(0) += 1;
             }
         }
