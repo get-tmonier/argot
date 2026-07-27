@@ -13,7 +13,10 @@
 //!
 //! The fire rule is a k-NN area vote: a function is misplaced when the modal
 //! area of its nearest neighbours differs from the area it's filed under AND
-//! at most `z` of those neighbours share its area. `(merge τ, k, z)` are
+//! at most `z` of those neighbours share its area. Candidates must carry some
+//! substance first — a stub, or a body that calls nothing (a property setter is
+//! written entirely out of the names it assigns, so it embeds as whatever unit
+//! owns those names), has no architectural home to judge. `(merge τ, k, z)` are
 //! **self-calibrated at fit time** per repo: a transplant simulation (every
 //! sampled function claimed into every foreign area) plus an in-place
 //! over-fire measurement pick the config with the highest simulated recall
@@ -221,6 +224,15 @@ impl<'a> PlacementScorer<'a> {
         }
         // Substance floor: a stub's neighbours are noise, not placement evidence.
         if func.text.lines().count() < MIN_PLACEMENT_BODY_LINES {
+            return None;
+        }
+        // …and a body that calls nothing does not *do* anything a layer owns.
+        // A property setter is written out of the names it assigns, so its
+        // neighbours are whatever unit owns those names — four of them in one
+        // new Object Pascal dialog form were reported as graphics code because
+        // `Font.ColorBackground := aValue` reads like the graphics unit's own
+        // setter of the same name. Misplaced *work* reaches for something.
+        if func.callees.is_empty() {
             return None;
         }
         // A function in a directory that did NOT exist at fit time is *new*, not

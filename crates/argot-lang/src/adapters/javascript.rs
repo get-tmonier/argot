@@ -1013,16 +1013,26 @@ impl JavaScriptAdapter {
 
     /// 1-indexed line numbers covered by comments (line and block). JavaScript
     /// has no docstring concept; all prose is in comments.
-    pub fn prose_line_ranges(&self, source: &str) -> HashSet<usize> {
+    fn prose_mask(&self, source: &str) -> crate::ts_parse::ProseMask {
         let tree = parse(source);
         let root = tree.root_node();
-        let mut rows: HashSet<usize> = HashSet::new();
+        let mut mask = crate::ts_parse::ProseMask::default();
         for node in descendants(root) {
             if node.kind() == "comment" {
-                rows.extend(crate::ts_parse::prose_rows(source, node));
+                mask.add(source, node);
             }
         }
-        rows
+        mask
+    }
+
+    pub fn prose_line_ranges(&self, source: &str) -> HashSet<usize> {
+        self.prose_mask(source).rows
+    }
+
+    /// Prose sharing a line with code: blanked in place, so the code survives
+    /// and the words do not reach the scorers.
+    pub fn prose_spans(&self, source: &str) -> Vec<(usize, usize, usize)> {
+        self.prose_mask(source).spans
     }
 
     /// Dotted-callee signatures for every call/new expression in `source`
@@ -1148,6 +1158,9 @@ impl LanguageAdapter for JavaScriptAdapter {
     }
     fn enumerate_sampleable_ranges(&self, source: &str) -> Vec<(usize, usize)> {
         JavaScriptAdapter::enumerate_sampleable_ranges(self, source)
+    }
+    fn prose_spans(&self, source: &str) -> Vec<(usize, usize, usize)> {
+        Self::prose_spans(self, source)
     }
     fn prose_line_ranges(&self, source: &str) -> HashSet<usize> {
         JavaScriptAdapter::prose_line_ranges(self, source)

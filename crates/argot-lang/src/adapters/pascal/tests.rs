@@ -288,3 +288,25 @@ fn a_declared_unit_matches_how_that_unit_is_imported() {
         "declared {declared:?} not found in {imported:?}"
     );
 }
+
+#[test]
+fn an_inline_comment_is_blanked_in_place_not_by_the_line() {
+    let a = PascalAdapter::new();
+    // Both halves of the same line matter: the code must survive the mask (or
+    // the import stage invents a dependency), and the prose must not (or a
+    // trailing `//  ^^^^ optional rounding` scores as the hunk's rarest
+    // tokens). Blanking the comment's span, not its line, is what does both.
+    let src = "unit u;\ninterface\nuses\n msedynload{,mseguiintf};\nimplementation\nbegin\n y:= x DIV 2;   // optional rounding\nend.\n";
+    assert!(!a.prose_line_ranges(src).contains(&4));
+    let spans = a.prose_spans(src);
+    let rows: Vec<usize> = spans.iter().map(|(r, ..)| *r).collect();
+    assert!(
+        rows.contains(&4),
+        "the `{{,mseguiintf}}` comment: {spans:?}"
+    );
+    assert!(rows.contains(&7), "the trailing `// …` comment: {spans:?}");
+    for (row, a_col, b_col) in &spans {
+        let line = src.split('\n').nth(row - 1).unwrap();
+        assert!(a_col < b_col && *b_col <= line.len(), "{spans:?}");
+    }
+}

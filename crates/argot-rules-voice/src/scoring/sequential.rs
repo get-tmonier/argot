@@ -92,8 +92,12 @@ pub struct ScoredHunk {
 
 /// Blank the 1-indexed prose lines in `ranges`, preserving line count
 /// (`_blank_prose_lines`).
-fn blank_prose_lines(src: &str, ranges: &HashSet<usize>) -> String {
-    if ranges.is_empty() {
+fn blank_prose_lines(
+    src: &str,
+    ranges: &HashSet<usize>,
+    spans: &[(usize, usize, usize)],
+) -> String {
+    if ranges.is_empty() && spans.is_empty() {
         return src.to_string();
     }
     let lines = splitlines_keepends(src);
@@ -104,9 +108,16 @@ fn blank_prose_lines(src: &str, ranges: &HashSet<usize>) -> String {
             if line.ends_with('\n') {
                 result.push('\n');
             }
-        } else {
-            result.push_str(line);
+            continue;
         }
+        let mut masked = line.to_string();
+        for (_, a, b) in spans.iter().filter(|(r, ..)| *r == ln) {
+            let (a, b) = ((*a).min(masked.len()), (*b).min(masked.len()));
+            if a < b && masked.is_char_boundary(a) && masked.is_char_boundary(b) {
+                masked.replace_range(a..b, &" ".repeat(b - a));
+            }
+        }
+        result.push_str(&masked);
     }
     result
 }
@@ -173,6 +184,7 @@ struct FileDerivedCache {
     key: u64,
     data_rows: HashSet<usize>,
     prose_rows: HashSet<usize>,
+    prose_spans: Vec<(usize, usize, usize)>,
     file_bindings: crate::scoring::call_receiver::LocalBindings,
 }
 
@@ -488,6 +500,7 @@ impl SequentialImportBpeScorer {
                 key,
                 data_rows: self.adapter.data_literal_lines(source),
                 prose_rows: self.adapter.prose_line_ranges(source),
+                prose_spans: self.adapter.prose_spans(source),
                 file_bindings,
             });
         }
@@ -645,14 +658,25 @@ impl SequentialImportBpeScorer {
         // when there's no file context (the bench synthetic path).
         let prose_blanked: Option<String> =
             if let (Some(fs), Some(hs), Some(he)) = (file_source, hunk_start_line, hunk_end_line) {
-                let file_prose = &self.file_derived(fs).prose_rows;
-                let hunk_prose_local: HashSet<usize> = file_prose
+                let derived = self.file_derived(fs);
+                let hunk_prose_local: HashSet<usize> = derived
+                    .prose_rows
                     .iter()
                     .copied()
                     .filter(|&ln| hs <= ln && ln <= he)
                     .map(|ln| ln - hs + 1)
                     .collect();
-                Some(blank_prose_lines(hunk_content, &hunk_prose_local))
+                let spans_local: Vec<(usize, usize, usize)> = derived
+                    .prose_spans
+                    .iter()
+                    .filter(|(ln, ..)| hs <= *ln && *ln <= he)
+                    .map(|(ln, a, b)| (ln - hs + 1, *a, *b))
+                    .collect();
+                Some(blank_prose_lines(
+                    hunk_content,
+                    &hunk_prose_local,
+                    &spans_local,
+                ))
             } else {
                 None
             };

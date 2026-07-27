@@ -125,6 +125,12 @@ pub trait LanguageAdapter {
     fn is_auto_generated(&self, source: &str, markers: &[String]) -> bool;
     fn enumerate_sampleable_ranges(&self, source: &str) -> Vec<(usize, usize)>;
     fn prose_line_ranges(&self, source: &str) -> HashSet<usize>;
+    /// Prose sharing a line with code — `(row, col_start, col_end)`, 1-indexed
+    /// row, byte columns. Blanked in place rather than by the line, so the code
+    /// on that line survives and the words do not reach the scorers.
+    fn prose_spans(&self, _source: &str) -> Vec<(usize, usize, usize)> {
+        Vec::new()
+    }
     fn identifier_noise(&self) -> &HashSet<String>;
     /// The language's line-comment token — drives inline suppression-comment
     /// parsing (`# argot: …` vs `// argot: …`).
@@ -218,6 +224,9 @@ impl LanguageAdapter for python::PythonAdapter {
     fn prose_line_ranges(&self, source: &str) -> HashSet<usize> {
         python::PythonAdapter::prose_line_ranges(self, source)
     }
+    fn prose_spans(&self, source: &str) -> Vec<(usize, usize, usize)> {
+        python::PythonAdapter::prose_spans(self, source)
+    }
     fn identifier_noise(&self) -> &HashSet<String> {
         python::PythonAdapter::identifier_noise(self)
     }
@@ -265,6 +274,9 @@ impl LanguageAdapter for go::GoAdapter {
     }
     fn prose_line_ranges(&self, source: &str) -> HashSet<usize> {
         go::GoAdapter::prose_line_ranges(self, source)
+    }
+    fn prose_spans(&self, source: &str) -> Vec<(usize, usize, usize)> {
+        go::GoAdapter::prose_spans(self, source)
     }
     fn identifier_noise(&self) -> &HashSet<String> {
         go::GoAdapter::identifier_noise(self)
@@ -318,6 +330,9 @@ impl LanguageAdapter for rust::RustAdapter {
     fn prose_line_ranges(&self, source: &str) -> HashSet<usize> {
         rust::RustAdapter::prose_line_ranges(self, source)
     }
+    fn prose_spans(&self, source: &str) -> Vec<(usize, usize, usize)> {
+        rust::RustAdapter::prose_spans(self, source)
+    }
     fn identifier_noise(&self) -> &HashSet<String> {
         rust::RustAdapter::identifier_noise(self)
     }
@@ -368,6 +383,9 @@ impl LanguageAdapter for cpp::CppAdapter {
     fn prose_line_ranges(&self, source: &str) -> HashSet<usize> {
         cpp::CppAdapter::prose_line_ranges(self, source)
     }
+    fn prose_spans(&self, source: &str) -> Vec<(usize, usize, usize)> {
+        cpp::CppAdapter::prose_spans(self, source)
+    }
     fn identifier_noise(&self) -> &HashSet<String> {
         cpp::CppAdapter::identifier_noise(self)
     }
@@ -417,6 +435,9 @@ impl LanguageAdapter for ruby::RubyAdapter {
     }
     fn prose_line_ranges(&self, source: &str) -> HashSet<usize> {
         ruby::RubyAdapter::prose_line_ranges(self, source)
+    }
+    fn prose_spans(&self, source: &str) -> Vec<(usize, usize, usize)> {
+        ruby::RubyAdapter::prose_spans(self, source)
     }
     fn identifier_noise(&self) -> &HashSet<String> {
         ruby::RubyAdapter::identifier_noise(self)

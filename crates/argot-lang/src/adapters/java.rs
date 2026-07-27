@@ -480,15 +480,25 @@ impl JavaAdapter {
 
     /// 1-indexed line numbers covered by comments (line and block/javadoc).
     /// Java has no docstring concept; all prose is in comments.
-    pub fn prose_line_ranges(&self, source: &str) -> HashSet<usize> {
+    fn prose_mask(&self, source: &str) -> crate::ts_parse::ProseMask {
         let tree = parse(source);
-        let mut rows: HashSet<usize> = HashSet::new();
+        let mut mask = crate::ts_parse::ProseMask::default();
         for node in descendants(tree.root_node()) {
             if matches!(node.kind(), "line_comment" | "block_comment") {
-                rows.extend(crate::ts_parse::prose_rows(source, node));
+                mask.add(source, node);
             }
         }
-        rows
+        mask
+    }
+
+    pub fn prose_line_ranges(&self, source: &str) -> HashSet<usize> {
+        self.prose_mask(source).rows
+    }
+
+    /// Prose sharing a line with code: blanked in place, so the code survives
+    /// and the words do not reach the scorers.
+    pub fn prose_spans(&self, source: &str) -> Vec<(usize, usize, usize)> {
+        self.prose_mask(source).spans
     }
 
     /// Dotted-callee signatures for every call in `source` (non-`None` only).
@@ -553,6 +563,9 @@ impl LanguageAdapter for JavaAdapter {
     }
     fn enumerate_sampleable_ranges(&self, source: &str) -> Vec<(usize, usize)> {
         JavaAdapter::enumerate_sampleable_ranges(self, source)
+    }
+    fn prose_spans(&self, source: &str) -> Vec<(usize, usize, usize)> {
+        Self::prose_spans(self, source)
     }
     fn prose_line_ranges(&self, source: &str) -> HashSet<usize> {
         JavaAdapter::prose_line_ranges(self, source)

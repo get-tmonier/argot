@@ -360,20 +360,32 @@ pub fn sample_indices(len: usize, n: usize, seed: u64) -> Vec<usize> {
 }
 
 /// Reimpl of `_blank_prose_lines` (keepends).
-fn blank_prose_lines(src: &str, ranges: &HashSet<usize>) -> String {
-    if ranges.is_empty() {
+fn blank_prose_lines(
+    src: &str,
+    ranges: &HashSet<usize>,
+    spans: &[(usize, usize, usize)],
+) -> String {
+    if ranges.is_empty() && spans.is_empty() {
         return src.to_string();
     }
     let lines = splitlines_keepends(src);
     let mut result = String::with_capacity(src.len());
     for (i, line) in lines.iter().enumerate() {
-        if ranges.contains(&(i + 1)) {
+        let ln = i + 1;
+        if ranges.contains(&ln) {
             if line.ends_with('\n') {
                 result.push('\n');
             }
-        } else {
-            result.push_str(line);
+            continue;
         }
+        let mut masked = line.to_string();
+        for (_, a, b) in spans.iter().filter(|(r, ..)| *r == ln) {
+            let (a, b) = ((*a).min(masked.len()), (*b).min(masked.len()));
+            if a < b && masked.is_char_boundary(a) && masked.is_char_boundary(b) {
+                masked.replace_range(a..b, &" ".repeat(b - a));
+            }
+        }
+        result.push_str(&masked);
     }
     result
 }
@@ -730,7 +742,7 @@ pub fn multi_seed_thresholds(
                 continue;
             }
             let prose = adapter.prose_line_ranges(&c.hunk);
-            let blanked = blank_prose_lines(&c.hunk, &prose);
+            let blanked = blank_prose_lines(&c.hunk, &prose, &adapter.prose_spans(&c.hunk));
             let raw_bpe = match per_file_counts.and_then(|m| m.get(&c.file_path)) {
                 Some(counts) => bpe.bpe_score_excluding(&blanked, counts),
                 None => bpe.bpe_score(&blanked),
@@ -797,7 +809,7 @@ pub fn multi_seed_new_file_thresholds(
                 continue;
             }
             let prose = adapter.prose_line_ranges(&c.hunk);
-            let blanked = blank_prose_lines(&c.hunk, &prose);
+            let blanked = blank_prose_lines(&c.hunk, &prose, &adapter.prose_spans(&c.hunk));
             let raw_bpe = match per_file_counts.and_then(|m| m.get(&c.file_path)) {
                 Some(counts) => bpe.bpe_score_excluding(&blanked, counts),
                 None => bpe.bpe_score(&blanked),
@@ -1552,7 +1564,7 @@ fn build_evidence_corpus(
         let clean = if prose.is_empty() {
             source.clone()
         } else {
-            blank_prose_lines(&source, &prose)
+            blank_prose_lines(&source, &prose, &adapter.prose_spans(&source))
         };
         for ident in extract_identifiers(&clean) {
             if !crate::scoring::evidence::bpe::is_noise(&ident, noise, adapter) {

@@ -265,13 +265,13 @@ impl PythonAdapter {
 
     /// 1-indexed line numbers that carry prose: docstrings, multiline
     /// strings (minus interpolation rows), and comments.
-    pub fn prose_line_ranges(&self, source: &str) -> HashSet<usize> {
+    fn prose_mask(&self, source: &str) -> crate::ts_parse::ProseMask {
         let tree = parse(source);
         let root = tree.root_node();
         if root.has_error() {
-            return HashSet::new();
+            return crate::ts_parse::ProseMask::default();
         }
-        let mut rows: HashSet<usize> = HashSet::new();
+        let mut mask = crate::ts_parse::ProseMask::default();
         for node in descendants(root) {
             match node.kind() {
                 "string" => {
@@ -282,19 +282,29 @@ impl PythonAdapter {
                         continue;
                     }
                     let interp = interpolation_rows(node);
-                    rows.extend(
-                        crate::ts_parse::prose_rows(source, node)
-                            .into_iter()
-                            .filter(|r| !interp.contains(r)),
-                    );
+                    let mut inner = crate::ts_parse::ProseMask::default();
+                    inner.add(source, node);
+                    inner.rows.retain(|r| !interp.contains(r));
+                    mask.rows.extend(inner.rows);
+                    mask.spans.extend(inner.spans);
                 }
                 "comment" => {
-                    rows.extend(crate::ts_parse::prose_rows(source, node));
+                    mask.add(source, node);
                 }
                 _ => {}
             }
         }
-        rows
+        mask
+    }
+
+    pub fn prose_line_ranges(&self, source: &str) -> HashSet<usize> {
+        self.prose_mask(source).rows
+    }
+
+    /// Prose sharing a line with code: blanked in place, so the code survives
+    /// and the words do not reach the scorers.
+    pub fn prose_spans(&self, source: &str) -> Vec<(usize, usize, usize)> {
+        self.prose_mask(source).spans
     }
 
     /// True if the file is overwhelmingly static data literals (threshold 0.65).

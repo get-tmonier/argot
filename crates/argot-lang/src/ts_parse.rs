@@ -107,16 +107,47 @@ pub fn named_child_nodes<'t>(node: tree_sitter::Node<'t>) -> Vec<tree_sitter::No
 /// the `"""` would leave an unterminated delimiter, which is worse than the
 /// stray `msg = ` the mask keeps.
 pub fn prose_rows(source: &str, node: tree_sitter::Node<'_>) -> Vec<usize> {
-    let (start, end) = (node.start_position(), node.end_position());
-    if start.row == end.row {
-        let line = source.split('\n').nth(start.row).unwrap_or("");
-        let outside_is_blank = |s: Option<&str>| s.is_none_or(|p| p.trim().is_empty());
-        if !(outside_is_blank(line.get(..start.column)) && outside_is_blank(line.get(end.column..)))
-        {
-            return Vec::new();
+    match ProseMask::classify(source, node) {
+        Some(Prose::Rows(rows)) => rows,
+        _ => Vec::new(),
+    }
+}
+
+/// What blanking a prose node costs: whole rows, or just the node's own span.
+enum Prose {
+    Rows(Vec<usize>),
+    Span(usize, usize, usize),
+}
+
+/// Where a source's prose sits: rows to blank whole, plus `(row, col_start,
+/// col_end)` spans to blank in place on rows that also carry code.
+#[derive(Debug, Default, Clone)]
+pub struct ProseMask {
+    pub rows: std::collections::HashSet<usize>,
+    pub spans: Vec<(usize, usize, usize)>,
+}
+
+impl ProseMask {
+    fn classify(source: &str, node: tree_sitter::Node<'_>) -> Option<Prose> {
+        let (start, end) = (node.start_position(), node.end_position());
+        if start.row == end.row {
+            let line = source.split('\n').nth(start.row).unwrap_or("");
+            let blank = |s: Option<&str>| s.is_none_or(|p| p.trim().is_empty());
+            if !(blank(line.get(..start.column)) && blank(line.get(end.column..))) {
+                return Some(Prose::Span(start.row + 1, start.column, end.column));
+            }
+        }
+        Some(Prose::Rows((start.row + 1..=end.row + 1).collect()))
+    }
+
+    /// Record one prose node.
+    pub fn add(&mut self, source: &str, node: tree_sitter::Node<'_>) {
+        match Self::classify(source, node) {
+            Some(Prose::Rows(rows)) => self.rows.extend(rows),
+            Some(Prose::Span(r, a, b)) => self.spans.push((r, a, b)),
+            None => {}
         }
     }
-    (start.row + 1..=end.row + 1).collect()
 }
 
 #[cfg(test)]

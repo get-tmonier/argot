@@ -26,7 +26,9 @@ fn func(symbol: &str, path: &str) -> FunctionRef {
         end_line: 20,
         text: "def f():\n    a\n    b\n    c\n    d\n    e\n    g".into(),
         embed_text: "def f():\n    a\n    b\n    c\n    d\n    e\n    g".into(),
-        callees: Vec::new(),
+        // Placement abstains on a body that calls nothing, so a judgeable
+        // candidate has to reach for something.
+        callees: vec!["fetch".into()],
         subtokens: Vec::new(),
     }
 }
@@ -188,4 +190,23 @@ fn a_merged_group_is_named_by_the_directories_it_holds() {
 fn parent_dir_extracts_directory() {
     assert_eq!(parent_dir("src/ui/widgets.py"), "src/ui");
     assert_eq!(parent_dir("main.py"), "");
+}
+
+#[test]
+fn a_body_that_calls_nothing_has_no_architectural_home() {
+    // Four Object Pascal property setters in one new dialog form were reported
+    // as graphics code: `Font.ColorBackground := aValue` is written entirely
+    // out of the names it assigns, so it embeds as whatever unit owns them.
+    // Long enough to clear the line floor, and still not judgeable.
+    let idx = index();
+    let cfg = calibrate_placement(&idx);
+    let scorer = PlacementScorer::new(&idx, &cfg);
+    let q = unit(vec![1.0, 0.03, 0.0]);
+    let mut setter = func("set_fontcolor", "src/ui/widgets.py");
+    assert!(
+        scorer.evaluate(&setter, &q).is_some(),
+        "the same function with a call in it is judged"
+    );
+    setter.callees.clear();
+    assert!(scorer.evaluate(&setter, &q).is_none());
 }
