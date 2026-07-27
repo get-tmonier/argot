@@ -279,7 +279,8 @@ exactly like a built-in rule:
 - **Severity:** `[rules] no-print = "warn"` (one rule) or `[rules] custom = "off"` (the whole
   group) in `argot.toml`, or `argot check --rule no-print=warn` per run.
 - **Inline suppression:** `# argot: ignore-next-line rule=no-print — legacy debug shim`.
-- **Durable mute:** `argot mute <hash> --reason "…"`, or a hand-written `[[mute]]` with
+- **Durable mute:** `argot mute <hash> --reason "…"` for one hit,
+  `argot mute --path <glob> --rule <name> --reason "…"` for a standing one, or a `[[mute]]` with
   `rule = "domain-imports-stay-inward"`.
 - **Output:** the rule name appears in human output, `--format json`'s `rule` field, and
   SARIF's `ruleId` — same as `foreign-import` or `redundant`.

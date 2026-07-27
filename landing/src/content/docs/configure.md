@@ -367,18 +367,38 @@ The rules:
 you can also hand-edit it. It's **committed**, so a mute is a shared, reviewable
 audit trail that a teammate and CI inherit.
 
-Every hit prints a stable `[hash]`. To accept it for good, mute the hash:
+There are two forms, and picking the wrong one is how a repo ends up with a
+committed mute per file.
+
+**Per hit — by hash.** Every hit prints a stable `[hash]`:
 
 ```text
 argot mute a1b2c3d4e5f6 --reason "adopting axios repo-wide"
 argot mute a1b2c3d4e5f6 --reason "temporary shim" --expires 30d
 ```
 
+A hash pins **that hit and no other**. The identical finding in a sibling file
+has its own hash and stays flagged — which is what you want for a genuine
+one-off, and not what you want for a standing decision.
+
+**Standing — by path.** When the decision covers a tree, name the tree:
+
+```text
+argot mute --path 'src/legacy/**' --rule foreign-import --reason "migrating in Q3"
+argot mute --path 'vendor/**' --reason "vendored upstream" --expires 90d
+```
+
+`--path` takes the same globs as `[exclude].paths`; `--rule` narrows it to one
+rule or group (validated against your repo's full vocabulary, custom rules
+included, so a typo is refused rather than silently ignored). It covers every
+future hit under the glob and needs no prior `check` run.
+
 `--reason` records why (recommended everywhere argot reports a hit); `--expires`
 takes a **day count** (`30d`, or a bare `30`), which argot resolves to a calendar
-date in the file. `mute` reads the last `check` run to learn which file the hash
-belongs to, so run `argot check` first. The append is a format-preserving edit,
-so your hand-written sections and comments are never rewritten.
+date in the file. The hash form reads the last `check` run to learn which file
+the hash belongs to, so run `argot check` first. Either append is a
+format-preserving edit, so your hand-written sections and comments are never
+rewritten.
 
 Review and prune what you've muted:
 
@@ -405,7 +425,8 @@ hash = "a1b2c3d4e5f6"        # optional — pin to one specific hit (argot mute 
 expires = "2026-12-31"       # optional — YYYY-MM-DD; ignored ON/AFTER this date
 reason = "vendored upstream" # REQUIRED — why (surfaces in list-mutes and code review)
 
-# A hand-written rule needs only path + reason — it then covers every hit under the glob:
+# path + reason alone is the standing form — it covers every hit under the glob.
+# `argot mute --path` writes exactly this; hand-editing does the same thing:
 [[mute]]
 path = "generated/**"
 reason = "protobuf stubs, never our voice"
