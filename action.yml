@@ -320,11 +320,15 @@ runs:
         fi
 
     # Why did this job take two minutes? Without this, the answer is only in the
-    # raw log: a cache miss means the whole voice model is refitted, which
-    # dwarfs the check itself. The distinction matters because the usual cause
-    # is fixable — a cache written during a pull_request run is scoped to that
-    # PR, so sibling PRs against the same base each refit until a run on the
-    # base branch populates a cache they can all restore.
+    # raw log: on anything but an exact key hit the whole voice model is
+    # refitted, which dwarfs the check itself.
+    #
+    # Note the distinction the summary draws. `actions/cache` reports
+    # `cache-hit: true` only on an EXACT key match; a restore via `restore-keys`
+    # leaves it false, so the fit still runs and the restored artifact only
+    # serves to seed the semantic index — nothing at all when `semantic: false`.
+    # Saying "restored" would therefore be misleading; what matters is whether
+    # the fit ran.
     - name: Explain the run's cost
       if: ${{ always() }}
       shell: bash
@@ -342,9 +346,9 @@ runs:
           elif [ "$CACHE_HIT" = 'true' ]; then
             echo "<sub>Voice model restored from cache for base \`${BASE_SHA:0:12}\` — no fit this run.</sub>"
           else
-            echo "<sub>Cache miss for base \`${BASE_SHA:0:12}\` — fitted it in ${FIT_SECONDS:-?}s, which is most of this job."
-            echo "A cache written during a pull-request run is scoped to that PR, so PRs against the same base each refit."
-            echo "Add the base branch to this workflow's \`push:\` trigger and its run will populate a cache they all restore.</sub>"
+            echo "<sub>No cached model for base \`${BASE_SHA:0:12}\` — fitted it in ${FIT_SECONDS:-?}s, which is most of this job."
+            echo "The cache is keyed on the base commit, so it only saves a run when that exact commit was fitted before;"
+            echo "a partial restore through \`restore-keys\` does not skip the fit. Expect this cost whenever the base moves.</sub>"
           fi
         } >> "$GITHUB_STEP_SUMMARY"
 

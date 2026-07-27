@@ -53,15 +53,13 @@ not install or claim an agent end-of-turn or acceptance lifecycle.
    OAuth App to … workflow … without 'workflow' scope"*, run
    `gh auth refresh -s workflow` (or push over SSH).
 
-5. **Keep the `push:` trigger on the base branch.** Fitting the base is almost
-   the whole cost of a run; the check itself is seconds. The Action caches the
-   fitted model by base commit, but GitHub scopes a cache written during a
-   `pull_request` run *to that PR* — sibling PRs against the same base cannot
-   read it and each refit from scratch. Only a run on the base branch writes a
-   cache they can all restore, which is what the `push:` trigger is for. If the
-   repo stacks PRs on a branch other than the default, list that branch there
-   too. The job summary reports cache hit or miss and the fit's duration, so a
-   slow run explains itself.
+5. **Set expectations about the run's cost.** Fitting the base is almost the
+   whole cost of a run — the check itself is seconds. The model cache is keyed
+   on the base commit and only an *exact* match skips the fit, so on an active
+   default branch most pull requests refit. Tell the user the number rather than
+   promising the cache absorbs it; the job summary reports whether the fit ran
+   and how long it took. `semantic: false` is what makes the fit cheap, since
+   the embedding index is the expensive part.
 
 6. Tell the user what they'll get on each configured PR workflow: a
    **non-blocking** job summary, optional sticky PR comment, and inline
