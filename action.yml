@@ -60,6 +60,17 @@ inputs:
     description: "Cache the fitted .argot/ model directory between runs."
     required: false
     default: "true"
+  max-staleness:
+    description: >-
+      How many accepted commits a restored voice model may be behind the base
+      before the Action refits it. The cache is keyed on the base commit, so an
+      exact hit is rare on an active branch — without a tolerance every pull
+      request refits, and the fit is almost the whole cost of a run. Mirrors
+      argot's own local default (`[fit] refresh-after = 10`): a handful of
+      commits moves a repo-wide statistical model by a rounding error. Set 0 to
+      demand the exact base commit.
+    required: false
+    default: "10"
   upload-sarif:
     description: "Upload the SARIF file to GitHub code scanning (requires format: sarif and `security-events: write`)."
     required: false
@@ -242,16 +253,54 @@ runs:
         # same base reuses one fitted model, and it re-fits only when the base
         # advances (never on a per-PR head, which would poison the voice).
         key: argot-model-${{ runner.os }}-${{ inputs.argot-version }}-${{ steps.base.outputs.base_sha }}
-        # On a base advance (cache miss) restore the previous base's .argot
-        # anyway: the fit re-runs (miss ≠ exact hit) but the old semantic
-        # index seeds it, so unchanged functions reuse their embeddings —
-        # an incremental re-fit instead of minutes of full re-embedding.
+        # On a base advance the exact key misses, so restore the previous
+        # base's .argot: the next step measures how far behind the base it is
+        # and, within `max-staleness`, uses it as-is. Beyond that the fit
+        # re-runs, and the restored semantic index still seeds it so unchanged
+        # functions keep their embeddings.
         restore-keys: |
           argot-model-${{ runner.os }}-${{ inputs.argot-version }}-
 
+    # An exact key hit is the rare case: the key is the base commit, and an
+    # active branch moves. Rather than refit for every advance, ask argot how
+    # stale the restored model actually is — the same question its local
+    # auto-refresh asks before refitting in the background. A voice model is a
+    # repo-wide statistical summary; a few commits do not move it.
+    - name: Measure the restored model against the base
+      id: freshness
+      if: ${{ inputs.cache == 'true' && steps.model-cache.outputs.cache-hit != 'true' }}
+      shell: bash
+      env:
+        ARGOT_PATH: ${{ inputs.path }}
+        BASE_SHA: ${{ steps.base.outputs.base_sha }}
+        ORIG_SHA: ${{ steps.base.outputs.orig_sha }}
+        MAX_STALENESS: ${{ inputs.max-staleness }}
+      run: |
+        set -euo pipefail
+        usable=false
+        behind=
+        if [ -f "$ARGOT_PATH/.argot/scorer-config.json" ] && [ "${MAX_STALENESS:-0}" -gt 0 ]; then
+          # Staleness is measured from the base, which is what the check scores
+          # against; restore the original ref whatever happens.
+          git -C "$ARGOT_PATH" checkout -q --detach "$BASE_SHA"
+          status=$(argot status --repo "$ARGOT_PATH" --format json 2>/dev/null || echo '{}')
+          git -C "$ARGOT_PATH" checkout -q --detach "$ORIG_SHA"
+          behind=$(jq -r '.health.commits_behind // empty' <<<"$status")
+          in_sync=$(jq -r '.health.config_in_sync // false' <<<"$status")
+          calibrated=$(jq -r '.calibrated // false' <<<"$status")
+          # A config change alters what the model learns, so it always refits —
+          # staleness is about history moving, not about the scope changing.
+          if [ "$calibrated" = true ] && [ "$in_sync" = true ] && [ -n "$behind" ] \
+             && [ "$behind" -le "$MAX_STALENESS" ]; then
+            usable=true
+          fi
+        fi
+        echo "usable=$usable" >> "$GITHUB_OUTPUT"
+        echo "behind=${behind:-}" >> "$GITHUB_OUTPUT"
+
     - name: Fit voice model on the base
       id: fit
-      if: ${{ inputs.cache != 'true' || steps.model-cache.outputs.cache-hit != 'true' }}
+      if: ${{ (inputs.cache != 'true' || steps.model-cache.outputs.cache-hit != 'true') && steps.freshness.outputs.usable != 'true' }}
       shell: bash
       env:
         ARGOT_PATH: ${{ inputs.path }}
@@ -335,6 +384,9 @@ runs:
       env:
         CACHE_ENABLED: ${{ inputs.cache }}
         CACHE_HIT: ${{ steps.model-cache.outputs.cache-hit }}
+        REUSED: ${{ steps.freshness.outputs.usable }}
+        BEHIND: ${{ steps.freshness.outputs.behind }}
+        MAX_STALENESS: ${{ inputs.max-staleness }}
         FIT_SECONDS: ${{ steps.fit.outputs.seconds }}
         BASE_SHA: ${{ steps.base.outputs.base_sha }}
       run: |
@@ -345,10 +397,15 @@ runs:
             echo "<sub>Model cache disabled (\`cache: false\`) — fitted the base in ${FIT_SECONDS:-?}s.</sub>"
           elif [ "$CACHE_HIT" = 'true' ]; then
             echo "<sub>Voice model restored from cache for base \`${BASE_SHA:0:12}\` — no fit this run.</sub>"
+          elif [ "$REUSED" = 'true' ]; then
+            echo "<sub>Reused a cached voice model ${BEHIND:-?} accepted commit(s) behind base \`${BASE_SHA:0:12}\` — no fit this run."
+            echo "Within \`max-staleness: ${MAX_STALENESS}\`. Lower it to 0 to demand the exact base commit.</sub>"
           else
-            echo "<sub>No cached model for base \`${BASE_SHA:0:12}\` — fitted it in ${FIT_SECONDS:-?}s, which is most of this job."
-            echo "The cache is keyed on the base commit, so it only saves a run when that exact commit was fitted before;"
-            echo "a partial restore through \`restore-keys\` does not skip the fit. Expect this cost whenever the base moves.</sub>"
+            echo "<sub>No usable cached model for base \`${BASE_SHA:0:12}\` — fitted it in ${FIT_SECONDS:-?}s, which is most of this job."
+            if [ -n "${BEHIND:-}" ]; then
+              echo "The restored model was ${BEHIND} commit(s) behind, past \`max-staleness: ${MAX_STALENESS}\`."
+            fi
+            echo "</sub>"
           fi
         } >> "$GITHUB_STEP_SUMMARY"
 

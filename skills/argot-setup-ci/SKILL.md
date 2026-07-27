@@ -53,13 +53,15 @@ not install or claim an agent end-of-turn or acceptance lifecycle.
    OAuth App to … workflow … without 'workflow' scope"*, run
    `gh auth refresh -s workflow` (or push over SSH).
 
-5. **Set expectations about the run's cost.** Fitting the base is almost the
-   whole cost of a run — the check itself is seconds. The model cache is keyed
-   on the base commit and only an *exact* match skips the fit, so on an active
-   default branch most pull requests refit. Tell the user the number rather than
-   promising the cache absorbs it; the job summary reports whether the fit ran
-   and how long it took. `semantic: false` is what makes the fit cheap, since
-   the embedding index is the expensive part.
+5. **Know where a run's time goes.** Fitting the base is almost the whole cost;
+   the check itself is seconds. The model cache is keyed on the base commit, and
+   because an active branch moves, the Action falls back to the nearest cached
+   model and refits only when it is more than `max-staleness` accepted commits
+   behind (default 10, mirroring argot's local `[fit] refresh-after`) or when
+   `argot.toml` changed. The job summary says which path the run took. Two
+   knobs if a repo needs them: `max-staleness: 0` to demand the exact base
+   commit, and `semantic: false` — the embedding index is what makes a fit
+   expensive.
 
 6. Tell the user what they'll get on each configured PR workflow: a
    **non-blocking** job summary, optional sticky PR comment, and inline

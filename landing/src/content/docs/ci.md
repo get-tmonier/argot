@@ -38,7 +38,7 @@ selected base-to-HEAD range, so the pull request’s code is not learned as the 
 sets it to `true`, error-severity results mark that Action job as failed; the team's review policy
 still determines the response.
 
-`format`, `ref`, `cache`, `semantic`, `upload-sarif`, and `comment-pr` are configurable Action
+`format`, `ref`, `cache`, `max-staleness`, `semantic`, `upload-sarif`, and `comment-pr` are configurable Action
 inputs. Semantic checking may download the local embedding model; use `semantic: false` on a
 locked-down or offline runner to keep voice, layering, and integrity checks while skipping semantic
 model work. The Action caches fitted artifacts by base commit when caching is enabled.
@@ -49,15 +49,19 @@ Fitting the base is almost the whole cost of an Action run — the check itself 
 hit there is no fit at all, so the job is fast; on a miss it refits from scratch. The job summary now
 says which of the two happened, and how long the fit took.
 
-The cache is keyed on the **base commit**, and only an *exact* key match skips the fit. A partial
-restore through `restore-keys` — the previous base's model — still refits; that artifact exists to
-seed the semantic index so unchanged functions keep their embeddings, and with `semantic: false`
-it saves nothing at all.
+The cache is keyed on the **base commit**. An exact key hit skips the fit outright, but on an active
+branch the base moves constantly and the exact key rarely hits — so the Action restores the nearest
+cached model and asks argot how far behind the base it actually is. Within **`max-staleness`**
+(default 10 accepted commits, mirroring argot's own local `[fit] refresh-after`) it uses that model
+as-is and skips the fit; beyond it, or when `argot.toml` has changed since, it refits.
 
-In practice that means **the fit runs whenever the base has moved since it was last fitted at that
-exact commit**, which on an active default branch is most pull requests. Two things follow: budget
-for the fit rather than assuming the cache absorbs it, and prefer `semantic: false` in CI unless the
-embedding index is worth its cost to you — it is what makes the fit expensive.
+The tolerance is the same judgment argot's local auto-refresh already makes: a voice model is a
+repo-wide statistical summary, and a handful of commits moves it by a rounding error. Without it
+every pull request refits, and the fit is almost the whole cost of a run — on a 924k-line repository,
+2 min 03 of a 2 min 06 job, with the check itself at about 2 s.
+
+Set `max-staleness: 0` to demand the exact base commit. The job summary always says which of the
+three paths a run took, and how long any fit took.
 
 ## pre-commit
 
