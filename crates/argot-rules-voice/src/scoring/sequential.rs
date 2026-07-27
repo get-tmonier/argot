@@ -951,7 +951,11 @@ impl SequentialImportBpeScorer {
                 // each foreign specifier's first-occurrence span so the formatter
                 // can annotate (`msgspec (L7)`), the truncator can keep the line
                 // visible, and the renderer can draw carets.
-                let imports_with_spans = self.adapter.extract_imports_with_spans(hunk_content);
+                // Read the SAME text the import stage scored (prose-blanked,
+                // line count preserved, so spans still address the displayed
+                // hunk): scoring one parse and naming specifiers from another
+                // renders a finding with nothing actionable in it.
+                let imports_with_spans = self.adapter.extract_imports_with_spans(bpe_input);
                 let mut ordered_foreign: Vec<String> = Vec::new();
                 let mut seen_foreign: HashSet<String> = HashSet::new();
                 let mut foreign_spans: Vec<(String, SourceSpan)> = Vec::new();

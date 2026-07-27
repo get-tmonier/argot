@@ -923,11 +923,7 @@ impl TypeScriptAdapter {
         let mut rows: HashSet<usize> = HashSet::new();
         for node in descendants(root) {
             if node.kind() == "comment" {
-                let start = node.start_position().row + 1;
-                let end = node.end_position().row + 1;
-                for r in start..=end {
-                    rows.insert(r);
-                }
+                rows.extend(crate::ts_parse::prose_rows(source, node));
             }
         }
         rows

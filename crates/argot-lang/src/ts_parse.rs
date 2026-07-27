@@ -91,5 +91,33 @@ pub fn named_child_nodes<'t>(node: tree_sitter::Node<'t>) -> Vec<tree_sitter::No
     node.named_children(&mut cursor).collect()
 }
 
+/// The 1-indexed source rows a prose node (a comment, a docstring, a multiline
+/// string) should have blanked.
+///
+/// Prose masking blanks whole *lines*, so a line carrying code as well as a
+/// comment must not count as prose — blanking it deletes the code. That is not
+/// hypothetical: `uses msedynload{,mseguiintf};` (Object Pascal commenting a
+/// unit out in place) had its whole `uses` clause blanked, after which the
+/// parser recovered the next type name as a module and the import stage scored
+/// a dependency that does not exist. The same shape under-reads every language
+/// — a trailing `// note` after `import "fmt"` took the import with it.
+///
+/// The test applies to **single-row** nodes only. A node spanning several rows
+/// owns all of them: dropping its opening row because an assignment precedes
+/// the `"""` would leave an unterminated delimiter, which is worse than the
+/// stray `msg = ` the mask keeps.
+pub fn prose_rows(source: &str, node: tree_sitter::Node<'_>) -> Vec<usize> {
+    let (start, end) = (node.start_position(), node.end_position());
+    if start.row == end.row {
+        let line = source.split('\n').nth(start.row).unwrap_or("");
+        let outside_is_blank = |s: Option<&str>| s.is_none_or(|p| p.trim().is_empty());
+        if !(outside_is_blank(line.get(..start.column)) && outside_is_blank(line.get(end.column..)))
+        {
+            return Vec::new();
+        }
+    }
+    (start.row + 1..=end.row + 1).collect()
+}
+
 #[cfg(test)]
 mod tests;

@@ -311,9 +311,7 @@ impl RustAdapter {
         let mut rows: HashSet<usize> = HashSet::new();
         for node in descendants(tree.root_node()) {
             if matches!(node.kind(), "line_comment" | "block_comment") {
-                for r in (node.start_position().row + 1)..=(node.end_position().row + 1) {
-                    rows.insert(r);
-                }
+                rows.extend(crate::ts_parse::prose_rows(source, node));
             }
         }
         rows

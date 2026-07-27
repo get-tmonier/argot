@@ -282,14 +282,14 @@ impl PythonAdapter {
                         continue;
                     }
                     let interp = interpolation_rows(node);
-                    for r in (start_row + 1)..=(end_row + 1) {
-                        if !interp.contains(&r) {
-                            rows.insert(r);
-                        }
-                    }
+                    rows.extend(
+                        crate::ts_parse::prose_rows(source, node)
+                            .into_iter()
+                            .filter(|r| !interp.contains(r)),
+                    );
                 }
                 "comment" => {
-                    rows.insert(node.start_position().row + 1);
+                    rows.extend(crate::ts_parse::prose_rows(source, node));
                 }
                 _ => {}
             }

@@ -28,6 +28,9 @@
 //!   migration — nothing left to guard, dropped at attach time; callee pairs
 //!   additionally require a distinctive, non-ubiquitous X (generic names
 //!   like a bare `stop` would fire on unrelated code).
+//! - coverage: the mirror of the leftover guard — a pair that moved only a
+//!   sliver of the old side's footprint is a rename that never propagated, not
+//!   a migration this repo is running (see [`MIN_COVERAGE`]).
 //!
 //! No usable history (no git, shallow below the support bar) mines nothing
 //! and stays silent — the guardrail is unchanged, not degraded.
@@ -70,6 +73,24 @@ const CALLEE_MIN_LEN: usize = 4;
 const CALLEE_UBIQUITY_FRACTION: f64 = 0.2;
 /// Absolute leftover-file cap for callee-kind pairs (same hazard).
 const CALLEE_LEFTOVER_CAP: usize = 24;
+/// The share of the old side's footprint a migration must have moved —
+/// `files converted / (converted + still using it)`.
+///
+/// The leftover guard drops a *completed* migration (nothing left to enforce);
+/// this drops the mirror case the guards had no answer for, a migration that
+/// **never happened**. MSEide/MSEgui renamed `msestrings` → `msetypes` in three
+/// commits across eleven files in July 2017; nine years later 272 of its 508
+/// files still import `msestrings`, coverage 3.9 %, and the rule fired on six
+/// of seven changesets for doing exactly what the shipped X11 backend does.
+///
+/// The bar is set from the coverage the shipped miner actually produces
+/// (`docs/research/evidence/supersession-liveness-gate.md`): real migrations at
+/// 0.89 (ripgrep `regex` → `regex_automata`), 0.75 (scrapy's receiver refactor)
+/// and 0.22 (ideU `msefiledialog` → `msefiledialogx`) against 0.039 for the
+/// MSEgui rename — 0.10 is the geometric midpoint of the two nearest, so both
+/// sides clear it by ~2.5×. An early migration below the bar is what
+/// `[[migration]]` is for: declare it and it enforces immediately.
+const MIN_COVERAGE: f64 = 0.10;
 /// Leftover paths listed in the artifact (the count is always exact).
 pub const LEFTOVER_LIST_CAP: usize = 20;
 
@@ -503,6 +524,12 @@ pub fn attach_leftovers(
             }
         }
         if leftovers.is_empty() {
+            continue;
+        }
+        // Liveness: the migration must have moved a real share of the old
+        // side's footprint, or it is a rename that never propagated.
+        let footprint = pair.files + leftovers.len();
+        if (pair.files as f64) < MIN_COVERAGE * footprint as f64 {
             continue;
         }
         if kind == SupersessionKind::Callee {

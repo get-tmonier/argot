@@ -26,9 +26,11 @@
 //!   `declClass` carrying a `kClass` or `kRecord` token).
 //! - `//`, `{ … }` and `(* … *)` all parse to a single `comment` node.
 //! - Calls are `exprCall` (`entity` field: an `identifier` or an `exprDot`
-//!   chain). Pascal is case-insensitive, but real repos are internally
-//!   consistent in unit/identifier casing, so tokens are kept verbatim like
-//!   every other adapter.
+//!   chain).
+//! - Pascal is case-insensitive. Unit names fold to one identity (see
+//!   `unit_identity`); other identifiers are kept verbatim like every other
+//!   adapter, since the surrounding scorers compare them against a vocabulary
+//!   learned from the same tree.
 
 use std::collections::HashSet;
 use std::path::Path;
@@ -96,19 +98,55 @@ fn node_text<'a>(node: Node, source: &'a str) -> &'a str {
     &source[node.byte_range()]
 }
 
-/// The top-level segment of a `moduleName` node (`Generics.Collections` →
-/// `Generics`, `SysUtils` → `SysUtils`): its first named `identifier` child.
-fn module_top_segment<'a>(module_name: Node<'a>, source: &'a str) -> Option<&'a str> {
-    children(module_name)
-        .into_iter()
-        .find(|c| c.kind() == "identifier")
-        .map(|id| node_text(id, source))
-}
-
 /// The top-level segment of a dotted unit name string (`mormot.core.base` →
 /// `mormot`).
 fn name_top_segment(name: &str) -> &str {
     name.split('.').next().unwrap_or(name).trim()
+}
+
+/// A unit name reduced to its identity.
+///
+/// Object Pascal is case-insensitive: `SysUtils`, `sysutils`, `sysUtils` and
+/// `Sysutils` are one unit, and a real repository writes all four (MSEide/MSEgui
+/// does, 200/289/15/2 times). Comparing the spellings instead of the identity
+/// splits one dependency into several — 30 of MSEgui's 907 learned Pascal
+/// specifiers were case-variants of another entry, and the supersession miner
+/// read `sysutils` → `SysUtils` as a migration from a unit to itself. Folding
+/// here means every surface (imports, declarations, the miner, the import
+/// graph) compares the same identity.
+fn unit_identity(name: &str) -> String {
+    name.to_lowercase()
+}
+
+/// The unit names a `declUses` clause lists.
+///
+/// Reads `moduleName` children, plus identifiers the grammar wrapped in an
+/// `ERROR` node: a conditional-compilation directive inside the clause
+/// (`uses {$if defined(darwin)} cwstring {$else} msecwstring {$endif}`, straight
+/// out of MSEgui's kernel) leaves the branch without a trailing comma
+/// unparsed, so the unit it names would otherwise be invisible to the model
+/// and every later `uses` of it would read as a brand-new dependency. The
+/// `declUses` scope bounds the recovery — `{$if …}` conditions parse as `pp`
+/// leaves, so no identifier from them can leak in.
+fn uses_identifiers<'a>(decl_uses: Node<'a>, source: &'a str) -> Vec<Node<'a>> {
+    let mut out = Vec::new();
+    for child in children(decl_uses) {
+        match child.kind() {
+            "moduleName" => out.extend(
+                children(child)
+                    .into_iter()
+                    .find(|c| c.kind() == "identifier")
+                    .filter(|id| !node_text(*id, source).is_empty()),
+            ),
+            "ERROR" => out.extend(
+                children(child)
+                    .into_iter()
+                    .filter(|c| c.kind() == "identifier" && !node_text(*c, source).is_empty()),
+            ),
+            _ => {}
+        }
+    }
+    out
 }
 
 /// The proc/func/constructor/destructor name a `declProc` binds. The `name`
@@ -144,23 +182,10 @@ impl PascalAdapter {
     /// is the dependency identity; a repo-internal unit is filtered later by the
     /// import-graph scorer against [`resolve_repo_modules`](Self::resolve_repo_modules).
     pub fn extract_imports(&self, source: &str) -> HashSet<String> {
-        let tree = parse(source);
-        let mut out = HashSet::new();
-        for node in descendants(tree.root_node()) {
-            if node.kind() != "declUses" {
-                continue;
-            }
-            for child in children(node) {
-                if child.kind() == "moduleName" {
-                    if let Some(seg) = module_top_segment(child, source) {
-                        if !seg.is_empty() {
-                            out.insert(seg.to_string());
-                        }
-                    }
-                }
-            }
-        }
-        out
+        self.extract_imports_with_spans(source)
+            .into_iter()
+            .map(|(spec, _, _, _)| spec)
+            .collect()
     }
 
     /// Like [`extract_imports`](Self::extract_imports) but each specifier carries
@@ -174,23 +199,15 @@ impl PascalAdapter {
             if node.kind() != "declUses" {
                 continue;
             }
-            for child in children(node) {
-                if child.kind() != "moduleName" {
-                    continue;
-                }
-                let Some(id) = children(child)
-                    .into_iter()
-                    .find(|c| c.kind() == "identifier")
-                else {
-                    continue;
-                };
-                let spec = node_text(id, source).to_string();
+            for id in uses_identifiers(node, source) {
+                let raw = node_text(id, source);
+                let spec = unit_identity(name_top_segment(raw));
                 if spec.is_empty() {
                     continue;
                 }
                 let line = id.start_position().row + 1;
                 let col_start = id.start_position().column;
-                let col_end = col_start + spec.len();
+                let col_end = col_start + raw.len();
                 out.push((spec, line, col_start, col_end));
             }
         }
@@ -215,9 +232,9 @@ impl PascalAdapter {
                 continue;
             };
             if let Some(name) = module_declaration_name(&text) {
-                let seg = name_top_segment(&name);
+                let seg = unit_identity(name_top_segment(&name));
                 if !seg.is_empty() {
-                    modules.exact.insert(seg.to_string());
+                    modules.exact.insert(seg);
                 }
             }
         }
@@ -229,8 +246,8 @@ impl PascalAdapter {
     /// entry — so a declaration and a reference to it compare equal.
     pub fn declared_module(&self, source: &str) -> Option<String> {
         let name = module_declaration_name(source)?;
-        let seg = name_top_segment(&name);
-        (!seg.is_empty()).then(|| seg.to_string())
+        let seg = unit_identity(name_top_segment(&name));
+        (!seg.is_empty()).then_some(seg)
     }
 
     /// Names bound by callable/type definitions — every `declProc`
@@ -431,9 +448,7 @@ impl PascalAdapter {
         let mut rows: HashSet<usize> = HashSet::new();
         for node in descendants(tree.root_node()) {
             if node.kind() == "comment" {
-                for r in (node.start_position().row + 1)..=(node.end_position().row + 1) {
-                    rows.insert(r);
-                }
+                rows.extend(crate::ts_parse::prose_rows(source, node));
             }
         }
         rows
