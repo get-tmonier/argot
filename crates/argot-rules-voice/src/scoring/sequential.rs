@@ -21,8 +21,10 @@ use anyhow::Result;
 use argot_engine::suppress::PathSuppressions;
 use argot_lang::bpe::BpeTokenizer;
 use argot_lang::text::splitlines_keepends;
+use std::cell::RefCell;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 
 const EPSILON: f64 = 1e-7;
 const IMPORT_THRESHOLD: f64 = 1.0;
@@ -188,6 +190,11 @@ struct FileDerivedCache {
     file_bindings: crate::scoring::call_receiver::LocalBindings,
 }
 
+thread_local! {
+    /// See [`SequentialImportBpeScorer::file_derived`].
+    static FILE_CACHE: RefCell<Option<Rc<FileDerivedCache>>> = const { RefCell::new(None) };
+}
+
 fn content_key(source: &str) -> u64 {
     use std::hash::{Hash, Hasher};
     let mut h = std::collections::hash_map::DefaultHasher::new();
@@ -208,8 +215,7 @@ pub struct SequentialImportBpeScorer {
     /// Callable names defined anywhere in the change being checked (all
     /// files of the changeset) — new code naming its own neighbourhood.
     changeset_bindings: HashSet<String>,
-    /// Single-entry per-file cache (see [`FileDerivedCache`]).
-    file_cache: Option<FileDerivedCache>,
+
     typicality: Option<TypicalityModel>,
     import_scorer: ImportGraphScorer,
     bpe: BpeScorer,
@@ -329,7 +335,6 @@ impl SequentialImportBpeScorer {
         Ok(Self {
             adapter,
             changeset_bindings: HashSet::new(),
-            file_cache: None,
             typicality,
             import_scorer,
             bpe,
@@ -407,7 +412,6 @@ impl SequentialImportBpeScorer {
         Ok(Self {
             adapter,
             changeset_bindings: HashSet::new(),
-            file_cache: None,
             typicality,
             import_scorer,
             bpe,
@@ -474,18 +478,29 @@ impl SequentialImportBpeScorer {
     }
 
     /// Per-primitive fire counts from the call-receiver (bench observability).
-    pub fn primitive_fire_counts(&self) -> Option<&std::collections::HashMap<String, usize>> {
+    pub fn primitive_fire_counts(&self) -> Option<std::collections::HashMap<String, usize>> {
         self.call_receiver
             .as_ref()
-            .map(|cr| &cr.primitive_fire_count)
+            .and_then(|cr| cr.primitive_fire_count.lock().ok().map(|c| c.clone()))
     }
 
     /// The per-file derived state for `source`, recomputing only when the
     /// content differs from the cached entry.
-    fn file_derived(&mut self, source: &str) -> &FileDerivedCache {
+    ///
+    /// The cache is **per thread**, not per scorer: batches are scored in
+    /// parallel and each worker takes a contiguous run of whole files, so a
+    /// single entry per thread hits exactly as often as one entry per scorer
+    /// did when the loop was serial — and the scorer stays `&self`, which is
+    /// what lets it be shared across workers at all. Returned by `Rc` because
+    /// the value lives in the thread-local; it never crosses a thread.
+    fn file_derived(&self, source: &str) -> Rc<FileDerivedCache> {
         let key = content_key(source);
-        let hit = self.file_cache.as_ref().is_some_and(|c| c.key == key);
-        if !hit {
+        if let Some(hit) =
+            FILE_CACHE.with(|c| c.borrow().as_ref().filter(|e| e.key == key).map(Rc::clone))
+        {
+            return hit;
+        }
+        let derived = {
             let mut file_bindings = crate::scoring::call_receiver::LocalBindings::default();
             file_bindings
                 .callables
@@ -496,28 +511,30 @@ impl SequentialImportBpeScorer {
             file_bindings
                 .values
                 .extend(self.adapter.value_bindings(source));
-            self.file_cache = Some(FileDerivedCache {
+            Rc::new(FileDerivedCache {
                 key,
                 data_rows: self.adapter.data_literal_lines(source),
                 prose_rows: self.adapter.prose_line_ranges(source),
                 prose_spans: self.adapter.prose_spans(source),
                 file_bindings,
-            });
-        }
-        self.file_cache.as_ref().expect("just populated")
+            })
+        };
+        FILE_CACHE.with(|c| *c.borrow_mut() = Some(Rc::clone(&derived)));
+        derived
     }
 
     /// Share of the hunk's non-blank rows that fall inside the host file's
     /// static data-literal spans (1-indexed inclusive hunk bounds). 0.0 when
     /// the hunk has no non-blank rows or the file has no data spans.
     fn hunk_data_row_share(
-        &mut self,
+        &self,
         hunk_content: &str,
         file_source: &str,
         hunk_start_line: usize,
         hunk_end_line: usize,
     ) -> f64 {
-        let data_rows = &self.file_derived(file_source).data_rows;
+        let derived = self.file_derived(file_source);
+        let data_rows = &derived.data_rows;
         if data_rows.is_empty() {
             return 0.0;
         }
@@ -592,7 +609,7 @@ impl SequentialImportBpeScorer {
     /// parse-error host context: a hunk whose bare parse has root errors gets
     /// its callees from its region within the file AST instead of contributing 0.
     pub fn score_hunk(
-        &mut self,
+        &self,
         hunk_content: &str,
         file_source: Option<&str>,
         hunk_start_line: Option<usize>,
@@ -617,7 +634,7 @@ impl SequentialImportBpeScorer {
     /// `host_context` is `(host_source, start_line, end_line)`, 1-indexed
     /// inclusive.
     pub fn score_hunk_with_host_context(
-        &mut self,
+        &self,
         hunk_content: &str,
         file_source: Option<&str>,
         hunk_start_line: Option<usize>,
@@ -726,7 +743,7 @@ impl SequentialImportBpeScorer {
             .callables
             .extend(self.changeset_bindings.iter().cloned());
 
-        let contribution = if let Some(cr) = &mut self.call_receiver {
+        let contribution = if let Some(cr) = &self.call_receiver {
             let alpha = cr.alpha;
             let cap = cr.cap as f64;
             match file_path {

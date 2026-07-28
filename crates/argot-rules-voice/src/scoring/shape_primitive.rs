@@ -64,7 +64,7 @@ pub enum Baseline {
 /// cluster, then `score` per hunk. Both take `&self`; primitives that need to
 /// remember the fit-time language use interior mutability and expose it via
 /// [`ShapePrimitive::set_language`].
-pub trait ShapePrimitive {
+pub trait ShapePrimitive: Sync {
     /// Unique identifier (e.g. `except_return_raise_ratio`).
     fn name(&self) -> &str;
     /// Below this cluster size the primitive abstains (returns 0.0).

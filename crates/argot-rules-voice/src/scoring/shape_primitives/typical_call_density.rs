@@ -10,9 +10,9 @@ use crate::scoring::adapters::Language;
 use crate::scoring::call_receiver::extract_callees;
 use crate::scoring::shape_primitive::{Baseline, ShapePrimitive};
 use crate::scoring::shape_primitives::population_mean_std;
-use std::cell::Cell;
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::path::PathBuf;
+use std::sync::OnceLock;
 
 const TOP_N: usize = 10;
 const MIN_VALID_FILES: usize = 3;
@@ -36,7 +36,7 @@ fn compute_density(source: &str, language: Language, top10_set: &BTreeSet<String
 /// Typical-call-density under-coverage primitive. Language captured on fit.
 #[derive(Default)]
 pub struct TypicalCallDensity {
-    language: Cell<Option<Language>>,
+    language: OnceLock<Language>,
 }
 
 impl ShapePrimitive for TypicalCallDensity {
@@ -51,7 +51,7 @@ impl ShapePrimitive for TypicalCallDensity {
     }
 
     fn set_language(&self, language: Language) {
-        self.language.set(Some(language));
+        let _ = self.language.set(language);
     }
 
     fn fit_cluster_baseline(
@@ -59,7 +59,7 @@ impl ShapePrimitive for TypicalCallDensity {
         cluster_files: &[(PathBuf, String)],
         language: Language,
     ) -> Option<Baseline> {
-        self.language.set(Some(language));
+        let _ = self.language.set(language);
 
         // Per-file presence counts, preserving first-insertion order so the
         // top-10 tie-break matches Counter.most_common.
@@ -123,7 +123,7 @@ impl ShapePrimitive for TypicalCallDensity {
         if cluster_size < self.min_cluster_size() {
             return 0.0;
         }
-        let Some(language) = self.language.get() else {
+        let Some(language) = self.language.get().copied() else {
             return 0.0;
         };
         if top10_set.is_empty() {

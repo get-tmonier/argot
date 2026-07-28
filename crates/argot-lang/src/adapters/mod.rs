@@ -62,7 +62,7 @@ pub struct CallableBody {
 
 /// Uniform language-adapter surface. Implemented by `PythonAdapter` and
 /// `TypeScriptAdapter`; the scorers dispatch through `&dyn LanguageAdapter`.
-pub trait LanguageAdapter {
+pub trait LanguageAdapter: Sync {
     /// Function/method definitions with their line ranges — the embeddable units
     /// for the semantic index. Default empty: a language with no implementation
     /// simply produces no semantic index (no reinvention/placement findings),

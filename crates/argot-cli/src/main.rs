@@ -2635,14 +2635,13 @@ fn run_score_cmd(c: ScoreCmd) -> ExitCode {
             .map(|r| argot_core::config::ArgotConfig::load(r).detect)
             .unwrap_or_default(),
     };
-    let mut scorer =
-        match SequentialImportBpeScorer::from_config(&repo_files, &generic, adapter, cfg) {
-            Ok(s) => s,
-            Err(e) => {
-                eprintln!("error: {e}");
-                return ExitCode::from(2);
-            }
-        };
+    let scorer = match SequentialImportBpeScorer::from_config(&repo_files, &generic, adapter, cfg) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return ExitCode::from(2);
+        }
+    };
 
     let stdin = std::io::stdin();
     let stdout = std::io::stdout();
