@@ -21,6 +21,14 @@ const fr: SiteContent = {
     ctaSetup: 'Configurez-le avec votre agent',
     proof:
       '[[97,3 %]] des motifs étrangers détectés · [[0,25 %]] des vraies modifications signalées · mesuré sur [[36 dépôts]]',
+    catches: [
+      'une dépendance jamais utilisée ici',
+      'une fonction que vous avez déjà écrite',
+      'du code rangé au mauvais endroit',
+      'un import qui casse vos couches',
+      'un test discrètement désactivé',
+      'vos propres conventions',
+    ],
     ctaSecondary: 'Star sur GitHub',
     install: 'npm i -g @tmonier/argot',
     installNote:

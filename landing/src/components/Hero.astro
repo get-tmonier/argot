@@ -15,12 +15,18 @@ const { hero } = content;
 // cards use below, so the vocabulary reads as one thread through the page.
 // `foreign-import` carries the "foreign" (flag) tier; the rest carry amber.
 // A confidence tier, not a ranking.
+// Chips say what argot catches in plain language and link to the section that
+// shows it. The rule slugs (`foreign-import`, `misplaced`, `layering`…) are
+// argot's internal vocabulary — accurate, and meaningless to someone who has
+// never used it. The last one is the differentiator the hero never mentioned:
+// a repository can add its own rules.
 const rules = [
-  { id: 'foreign-import', tier: 'flag' },
-  { id: 'redundant', tier: 'amber' },
-  { id: 'misplaced', tier: 'amber' },
-  { id: 'layering', tier: 'amber' },
-  { id: 'test-disabled', tier: 'amber' },
+  { href: '#demo-tab-foreign-import', tier: 'flag' },
+  { href: '#demo-tab-redundant', tier: 'amber' },
+  { href: '#demo-tab-misplaced', tier: 'amber' },
+  { href: '#demo-tab-layering', tier: 'amber' },
+  { href: '#demo-tab-test-disabled', tier: 'amber' },
+  { href: '#custom-rules', tier: 'custom' },
 ] as const;
 ---
 
@@ -56,7 +62,7 @@ const rules = [
       {
         rules.map((rule, i) => (
           <li class="hero-rule-chip" data-tier={rule.tier} style={`--i:${i}`}>
-            <a href={`#demo-tab-${rule.id}`}>{rule.id}</a>
+            <a href={rule.href}>{hero.catches[i]}</a>
           </li>
         ))
       }
@@ -105,8 +111,7 @@ const rules = [
     border: 1px solid var(--line-2);
     background: color-mix(in srgb, var(--panel) 55%, transparent);
     padding: 0.32em 0.8em;
-    font-family: var(--font-mono);
-    font-size: 0.72rem;
+    font-size: 0.75rem;
     color: var(--ink-dim);
     text-decoration: none;
     backdrop-filter: blur(4px);
@@ -128,6 +133,10 @@ const rules = [
     border-radius: 999px;
     background: var(--amber);
     box-shadow: 0 0 6px color-mix(in srgb, var(--amber) 70%, transparent);
+  }
+  .hero-rule-chip[data-tier='custom'] a::before {
+    background: var(--ember);
+    box-shadow: 0 0 6px color-mix(in srgb, var(--ember) 70%, transparent);
   }
   .hero-rule-chip[data-tier='flag'] a::before {
     background: var(--flag);

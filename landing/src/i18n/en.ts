@@ -21,6 +21,14 @@ const en: SiteContent = {
     ctaSetup: 'Set it up with your agent',
     proof:
       '[[97.3%]] of foreign patterns caught · [[0.25%]] of real edits flagged · measured on [[36 repositories]]',
+    catches: [
+      'a dependency you’ve never used',
+      'a function you already wrote',
+      'code filed in the wrong place',
+      'an import that breaks your layers',
+      'a test quietly disabled',
+      'your own conventions',
+    ],
     ctaSecondary: 'Star on GitHub',
     install: 'npm i -g @tmonier/argot',
     installNote:
