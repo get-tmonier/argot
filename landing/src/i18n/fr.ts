@@ -16,7 +16,8 @@ const fr: SiteContent = {
     eyebrow: 'Vérifications ancrées dans le dépôt',
     titleLead: 'Un analyseur statistique de code',
     titleGradient: 'construit à partir de l’historique de votre dépôt.',
-    subtitle: 'Auditez les changements acceptés. Examinez les éléments, puis décidez.',
+    subtitle:
+      'Un linter applique les conventions que vous avez pensé à écrire. argot [[apprend celles que vous n’avez jamais écrites]] — et repère la dérive avant qu’elle soit à trois cents endroits.',
     ctaPrimary: 'Commencer par un audit',
     ctaSetup: 'Configurez-le avec votre agent',
     proof:
@@ -27,7 +28,7 @@ const fr: SiteContent = {
       'du code rangé loin de ses pairs ici',
       'un import qui inverse le layering de ce dépôt',
       'un test désactivé à côté du code qu’il couvrait',
-      'une convention propre à ce dépôt',
+      'une convention que vous n’avez jamais écrite',
     ],
     ctaSecondary: 'Star sur GitHub',
     install: 'npm i -g @tmonier/argot',

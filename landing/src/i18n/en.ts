@@ -16,7 +16,8 @@ const en: SiteContent = {
     eyebrow: 'Repository-grounded checks',
     titleLead: 'A statistical code analyzer',
     titleGradient: "built from your repository's history.",
-    subtitle: 'Audit accepted changes. Review the evidence, then decide.',
+    subtitle:
+      'A linter enforces the conventions you thought to write down. argot [[learns the ones you never did]] — and catches the drift before it is in three hundred places.',
     ctaPrimary: 'Start with an audit',
     ctaSetup: 'Set it up with your agent',
     proof:
@@ -27,7 +28,7 @@ const en: SiteContent = {
       'code filed away from its peers here',
       'an import that reverses this repo’s layering',
       'a test disabled beside the code it covered',
-      'a convention only this repo has',
+      'a convention you never wrote down',
     ],
     ctaSecondary: 'Star on GitHub',
     install: 'npm i -g @tmonier/argot',
