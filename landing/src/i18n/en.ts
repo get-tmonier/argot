@@ -14,10 +14,10 @@ const en: SiteContent = {
   },
   hero: {
     eyebrow: 'Repository-grounded checks',
-    titleLead: 'A statistical code analyzer',
-    titleGradient: "built from your repository's history.",
+    titleLead: 'The code is fine.',
+    titleGradient: 'Nobody read it.',
     subtitle:
-      'A linter enforces the conventions you thought to write down. argot [[learns the ones you never did]] — and catches the drift before it is in three hundred places.',
+      'You are accountable for code your agent wrote and nobody reviewed. argot shows what it introduced that [[deserves a look]] — judged against your repository\u2019s own history, never another model\u2019s opinion.',
     ctaPrimary: 'Start with an audit',
     ctaSetup: 'Set it up with your agent',
     proof:
