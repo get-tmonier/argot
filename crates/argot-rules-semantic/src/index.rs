@@ -401,7 +401,7 @@ pub fn functions_in_file(
             end_line: e,
             text,
             embed_text,
-            nested: false,
+            nested: body.nested,
             callees,
             subtokens,
         });
@@ -410,14 +410,13 @@ pub fn functions_in_file(
     out
 }
 
-/// Flag every function whose span lies inside another's. `callable_bodies`
-/// returns a flat list, so an Object Pascal local procedure — declared in its
-/// parent's `var` section, and assigning the parent's result variable — arrives
-/// looking exactly like a top-level one.
+/// Also flag a function whose span lies inside another's. The adapters answer
+/// this from the AST, which is authoritative; this catches the languages whose
+/// adapter does not yet, whenever the enclosing definition was extracted too.
 fn mark_nested(funcs: &mut [FunctionRef]) {
     let spans: Vec<(usize, usize)> = funcs.iter().map(|f| (f.line, f.end_line)).collect();
     for (i, f) in funcs.iter_mut().enumerate() {
-        f.nested = spans.iter().enumerate().any(|(j, (s, e))| {
+        f.nested |= spans.iter().enumerate().any(|(j, (s, e))| {
             j != i && *s <= f.line && f.end_line <= *e && (*s, *e) != (f.line, f.end_line)
         });
     }

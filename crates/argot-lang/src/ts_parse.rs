@@ -91,6 +91,27 @@ pub fn named_child_nodes<'t>(node: tree_sitter::Node<'t>) -> Vec<tree_sitter::No
     node.named_children(&mut cursor).collect()
 }
 
+/// Whether `node` has an ancestor of one of `kinds` — a function declared
+/// inside another function, whatever the language calls the node.
+///
+/// Sibling-span containment cannot answer this. Object Pascal's
+/// `dbtrystringtoguid` declares two local procedures and the grammar does not
+/// parse it at all — the whole rest of the unit becomes one `ERROR` node — so
+/// the enclosing definition is never extracted and its children look top-level.
+/// Passing `ERROR` among the kinds therefore also covers the honest case: a
+/// callable recovered from inside a parse error has no known parent, and
+/// nothing that depends on where it sits should claim to know.
+pub fn has_ancestor_of_kind(node: tree_sitter::Node<'_>, kinds: &[&str]) -> bool {
+    let mut cur = node.parent();
+    while let Some(n) = cur {
+        if kinds.contains(&n.kind()) {
+            return true;
+        }
+        cur = n.parent();
+    }
+    false
+}
+
 /// The 1-indexed source rows a prose node (a comment, a docstring, a multiline
 /// string) should have blanked.
 ///

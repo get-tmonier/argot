@@ -385,6 +385,7 @@ impl GoAdapter {
                         symbol: node_text(name, source).to_string(),
                         start_line: node.start_position().row + 1,
                         end_line: node.end_position().row + 1,
+                        nested: false,
                     });
                 }
             }

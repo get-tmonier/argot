@@ -55,6 +55,9 @@ pub struct CallableBody {
     pub symbol: String,
     pub start_line: usize,
     pub end_line: usize,
+    /// Declared inside another callable. Such a helper's home is its parent,
+    /// so the architectural senses must not judge where it is filed.
+    pub nested: bool,
 }
 
 /// Uniform language-adapter surface. Implemented by `PythonAdapter` and
