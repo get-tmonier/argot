@@ -112,7 +112,13 @@ fixtures:
   hunk_start_line: 2
   hunk_end_line: 8
   rationale: "EncodeStringBase64 reached without importing base64 \u2014 the call-receiver\
-    \ path. Verified 0-usage at the pinned SHA: EncodeStringBase64 is 0 grep hits."
+    \ path. Verified 0-usage at the pinned SHA: EncodeStringBase64 is 0 grep hits.\
+    \ NOT CAUGHT at the pinned SHA \u2014 reported per the RUBRIC, not swapped. A\
+    \ bare foreign free function with no receiver, no namespace and no import: the\
+    \ call-receiver path deliberately treats a bare unattested callee with no foreign\
+    \ association as the codebase's own new code. castle-engine's equivalent (FtpPutFile)\
+    \ does fire, so this is not a blanket Pascal limit; the difference is this corpus's\
+    \ far higher calibrated threshold (504 files, 13 057 attested callees)."
   difficulty: easy
   host_file: lib/common/kernel/msestrings.pas
   host_inject_at_line: 6283
@@ -124,7 +130,11 @@ fixtures:
   hunk_end_line: 16
   rationale: "TRegExpr.Create / .Exec / .Match reached without importing RegExpr \u2014\
     \ the call-receiver path. Verified 0-usage at the pinned SHA: TRegExpr is 0 grep\
-    \ hits."
+    \ hits. NOT CAUGHT at the pinned SHA \u2014 reported per the RUBRIC, not swapped.\
+    \ TRegExpr.Create is a type-receiver form like THTTPSend/TIdHTTP/TJSONObject,\
+    \ which do fire here; the rest of this hunk's callees (length, copy) are attested\
+    \ and the local receiver re1 is attested by its own binding, so the hunk's foreign\
+    \ share is diluted below the bar."
   difficulty: easy
   host_file: lib/common/kernel/mseformatstr.pas
   host_inject_at_line: 4206
