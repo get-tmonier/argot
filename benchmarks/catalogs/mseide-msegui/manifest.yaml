@@ -1,3 +1,17 @@
+# mseide-msegui — 8/10 novel-pattern (80%) at the pinned SHA.
+#
+# In family: six shipped corpora score lower (outline 70%, guava 75%, scrapy
+# 75%, hono 77%, gh-cli 78%), and per-corpus scores run 70%→100%. The ≥85% gate
+# is the AGGREGATE headline, not a per-corpus bar; adding this corpus moves it
+# 639/746 = 85.7% → 647/756 = 85.6%, still above the gate.
+#
+# The two uncaught fixtures are reported here, not swapped (RUBRIC: "a fixture
+# that fails to fire is a finding to report"). Both are the thinnest in their
+# class, and this is the largest corpus in the set — 504 files, 13 057 attested
+# callees, threshold 5.33, against castle-engine's much lower one, where the
+# equivalent thin fixture fires. Its over-fire is 0.85% against a 2% bar, so
+# there is calibration headroom; testing that is a scoring change for its own
+# sake, not something to do to move one corpus's number.
 corpus: mseide-msegui
 language: pascal
 categories:
