@@ -41,6 +41,19 @@ fn new_parser(language: Language) -> Parser {
 }
 
 thread_local! {
+    /// TSX is a *separate* grammar, not a superset: `LANGUAGE_TYPESCRIPT`
+    /// cannot read JSX, and `LANGUAGE_TSX` reads `<T>expr` type assertions
+    /// differently. Measured on excalidraw, parsing `.tsx` with the TypeScript
+    /// grammar fails on **96 % of files** (191 of 200) against 0,5 % for `.ts`
+    /// — one error node spanning 12 969 lines, and every rule that reads
+    /// structure goes blind behind it. See [`parse`].
+    static TSX_PARSER: RefCell<Parser> = RefCell::new({
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_typescript::LANGUAGE_TSX.into())
+            .expect("tree-sitter grammar loads");
+        parser
+    });
     static PY_PARSER: RefCell<Parser> = RefCell::new(new_parser(Language::Python));
     static TS_PARSER: RefCell<Parser> = RefCell::new(new_parser(Language::Typescript));
     static JS_PARSER: RefCell<Parser> = RefCell::new(new_parser(Language::Javascript));
@@ -55,8 +68,206 @@ thread_local! {
     static PAS_PARSER: RefCell<Parser> = RefCell::new(new_parser(Language::Pascal));
 }
 
+/// Object Pascal compiler directives (`{$…}`, `(*$…*)`) replaced by spaces,
+/// byte for byte, so every offset in the tree still addresses the original.
+///
+/// The grammar cannot parse a directive between a routine header and its body
+/// — `function f: boolean; {$ifdef FPC}inline;{$endif}` — and an empty
+/// `{$ifdef}{$endif}` is enough to trip it. That is an everyday cross-platform
+/// idiom, and when it trips, the error node swallows the **rest of the unit**:
+/// 7 500 lines of `msedb.pas` in MSEide/MSEgui, whose functions then look
+/// structureless and are abstained on by every rule that reads placement.
+///
+/// A directive is a preprocessor instruction, not Pascal, so removing it
+/// before parsing loses nothing the tree should have described. Over that
+/// repository it takes the share of functions with no known structure from
+/// **21,5 % to 10,8 %** and recovers 1 574 functions that were not extracted at
+/// all. Rules that need to *see* a directive read the raw source, which is
+/// where a preprocessor instruction belongs.
+///
+/// Borrows unchanged when the source has no directive, so the common file pays
+/// nothing.
+fn blank_pascal_directives(source: &str) -> std::borrow::Cow<'_, str> {
+    if !source.contains("{$") && !source.contains("(*$") {
+        return std::borrow::Cow::Borrowed(source);
+    }
+    let bytes = source.as_bytes();
+    let mut out = source.to_string();
+    let mut i = 0;
+    while i < bytes.len() {
+        let (open, close) = if bytes[i..].starts_with(b"{$") {
+            (2, "}")
+        } else if bytes[i..].starts_with(b"(*$") {
+            (3, "*)")
+        } else {
+            i += 1;
+            continue;
+        };
+        match source[i + open..].find(close) {
+            Some(rel) => {
+                let end = i + open + rel + close.len();
+                out.replace_range(i..end, &" ".repeat(end - i));
+                i = end;
+            }
+            // Unterminated: leave it alone rather than blank to end of file.
+            None => break,
+        }
+    }
+    std::borrow::Cow::Owned(out)
+}
+
+/// True for a `#if`/`#ifdef`/`#ifndef`/`#elif`/`#else`/`#endif` line.
+///
+/// `#define` and `#include` are deliberately not conditionals: they declare
+/// names and dependencies the scorers read.
+fn is_conditional_directive(line: &str) -> bool {
+    let Some(rest) = line.trim_start().strip_prefix('#') else {
+        return false;
+    };
+    let rest = rest.trim_start();
+    ["ifdef", "ifndef", "elif", "endif", "else", "if"]
+        .iter()
+        .any(|keyword| {
+            rest.strip_prefix(keyword)
+                .is_some_and(|after| !after.starts_with(|c: char| c.is_alphanumeric() || c == '_'))
+        })
+}
+
+/// Blank the conditional-compilation *control* lines of a C/C++ file, in place.
+///
+/// A conditional's branches are code; the `#if`/`#else`/`#endif` lines around
+/// them are not, and the grammar can only represent them where a declaration
+/// may stand. In an initializer list or halfway through a parameter list they
+/// are unparseable, and the failure is not local: on `curl.h` a single
+/// unrepresentable conditional turns the **whole file** into one `ERROR` node —
+/// 3 348 of 3 347 lines unreadable. Blanking the control lines and keeping both
+/// branches takes that to 434 lines, widest span 3 348 → 3.
+///
+/// Both branches surviving means a file can declare the same name twice. That
+/// costs nothing here: the scorers read names and shapes, and a duplicate is
+/// what a name already seen looks like.
+///
+/// Replaces byte for byte, so a directive comment with a multi-byte character
+/// cannot shift the offsets the tree addresses. Borrows unchanged when the
+/// source has no conditional, so the common file pays nothing.
+fn blank_preprocessor_conditionals(source: &str) -> std::borrow::Cow<'_, str> {
+    if !source.contains("#if") {
+        return std::borrow::Cow::Borrowed(source);
+    }
+    let mut out = String::with_capacity(source.len());
+    let mut continued = false;
+    for line in source.split_inclusive('\n') {
+        if continued || is_conditional_directive(line) {
+            continued = line.trim_end().ends_with('\\');
+            out.extend(line.bytes().map(|b| if b == b'\n' { '\n' } else { ' ' }));
+        } else {
+            out.push_str(line);
+        }
+    }
+    std::borrow::Cow::Owned(out)
+}
+
+/// How many distinct lines of a tree fall inside an `ERROR` node.
+///
+/// Pre-order visits errors in source order, so carrying the last row covered
+/// is enough to keep two adjacent errors sharing a line from counting twice.
+fn error_rows(tree: &Tree) -> usize {
+    fn walk(node: tree_sitter::Node, total: &mut usize, covered_to: &mut Option<usize>) {
+        if node.is_error() {
+            let (start, end) = (node.start_position().row, node.end_position().row);
+            let from = match *covered_to {
+                Some(row) if row >= start => row + 1,
+                _ => start,
+            };
+            if end >= from {
+                *total += end - from + 1;
+            }
+            *covered_to = Some(covered_to.map_or(end, |row| row.max(end)));
+            return;
+        }
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            walk(child, total, covered_to);
+        }
+    }
+    let (mut total, mut covered_to) = (0, None);
+    walk(tree.root_node(), &mut total, &mut covered_to);
+    total
+}
+
 /// Parse `source` with a reused per-thread parser for `language`.
 pub fn parse(source: &str, language: Language) -> Option<Tree> {
+    if language == Language::Typescript {
+        // The extension is not carried here, so choose by outcome: the JSX
+        // grammar is used only when the TypeScript one could not read the file.
+        // A `.ts` file parses cleanly the first time and never pays for this; a
+        // `.tsx` file is unreadable the first time and readable the second.
+        let ts = TS_PARSER.with(|p| p.borrow_mut().parse(source, None));
+        if ts.as_ref().is_some_and(|t| !t.root_node().has_error()) {
+            return ts;
+        }
+        let tsx = TSX_PARSER.with(|p| p.borrow_mut().parse(source, None));
+        return match (ts, tsx) {
+            // Keep whichever read the file; on a tie keep TypeScript, so a
+            // genuinely broken `.ts` fragment parses as it always did.
+            (Some(a), Some(b)) if b.root_node().has_error() => Some(a),
+            (_, Some(b)) => Some(b),
+            (a, None) => a,
+        };
+    }
+    if language == Language::Pascal {
+        // See [`blank_pascal_directives`]: offsets are preserved, so the tree
+        // still addresses `source`.
+        let masked = blank_pascal_directives(source);
+        return PAS_PARSER.with(|p| p.borrow_mut().parse(masked.as_ref(), None));
+    }
+    if language == Language::C || language == Language::Cpp {
+        let parse_with = |src: &str| match language {
+            Language::C => C_PARSER.with(|p| p.borrow_mut().parse(src, None)),
+            _ => CPP_PARSER.with(|p| p.borrow_mut().parse(src, None)),
+        };
+        let plain = parse_with(source);
+        if plain.as_ref().is_some_and(|t| !t.root_node().has_error()) {
+            return plain;
+        }
+        // See [`blank_preprocessor_conditionals`]: offsets are preserved, so
+        // the tree still addresses `source`.
+        let masked = blank_preprocessor_conditionals(source);
+        if matches!(masked, std::borrow::Cow::Borrowed(_)) {
+            return plain;
+        }
+        let sibling = if language == Language::C {
+            Language::Cpp
+        } else {
+            Language::C
+        };
+        let parse_sibling = |src: &str| match sibling {
+            Language::C => C_PARSER.with(|p| p.borrow_mut().parse(src, None)),
+            _ => CPP_PARSER.with(|p| p.borrow_mut().parse(src, None)),
+        };
+        // `.h` is C or C++ and the extension cannot say which. `ext_to_lang_ctx`
+        // resolves it by repo-level majority, which is right for the repository
+        // and necessarily wrong for its minority headers — a C header in a C++
+        // project reads nine times worse under the C++ grammar. Only a file the
+        // routed grammar could not read pays for the second attempt.
+        let candidates = [
+            parse_with(masked.as_ref()),
+            parse_sibling(source),
+            parse_sibling(masked.as_ref()),
+        ];
+        // Keep whichever read the most of the file, preferring the routed
+        // grammar on a tie, so a source these were not to blame for parses as
+        // it always did.
+        let mut best = plain;
+        let mut fewest = best.as_ref().map(error_rows);
+        for candidate in candidates.into_iter().flatten() {
+            let rows = error_rows(&candidate);
+            if fewest.is_none_or(|current| rows < current) {
+                (best, fewest) = (Some(candidate), Some(rows));
+            }
+        }
+        return best;
+    }
     match language {
         Language::Python => PY_PARSER.with(|p| p.borrow_mut().parse(source, None)),
         Language::Typescript => TS_PARSER.with(|p| p.borrow_mut().parse(source, None)),

@@ -372,7 +372,12 @@ fn ts_query(language: &str, source: &str, query: &str) -> Array {
     let Some(tree) = argot_lang::ts_parse::parse(source, lang) else {
         return Array::new();
     };
-    let ts_lang = argot_lang::ts_parse::ts_language(lang);
+    // The grammar the tree was actually built with, not the one the language
+    // nominally maps to: `parse` picks by outcome (a `.tsx` file read by the
+    // JSX grammar, a C header in a C++ repo read by the C one). A query
+    // compiled against the other grammar's symbol table would match nothing
+    // and say so silently.
+    let ts_lang = tree.language();
     let Ok(compiled) = tree_sitter::Query::new(&ts_lang, query) else {
         return Array::new();
     };
