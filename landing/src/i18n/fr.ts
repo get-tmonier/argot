@@ -23,11 +23,8 @@ const fr: SiteContent = {
     proof:
       '[[97,3 %]] des motifs étrangers détectés · [[0,25 %]] des vraies modifications signalées · mesuré sur [[36 dépôts]]',
     catches: [
-      'jamais importé ici',
-      'cette fonction existe déjà',
-      'rangé loin de ses pairs',
-      'inverse votre layering',
-      'un test désactivé à côté de son code',
+      'une dépendance nouvelle ici',
+      'une fonction que vous avez déjà',
       'une convention jamais écrite',
     ],
     ctaSecondary: 'Star sur GitHub',
