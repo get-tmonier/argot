@@ -25,14 +25,13 @@ const year = 2026;
     <span class="hidden text-line-2 lg:inline" aria-hidden="true">·</span>
 
     {
-      /* Links, attribution and licence on ONE line at desktop width. The
-         separators are always rendered — the old version hid them below `sm`,
-         so the moment the row wrapped it read as two loose lines with dangling
-         dots. `whitespace-nowrap` keeps each group intact when it does wrap. */
+      /* Two groups, not one flat list. Flat, the wrap fell wherever it liked —
+         "Built by" ended up stranded on the links row with a dangling dot, and
+         the licence sat alone below. Grouped, each wraps as a unit: links on
+         one line, attribution and licence together on the next, and everything
+         on a single row from `lg` up. */
     }
-    <div
-      class="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-ink-dim lg:flex-nowrap lg:gap-x-5"
-    >
+    <div class="flex items-center gap-x-4 text-ink-dim lg:gap-x-5">
       <a href={localePath('/docs/', locale)} class="transition-colors hover:text-ink">
         {footer.docs}
       </a>
@@ -43,14 +42,16 @@ const year = 2026;
         >{footer.npm}</a
       >
       <a href="/privacy" class="transition-colors hover:text-ink">{footer.privacy}</a>
+    </div>
 
-      <span class="text-line-2" aria-hidden="true">·</span>
+    <span class="hidden text-line-2 lg:inline" aria-hidden="true">·</span>
 
+    <div class="flex items-center gap-x-3 text-muted lg:gap-x-5">
       <a
         href={SITE.portfolio}
         target="_blank"
         rel="noopener"
-        class="group inline-flex items-center gap-1.5 whitespace-nowrap text-muted transition-colors hover:text-[#d4aa3c]"
+        class="group inline-flex items-center gap-1.5 whitespace-nowrap transition-colors hover:text-[#d4aa3c]"
       >
         <TmonierMark size={15} class="opacity-80 transition-opacity group-hover:opacity-100" />
         {footer.builtBy} ↗
@@ -58,7 +59,7 @@ const year = 2026;
 
       <span class="text-line-2" aria-hidden="true">·</span>
 
-      <span class="whitespace-nowrap text-muted">
+      <span class="whitespace-nowrap">
         © {year}{' '}
         <a href={SITE.portfolio} target="_blank" rel="noopener" class="group">
           <span class="tmonier-wordmark">Tmonier</span>
