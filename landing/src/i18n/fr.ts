@@ -19,6 +19,8 @@ const fr: SiteContent = {
     subtitle: 'Auditez les changements acceptés. Examinez les éléments, puis décidez.',
     ctaPrimary: 'Commencer par un audit',
     ctaSetup: 'Configurez-le avec votre agent',
+    proof:
+      '[[97,3 %]] des motifs étrangers détectés · [[0,25 %]] des vraies modifications signalées · mesuré sur [[36 dépôts]]',
     ctaSecondary: 'Star sur GitHub',
     install: 'npm i -g @tmonier/argot',
     installNote:

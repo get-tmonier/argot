@@ -21,6 +21,7 @@ export interface SiteContent {
     readonly subtitle: string;
     readonly ctaPrimary: string;
     readonly ctaSetup: string;
+    readonly proof: string;
     readonly ctaSecondary: string;
     readonly install: string;
     readonly installNote: string;

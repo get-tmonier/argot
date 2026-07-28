@@ -19,6 +19,8 @@ const en: SiteContent = {
     subtitle: 'Audit accepted changes. Review the evidence, then decide.',
     ctaPrimary: 'Start with an audit',
     ctaSetup: 'Set it up with your agent',
+    proof:
+      '[[97.3%]] of foreign patterns caught · [[0.25%]] of real edits flagged · measured on [[36 repositories]]',
     ctaSecondary: 'Star on GitHub',
     install: 'npm i -g @tmonier/argot',
     installNote:
