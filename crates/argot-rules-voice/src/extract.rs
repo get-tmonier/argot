@@ -6,9 +6,9 @@
 
 use anyhow::Result;
 use argot_engine::git_walk::{open_repo, resolve_shas, walk_commits, walk_repo, WalkItem};
-use argot_lang::dataset::{HunkRecord, Language};
+use argot_lang::dataset::HunkRecord;
 use argot_lang::text::splitlines;
-use argot_lang::tokenize::{language_for_path, tokenize_lines};
+use argot_lang::tokenize::{language_for_path_ctx, tokenize_lines};
 use std::collections::HashSet;
 use std::io::Write;
 use std::ops::ControlFlow;
@@ -56,14 +56,13 @@ pub fn write_dataset<W: Write>(
     let mut count = 0usize;
     let mut limit_reached = false;
 
-    // `.h` is C or C++ depending on the repo's translation-unit majority —
-    // decided once here so the dataset labels match how calibrate/check route.
-    let header_cpp = crate::scoring::calibration::header_is_cpp(std::path::Path::new(repo_path));
+    // `.h` and `.inc` route by what the repo itself writes — decided once here
+    // so the dataset labels match how calibrate/check route.
+    let repo_langs = argot_engine::corpus::repo_langs(std::path::Path::new(repo_path));
 
     {
         let mut visit = |item: WalkItem| -> Result<ControlFlow<()>> {
-            let lang = match language_for_path(&item.file_path) {
-                Some(Language::C) if header_cpp && item.file_path.ends_with(".h") => Language::Cpp,
+            let lang = match language_for_path_ctx(&item.file_path, repo_langs) {
                 Some(l) => l,
                 None => return Ok(ControlFlow::Continue(())),
             };

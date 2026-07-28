@@ -119,14 +119,14 @@ fn score_batch(
     mute_rules: &[SuppressionRule],
     registry: &argot_engine::rules::Registry,
     settings: &argot_engine::rules::RuleSettings,
-    header_cpp: bool,
+    repo_langs: argot_lang::ext::RepoLangs,
 ) -> BatchScored {
     let mut counted = 0usize;
     let mut size_scaled_out = 0usize;
     let mut hunks: Vec<HunkScored> = Vec::new();
 
     let ext = extension(&batch.file_path);
-    let scorer = match ext_to_lang_ctx(&ext, header_cpp).and_then(|l| scorers.get(l)) {
+    let scorer = match ext_to_lang_ctx(&ext, repo_langs).and_then(|l| scorers.get(l)) {
         Some(s) => s,
         None => {
             return BatchScored {
@@ -312,7 +312,7 @@ fn score_patches(
     mute_rules: &[SuppressionRule],
     registry: &argot_engine::rules::Registry,
     settings: &argot_engine::rules::RuleSettings,
-    header_cpp: bool,
+    repo_langs: argot_lang::ext::RepoLangs,
     stderr: &mut String,
 ) -> (Vec<Finding>, usize, Vec<FileScan>) {
     let scored: Vec<BatchScored> = argot_engine::par::par_map_indexed(patches.len(), |i| {
@@ -327,7 +327,7 @@ fn score_patches(
             mute_rules,
             registry,
             settings,
-            header_cpp,
+            repo_langs,
         )
     });
 
@@ -553,7 +553,7 @@ impl Detector for VoiceDetector {
             ctx.mute_rules,
             ctx.registry,
             ctx.settings,
-            ctx.header_cpp,
+            ctx.repo_langs,
             ctx.stderr,
         );
         ctx.scan.hunk_count = hunk_count;
@@ -566,7 +566,7 @@ impl Detector for VoiceDetector {
             ctx.mute_rules,
             ctx.registry,
             ctx.settings,
-            ctx.header_cpp,
+            ctx.repo_langs,
         ));
         hits
     }

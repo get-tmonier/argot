@@ -175,12 +175,29 @@ fn rglob_sorted(dir: &Path, ext: &str) -> Vec<PathBuf> {
     out
 }
 
-/// [`language_for_filename`], but resolving the C/C++ `.h` ambiguity with a
-/// repo-level `header_is_cpp` decision so all stages agree.
-pub fn language_for_filename_ctx(name: &str, header_is_cpp: bool) -> Option<Language> {
-    match (language_for_filename(name), header_is_cpp) {
-        (Some(Language::C), true) if name.ends_with(".h") => Some(Language::Cpp),
-        (other, _) => other,
+/// [`language_for_filename`], but resolving the extensions the name alone cannot
+/// settle (`.h` → C/C++, `.inc` → Pascal/C) against what the repository writes,
+/// so fit and check route a file the same way. See
+/// [`argot_lang::ext::ext_to_lang_ctx`], which this must agree with.
+pub fn language_for_filename_ctx(
+    name: &str,
+    langs: argot_lang::ext::RepoLangs,
+) -> Option<Language> {
+    let ext = argot_lang::ext::extension(name);
+    match argot_lang::ext::ext_to_lang_ctx(&ext, langs)? {
+        "python" => Some(Language::Python),
+        "typescript" => Some(Language::Typescript),
+        "javascript" => Some(Language::Javascript),
+        "go" => Some(Language::Go),
+        "rust" => Some(Language::Rust),
+        "c" => Some(Language::C),
+        "java" => Some(Language::Java),
+        "csharp" => Some(Language::CSharp),
+        "php" => Some(Language::Php),
+        "cpp" => Some(Language::Cpp),
+        "ruby" => Some(Language::Ruby),
+        "pascal" => Some(Language::Pascal),
+        _ => None,
     }
 }
 
@@ -300,23 +317,37 @@ pub fn collect_candidates_with(
     detect: &argot_engine::config::DetectConfig,
 ) -> Vec<Candidate> {
     // `.h` routes to whichever of C / C++ this repo predominantly is, so a
-    // header-only C++ library's headers calibrate under the C++ model, not C.
-    let exts: Vec<&str> = match adapter.language() {
+    // header-only C++ library's headers calibrate under the C++ model, not C;
+    // `.inc` to Pascal only where the repo has Pascal units. One walk answers
+    // both, and this must agree with `language_for_filename_ctx` — a file
+    // collected here under one language and scored under another is a model
+    // learning code it will never be asked about.
+    let langs = argot_engine::corpus::repo_langs(source_dir);
+    let inc_is: Option<Language> = match (langs.has_pascal_units, langs.has_c_units) {
+        (true, _) => Some(Language::Pascal),
+        (false, true) if langs.header_is_cpp => Some(Language::Cpp),
+        (false, true) => Some(Language::C),
+        (false, false) => None,
+    };
+    let mut exts: Vec<&str> = match adapter.language() {
         Language::Python => vec![".py"],
         Language::Typescript => vec![".ts", ".tsx"],
         Language::Javascript => vec![".js", ".jsx"],
         Language::Go => vec![".go"],
         Language::Rust => vec![".rs"],
-        Language::C if header_is_cpp(source_dir) => vec![".c"],
+        Language::C if langs.header_is_cpp => vec![".c"],
         Language::C => vec![".c", ".h"],
         Language::Java => vec![".java"],
         Language::CSharp => vec![".cs"],
         Language::Php => vec![".php"],
-        Language::Cpp if header_is_cpp(source_dir) => vec![".cpp", ".cc", ".hpp", ".cxx", ".h"],
+        Language::Cpp if langs.header_is_cpp => vec![".cpp", ".cc", ".hpp", ".cxx", ".h"],
         Language::Cpp => vec![".cpp", ".cc", ".hpp", ".cxx"],
         Language::Ruby => vec![".rb"],
-        Language::Pascal => vec![".pas", ".pp", ".dpr", ".lpr", ".inc"],
+        Language::Pascal => vec![".pas", ".pp", ".dpr", ".lpr"],
     };
+    if inc_is == Some(adapter.language()) {
+        exts.push(".inc");
+    }
     let head = HeadSource::new(source_dir);
     let mut out = Vec::new();
     for &ext in &exts {
@@ -1233,8 +1264,9 @@ pub fn run_calibrate(
         bail!("empty repo corpus");
     }
 
-    // Partition corpus by language (routing `.h` per the repo's C/C++ majority).
-    let header_cpp = header_is_cpp(repo_dir);
+    // Partition corpus by language, routing `.h` and `.inc` per what the repo
+    // itself writes.
+    let header_cpp = argot_engine::corpus::repo_langs(repo_dir);
     let mut by_lang: BTreeMap<&'static str, (Language, Vec<PathBuf>)> = BTreeMap::new();
     for f in &corpus_files {
         if let Some(lang) = language_for_filename_ctx(&basename(f), header_cpp) {

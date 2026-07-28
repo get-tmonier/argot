@@ -1,156 +1,157 @@
-# Pascal loses ~29 % of its lines to the parser, and it is the grammar
+# Pascal loses ~29 % of its lines to the parser — diagnosed, and fixed
 
-**Date:** 2026-07-28 · **Status:** diagnosed, **not fixed.** One source-level
-repair was built, measured, and reverted for not paying. The structural answer
-is the grammar.
+**Date:** 2026-07-28 → 2026-07-29 · **Status:** **fixed.** 29,16 / 29,09 / 29,52 /
+16,14 % → **9,70 / 9,45 / 1,00 / 7,41 %**. Two source-level repairs were tried
+before, measured, and reverted; the answer was one bug of ours and one grammar
+fork, and neither is a source-level repair.
 
-**Question:** the grammar sweep recorded "mormot2 30,45 %" as the largest
-remaining parse loss. Is it still there, and is it one corpus?
+## The number
 
-## It is not one corpus
+Share of lines inside a tree-sitter `ERROR` node — invisible to every rule:
+imports, callees, shape, placement. Measured on the **real fit corpus**
+(`collect_source_files`, so each repository's own `argot.toml` applies).
 
-Measured on the **real fit corpus** — what `collect_source_files` returns, so
-each repository's own `argot.toml` exclusions apply:
+| corpus | before | conditional fix | + grammar fork |
+|---|--:|--:|--:|
+| mormot2 | 29,16 % | 19,14 % | **9,70 %** |
+| castle-engine | 29,09 % | 28,42 % | **9,45 %** |
+| uos | 29,52 % | 6,74 % | **1,00 %** |
+| mseide-msegui | 16,14 % | 11,87 % | **7,41 %** |
 
-| corpus | files | lines lost | widest ERROR |
-|---|--:|--:|---|
-| mormot2 | 525 | **29,16 %** | 14 131 (`mormot.core.base.pas`) |
-| castle-engine | 2 179 | **29,15 %** | 11 915 (`rotate_collider.glb.inc`) |
-| uos | 22 | **29,52 %** | 1 820 (`uos.pas`) |
-| mseide-msegui | 505 | 16,14 % | 12 760 (`msedbedit.pas`) |
+Across every corpus the sweep now reads: pascal 7,00 % · typescript 3,19 % ·
+cpp 1,30 % · csharp 0,84 % · c 0,72 % · the other seven ~0 %.
 
-**Roughly a third of all Pascal sits inside an `ERROR` node** — invisible to
-every rule: imports, callees, shape, placement. For scale, the same day's fixes
-took TypeScript from 31,53 % to 0,37 % and C from 9,33 % to 0,37 %.
+## It was two problems wearing one number
 
-An earlier figure of "castle-engine 2,53 %" was **wrong**: that probe walked the
-whole tree ignoring exclusions and counted a different file set.
+Breaking the loss down **by extension** — the first thing nobody had done —
+splits it cleanly, and the two halves have nothing to do with each other:
 
-## What actually breaks
+| corpus | `.pas` share of loss | `.inc` share | `.dpr` share |
+|---|--:|--:|--:|
+| castle-engine | 21,2 % | **78,8 %** | 0,0 % |
+| mormot2 | 95,4 % | 4,5 % | **0,2 %** |
+| mseide-msegui | 95,6 % | 4,4 % | — |
+| uos | 100 % | 0 % | — |
 
-`mormot.core.base.pas` is a single 14 131-line `ERROR` starting at row 1 — the
-parse fails at the top and never recovers, the same shape as `curl.h`. Bisecting
-the first failing prefix names the construct.
+**`.dpr` was never the problem.** 87 of mormot2's 105 project files carry a
+first-`ERROR` on a `uses … in '…'` line, which is why that construct topped the
+frequency table in the first investigation — but the error is *local to the uses
+clause*: `.dpr` lost **271 lines of 10 498**, = **0,15 % of the corpus loss**.
+Counting files instead of lines pointed a whole investigation at a rounding
+error. Lines are the unit.
 
-**Line 58 — a directive standing where a value must be:**
+## Half the loss was ours
 
-```pascal
-SYNOPSE_FRAMEWORK_VERSION = {$I ..\mormot.commit.inc};
-```
-
-This one is **our own doing**. `blank_pascal_directives` blanks `{$…}` to
-spaces, which here leaves `SYNOPSE_FRAMEWORK_VERSION =      ;` — a const with no
-value. Confirmed minimally:
-
-| | parses |
-|---|---|
-| `V = {$I ..\x.inc};` (as written) | ✗ |
-| blanked to spaces → `V =   ;` | ✗ — the fix does not help |
-| placeholder → `V = 0 ;` | **✓** |
-| a directive between statements | ✓ either way |
-
-**Line 213, once that is repaired — a Delphi codepage-parameterised type:**
+The previous investigation named `TAes = object`, `TLineFeed = (` and
+`TStrLen = …` as the constructs that broke mORMot. **All three parse perfectly.**
+They fail only *after* `blank_pascal_directives` runs:
 
 ```pascal
-WinAnsiString = type AnsiString(CP_WINANSI);
+{$ifdef USERECORDWITHMETHODS}
+  TAes = record
+{$else}
+  TAes = object
+{$endif}
 ```
 
-Dotted unit names (`unit mormot.core.base;`) were the first hypothesis and are
-**fine** — the grammar handles them.
+Blanking every directive to spaces keeps **both** branches — a duplicate name and
+an unterminated `record` — and `mormot.crypt.core.pas` lost all 10 643 of its
+lines to one error node because of it. `TStrLen = {$ifdef FPC} SizeInt {$else}
+integer {$endif};` became `TStrLen = SizeInt integer;`. Keeping both branches is
+right for C, where they are two complete declarations and the path is measured
+good, and catastrophic for Object Pascal, where a conditional routinely sits
+*inside* one declaration.
 
-## The repair that was built and reverted
+`blank_pascal_directives` now lexes the source — comments, strings, `//`, so the
+`//{$endif}` at `msedbedit.pas:17` no longer unbalances the branch stack — and
+keeps only the **first** branch. First, not "whichever parses", so a repository
+reads the same on every machine and run.
 
-Substituting a byte-length-preserving placeholder (`0` plus spaces) when a
-directive follows `=` is correct and demonstrably works: the first failing line
-in `mormot.core.base.pas` moved from **58 to 213**.
+### The cost, found by a test and paid
 
-It does not pay at corpus level:
+Dropping a branch drops the units it names: mormot2 **73 of 229** — the whole
+Delphi-only side, `jpeg`, `dbtables`, `midaslib`, the NexusDB family — castle 16,
+mseide 5. Each would later read as a brand-new dependency: false alarms
+manufactured by the parser, against the co-headline metric. An existing adapter
+test caught it.
 
-| corpus | before | with the repair |
-|---|--:|--:|
-| mormot2 | 29,16 % | 29,17 % |
-| castle-engine | 29,15 % | 29,21 % |
-| uos | 29,52 % | 29,58 % |
-| mseide-msegui | 16,14 % | 16,18 % |
+Resolved by splitting the two questions: **structure from one branch,
+dependencies from all of them.** `parse_pascal_every_branch` gives the Pascal
+adapter a second, offset-identical view and `extract_imports_with_spans` unions
+the two, deduping on position. Re-measured: **0 units lost on all four corpora**,
+every parse gain kept. The union is a strict superset of the old behaviour, so
+imports can only improve.
 
-Flat to marginally *worse*. Extending it to argument positions (`(`, `,`, `[`)
-was worse still — a conditional spanning several arguments gets a placeholder
-per branch and the call reads as nonsense.
+## The other half was the grammar, and it is a fork now
 
-Reverted. A change that adds a special case and moves no number is complexity
-bought with nothing.
+`vendor/tree-sitter-pascal/` — upstream `Isopod/tree-sitter-pascal` 0.10.2 (MIT)
+plus twelve rules, each with a one-line reproduction from a real corpus file, and
+upstream's own 88-case corpus still passing unchanged. `src/parser.c` is
+generated and committed, so the build still needs only a C compiler. Full list
+and the regeneration recipe: `vendor/tree-sitter-pascal/README.md`.
 
-## The three constructs, named
+The largest single rule is the **include fragment**. An `.inc` file is pasted
+into the middle of another unit, so it may open inside a class body and be
+nothing but method signatures, properties and `strict private` markers. Upstream's
+`root` admitted `_definitions` for include files, which covers what may stand at
+*unit* level and not at *class-member* level. Adding `declProp` and `declSection`
+took castle-engine's `.inc` from **72,6 % to 26,3 %** lost and the corpus from
+22,85 % to 9,45 %.
 
-Clustering the **parser's own first error position** across all 3 231 Pascal
-corpus files (1 591 of which fail) gives named gaps with minimal reproductions:
+## `.inc` was also being handed to the wrong language entirely
 
-| construct | files | reproduction | parses |
-|---|--:|---|---|
-| Delphi property **redeclaration** | 113 | `property Name;` inside a class | ✗ |
-| `.dpr` project **uses … in 'path'** | part of 615 | `uses server in 'src\server.pas';` | ✗ |
-| **codepage-parameterised type** | — | `W = type AnsiString(1252);` | ✗ |
-| directive in value position | 39 | `V = {$I x.inc};` | ✗ (ours) |
+The all-language sweep — run because "can other languages benefit?" was worth an
+hour — found `pascal rocksdb 95,12 %` and `pascal curl 100,00 %`. Neither project
+contains a line of Pascal. `.inc` is Object Pascal's include extension **and
+equally C's**, and `EXT_TO_LANG` routed it to Pascal unconditionally: 28 RocksDB
+files and 6 curl files, ~11 600 lines of C, through the Pascal grammar. Not
+merely unreadable — *C learned as Pascal vocabulary*. The same files read at
+10,6 % loss as C.
 
-Each has a one-line repro, and each is a missing rule in `tree-sitter-pascal`.
-`property Name: string;` parses; dropping the type does not. `uses server;`
-parses; `uses server in 'src\server.pas'` does not.
+Fixed the way `.h` already was: `RepoLangs` carries what the repository actually
+writes, and an `.inc` is Pascal's where there are Pascal units, C/C++'s where
+there are only translation units, and nothing at all where there is neither —
+better unscored than misread. One repo walk answers both questions.
 
-**700 of the 1 591 failures are a whole-file `ERROR` from row 0**, where the
-position says nothing — the parser gave up before establishing any structure.
+## Three ways to be wrong about where a parse fails
 
-## Source-level repair was tried too, and is worse
+Every one of these produced a confident, false answer in this investigation.
 
-All three gaps *look* repairable byte-for-byte: blank the ` in '…'`, blank the
-`(1252)`, blank the redeclaration line. Measured:
+1. **Prefix-bisect with a synthetic `end.`** — invalid for a `.dpr`, which needs
+   `begin … end.`, so it returned line 1 for 1 310 files and made a UTF-8 BOM
+   look like the cause. It is not: BOM parses fine.
+2. **Prefix-bisect cutting inside a comment.** Object Pascal units open with a
+   20-line `{ … }` banner; cut at line 10 and the comment is unterminated, so the
+   parser blames row 6. Thirty files reported a "culprit" that was prose. Cut
+   only at boundaries a lexer says are outside `{…}`, `(*…*)`, `//` and `'…'`,
+   and close the prefix with a candidate set.
+3. **A CLI harness run from the wrong directory.** `tree-sitter parse` could not
+   find the grammar, printed nothing, and a `grep -q ERROR` on empty output read
+   as success — 14 of 14 constructs "already fixed upstream". Assert the tool
+   produced output before believing what it did not say.
 
-| corpus | before | with all three repairs |
-|---|--:|--:|
-| mormot2 | 29,16 % | 29,35 % |
-| castle-engine | 29,15 % | 29,47 % |
-| mseide-msegui | 16,14 % | **18,35 %** |
-| uos | 29,52 % | 29,52 % |
+The reliable oracle throughout was the parser argot itself links, driven from a
+throwaway Rust test over the real fit corpus: ~8 s for all four corpora.
 
-**Worse everywhere.** The patterns are ambiguous with legitimate Pascal without a
-parser to disambiguate — `for c in 'abc' do` is valid, so blanking ` in '…'`
-destroys real code, and the property matcher over-fires the same way. Repairing
-text you cannot parse, using patterns that need parsing to apply safely, is
-circular.
+## What is left, and what it is not
 
-Two attempts, both measured, both reverted. That is the answer: **this does not
-belong at the source level.**
+mormot2 9,70 % and mseide 7,41 % are now a genuine long tail — 41 and 55 files,
+no single construct above a few hundred lines. castle-engine's residual 9,45 % is
+still 80 % `.inc`, much of it **generated data** (`rotate_collider.glb.inc`,
+11 915 lines of mesh converted to Pascal source; 409 of its 1 015 `.inc` open with
+Emacs' `buffer-read-only` marker). Excluding generated files would move the
+number without improving the product, so it was not done — that is the mute
+system's job and the repository's choice, not the parser's.
 
-## Why it does not pay, and what would
+Two rules were tried and reverted for cost: `declField` at fragment root, and
+`repeat1` on `declVars`/`declConsts`/`declTypes`. Because those sections admit
+zero entries, an eager `declField` takes `var x: integer;` apart into an empty
+`var` and a loose field — 9 upstream tests regressed for ~0,7 % of one corpus.
 
-Each file fails on the **first** unsupported construct, and the `ERROR` node
-then swallows everything after it. Repairing that construct only exposes the
-next one in the same file — 58 → 213 → whatever follows. The loss is a **long
-tail of gaps in `tree-sitter-pascal`**, not one defect, so source-level repairs
-are whack-a-mole: every one costs a special case in a hot path, and the file
-stays unparsed.
+`jnicall`, a JNI-only calling convention, is the one construct in the
+reproduction suite still unparsed. It appears in `uos_jni.pas` and costs 239
+lines.
 
-What would actually pay, in rough order of cost:
-
-1. **Fix the gaps upstream in `tree-sitter-pascal`** — `type AnsiString(CP)` and
-   whatever the tail holds. Slowest, and the only one that makes the number
-   fall for everyone.
-2. **Evaluate an alternative Pascal grammar.** Whether a better-maintained one
-   exists is unknown and worth an hour before anyone writes grammar rules.
-3. ~~**Measure the tail first.**~~ **Done — see above.** Three constructs are
-   named with reproductions; 700 files fail before the parser establishes any
-   structure at all and still need a cause.
-
-A caution for whoever picks this up: the prefix-bisect method used first was
-**wrong** for `.dpr` files. Appending `end.` to a prefix is invalid for a program
-(it needs `begin … end.`), so the bisect returned line 1 for 1 310 files and made
-a UTF-8 BOM look like the cause. It is not — BOM parses fine, and only 56 of the
-357 BOM-carrying files fail. Cluster on the parser's own first error node
-instead.
-
-## The lesson worth keeping
-
-A repair that works on the construct in front of you and does not move the
-corpus number is not a fix — it is a special case. The measurement that mattered
-was not "does line 58 parse now" (it does) but "does the corpus lose fewer
-lines" (it does not). Prefer changing the structure — here, the grammar — to
-working around it.
+The sweep also showed **TypeScript at 3,19 %** (outline 7,52 %, hono 11,74 %),
+which no one has looked at. The reference figures "TypeScript 0,37 % / C 0,37 %"
+in the first version of this document were each measured on a single corpus.

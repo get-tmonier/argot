@@ -262,7 +262,7 @@ impl Detector for SemanticDetector {
             ctx.registry,
             ctx.settings,
             ctx.detect,
-            ctx.header_cpp,
+            ctx.repo_langs,
             ctx.stderr,
         )
     }
@@ -283,7 +283,7 @@ fn semantic_hits(
     registry: &argot_engine::rules::Registry,
     settings: &argot_engine::rules::RuleSettings,
     detect: &DetectConfig,
-    header_cpp: bool,
+    repo_langs: argot_lang::ext::RepoLangs,
     stderr: &mut String,
 ) -> Vec<Finding> {
     use crate::embedder::Embedder;
@@ -325,7 +325,7 @@ fn semantic_hits(
             continue;
         }
         let ext = extension(&batch.file_path);
-        let Some(lang) = ext_to_lang_ctx(&ext, header_cpp) else {
+        let Some(lang) = ext_to_lang_ctx(&ext, repo_langs) else {
             continue;
         };
         let Some(adapter) = filter_adapters.get(lang) else {

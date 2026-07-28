@@ -112,6 +112,122 @@ fn a_compiler_directive_does_not_swallow_the_unit() {
 }
 
 #[test]
+fn only_one_branch_of_a_conditional_survives() {
+    use crate::adapters::Language;
+    // A conditional inside a *single* declaration is not two declarations. Both
+    // branches left standing give a duplicate name and an unterminated `record`,
+    // and mORMot's mormot.crypt.core.pas loses all 10 643 of its lines to it.
+    let src = "unit u;\ninterface\ntype\n\
+        {$ifdef USERECORDWITHMETHODS}\n  TAes = record\n{$else}\n  TAes = object\n{$endif}\n\
+          a: byte;\n  end;\nimplementation\nend.";
+    let tree = crate::ts_parse::parse(src, Language::Pascal).unwrap();
+    assert!(
+        !tree.root_node().has_error(),
+        "the dropped branch must not stand beside the kept one"
+    );
+
+    // The same shape inline, where blanking alone yields `TStrLen = SizeInt
+    // integer;` — two type names where one belongs.
+    let inline = "unit u;\ninterface\ntype\n  \
+        TStrLen = {$ifdef FPC} SizeInt {$else} integer {$endif};\nimplementation\nend.";
+    assert!(!crate::ts_parse::parse(inline, Language::Pascal)
+        .unwrap()
+        .root_node()
+        .has_error());
+}
+
+#[test]
+fn a_conditional_keeps_the_first_branch_and_drops_the_rest() {
+    use crate::adapters::Language;
+    // Which branch survives decides what vocabulary the repository is learned
+    // to have, so it must be the same on every machine and run: the first.
+    let src = "unit u;\ninterface\nuses\n  \
+        {$ifdef FPC}taken{$else}dropped{$endif};\nimplementation\nend.";
+    let tree = crate::ts_parse::parse(src, Language::Pascal).unwrap();
+    let mut found = Vec::new();
+    fn walk<'a>(n: tree_sitter::Node<'a>, src: &str, out: &mut Vec<String>) {
+        if n.kind() == "identifier" {
+            out.push(src[n.byte_range()].to_string());
+        }
+        let mut c = n.walk();
+        for ch in n.children(&mut c) {
+            walk(ch, src, out);
+        }
+    }
+    walk(tree.root_node(), src, &mut found);
+    assert!(found.contains(&"taken".to_string()), "{found:?}");
+    assert!(!found.contains(&"dropped".to_string()), "{found:?}");
+
+    // A nested conditional inside a dropped branch stays dropped whatever it
+    // says, and the `{$endif}` that closes it must not close the outer one.
+    let nested = "unit u;\ninterface\nuses\n  \
+        {$ifdef A}outer{$else}{$ifdef B}inner{$endif}also{$endif};\nimplementation\nend.";
+    let tree = crate::ts_parse::parse(nested, Language::Pascal).unwrap();
+    let mut found = Vec::new();
+    walk(tree.root_node(), nested, &mut found);
+    assert!(found.contains(&"outer".to_string()), "{found:?}");
+    assert!(!found.contains(&"inner".to_string()), "{found:?}");
+    assert!(!found.contains(&"also".to_string()), "{found:?}");
+}
+
+#[test]
+fn a_directive_inside_a_comment_is_not_a_directive() {
+    use crate::adapters::Language;
+    // Commenting a conditional out is an everyday edit and appears in
+    // MSEide/MSEgui (`//{$endif}` at msedbedit.pas:17). Counting it would pop a
+    // conditional that is still open and drop the rest of the unit.
+    let src = "unit u;\ninterface\nuses\n  {$ifdef FPC}\n  //{$endif}\n  kept;\n  \
+        {$endif}\nimplementation\nend.";
+    let tree = crate::ts_parse::parse(src, Language::Pascal).unwrap();
+    let mut found = Vec::new();
+    fn walk<'a>(n: tree_sitter::Node<'a>, src: &str, out: &mut Vec<String>) {
+        if n.kind() == "identifier" {
+            out.push(src[n.byte_range()].to_string());
+        }
+        let mut c = n.walk();
+        for ch in n.children(&mut c) {
+            walk(ch, src, out);
+        }
+    }
+    walk(tree.root_node(), src, &mut found);
+    assert!(found.contains(&"kept".to_string()), "{found:?}");
+
+    // A `{$…}` written inside a string literal is data, not an instruction.
+    let literal = "unit u;\ninterface\nconst s = '{$else}';\nimplementation\nend.";
+    assert!(!crate::ts_parse::parse(literal, Language::Pascal)
+        .unwrap()
+        .root_node()
+        .has_error());
+}
+
+#[test]
+fn masking_a_dropped_branch_preserves_every_offset() {
+    use crate::adapters::Language;
+    // Everything downstream addresses the original source through the tree, so
+    // a dropped branch must cost the same bytes and the same rows it occupied —
+    // including when it carries a multi-byte character.
+    let src = "unit u;\ninterface\nuses\n  {$ifdef A}kept{$else}drppé\n  more{$endif};\n\
+        implementation\nend.";
+    let tree = crate::ts_parse::parse(src, Language::Pascal).unwrap();
+    let mut found = None;
+    fn walk<'a>(n: tree_sitter::Node<'a>, src: &str, out: &mut Option<(usize, String)>) {
+        if n.kind() == "identifier" && &src[n.byte_range()] == "kept" {
+            *out = Some((n.start_position().row, src[n.byte_range()].to_string()));
+        }
+        let mut c = n.walk();
+        for ch in n.children(&mut c) {
+            walk(ch, src, out);
+        }
+    }
+    walk(tree.root_node(), src, &mut found);
+    assert_eq!(
+        found,
+        Some((3, "kept".to_string())),
+        "row and text preserved"
+    );
+}
+
+#[test]
 fn jsx_is_read_by_the_tsx_grammar() {
     use crate::adapters::Language;
     // TSX is a separate grammar, not a superset. Parsed with LANGUAGE_TYPESCRIPT

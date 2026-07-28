@@ -91,6 +91,11 @@ crates/
                          #   audit/ · voice_diff.rs · describe.rs (describe-voice) ·
                          #   auto_refit.rs · update_check.rs · uninstall.rs · worktree.rs
   argot-bench/           # research harness (never shipped; publish = false)
+vendor/
+  tree-sitter-pascal/    # the ONE forked grammar (upstream 0.10.2 + 12 rules).
+                         #   `src/parser.c` is generated and committed, so the
+                         #   build still needs only `cc`; Node is required only to
+                         #   regenerate. What was added and why: its README.md.
 ```
 
 Dependency direction is strict: `lang ← engine ← rules-* ← core ← cli/bench`.

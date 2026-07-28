@@ -93,6 +93,34 @@ fn conditional_directive_inside_uses_does_not_hide_a_unit() {
 }
 
 #[test]
+fn a_unit_named_only_outside_the_first_branch_is_still_a_dependency() {
+    let a = PascalAdapter::new();
+    // Structure is read from one branch, because a conditional inside a
+    // declaration makes the others a broken duplicate of it and the unit is
+    // lost. Dependencies are read from all of them: 73 of mORMot's 229 units —
+    // the whole Delphi-only side, `jpeg`, `dbtables`, `midaslib`, the NexusDB
+    // family — are named only under a branch that is not the first, and a model
+    // that never learns them turns every later `uses` into a false alarm.
+    let imports = a.extract_imports(
+        "unit u;\ninterface\nuses\n  {$ifdef FPC}sockets{$else}winsock2{$endif}, sysutils;\n\
+         implementation\nend.",
+    );
+    assert!(imports.contains("sockets"), "{imports:?}");
+    assert!(imports.contains("winsock2"), "{imports:?}");
+    assert!(imports.contains("sysutils"), "{imports:?}");
+
+    // Reading the source twice must not report the same unit twice, nor move a
+    // span: both maskings preserve offsets, so the union dedupes on position.
+    let spans = a.extract_imports_with_spans(
+        "unit u;\ninterface\nuses\n  {$ifdef FPC}sockets{$else}winsock2{$endif};\n\
+         implementation\nend.",
+    );
+    let sockets: Vec<_> = spans.iter().filter(|(s, ..)| s == "sockets").collect();
+    assert_eq!(sockets.len(), 1, "{spans:?}");
+    assert_eq!(sockets[0].1, 4, "the span still addresses the original");
+}
+
+#[test]
 fn inline_comment_does_not_make_a_code_line_prose() {
     let a = PascalAdapter::new();
     // Verbatim shape from lib/common/kernel/sdl/msesystimer.pas: a unit

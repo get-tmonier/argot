@@ -626,9 +626,9 @@ pub fn run_check(args: CheckArgs, detectors: Vec<RegisteredDetector<'_>>) -> Che
             Vec::new()
         };
 
-    // `.h` routes to the same C/C++ model calibrate built it into (repo's
-    // translation-unit majority) — computed once from the working tree.
-    let header_cpp = crate::corpus::header_is_cpp(Path::new(&args.repo_path));
+    // `.h` and `.inc` route to the same model calibrate built them into (the
+    // repo's own translation units) — computed once from the working tree.
+    let repo_langs = crate::corpus::repo_langs(Path::new(&args.repo_path));
 
     let mut scan = ScanReport::default();
     // The guardrail's self-protection: does THIS change weaken a rule that
@@ -656,7 +656,7 @@ pub fn run_check(args: CheckArgs, detectors: Vec<RegisteredDetector<'_>>) -> Che
             mute_rules: &mutes.active,
             migrations: &migrations.active,
             detect: &config.detect,
-            header_cpp,
+            repo_langs,
             settings: &settings,
             registry,
             stderr: &mut stderr,

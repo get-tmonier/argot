@@ -192,23 +192,37 @@ impl PascalAdapter {
     /// its `(spec, line, col_start, col_end)` span, the caret pointing at the
     /// top segment. Line is 1-indexed; columns are 0-indexed byte offsets.
     /// Sorted by `(line, col_start, spec)`.
+    ///
+    /// Read from **both** views of the source: the one-branch parse every other
+    /// question uses, and the every-branch parse
+    /// ([`parse_pascal_every_branch`](crate::ts_parse::parse_pascal_every_branch)).
+    /// A unit named only under `{$ifdef DELPHI}` is a dependency this repository
+    /// really has — 73 of mORMot's 229 — and a model that never learns it turns
+    /// every later `uses` of it into a false alarm. Both maskings preserve
+    /// offsets, so the two views span the same source and the union dedupes on
+    /// position.
     pub fn extract_imports_with_spans(&self, source: &str) -> Vec<(String, usize, usize, usize)> {
-        let tree = parse(source);
         let mut out: Vec<(String, usize, usize, usize)> = Vec::new();
-        for node in descendants(tree.root_node()) {
-            if node.kind() != "declUses" {
-                continue;
-            }
-            for id in uses_identifiers(node, source) {
-                let raw = node_text(id, source);
-                let spec = unit_identity(name_top_segment(raw));
-                if spec.is_empty() {
+        let mut seen: HashSet<(String, usize, usize)> = HashSet::new();
+        let every_branch = crate::ts_parse::parse_pascal_every_branch(source);
+        for root in [Some(parse(source)), every_branch].into_iter().flatten() {
+            for node in descendants(root.root_node()) {
+                if node.kind() != "declUses" {
                     continue;
                 }
-                let line = id.start_position().row + 1;
-                let col_start = id.start_position().column;
-                let col_end = col_start + raw.len();
-                out.push((spec, line, col_start, col_end));
+                for id in uses_identifiers(node, source) {
+                    let raw = node_text(id, source);
+                    let spec = unit_identity(name_top_segment(raw));
+                    if spec.is_empty() {
+                        continue;
+                    }
+                    let line = id.start_position().row + 1;
+                    let col_start = id.start_position().column;
+                    if !seen.insert((spec.clone(), line, col_start)) {
+                        continue;
+                    }
+                    out.push((spec, line, col_start, col_start + raw.len()));
+                }
             }
         }
         out.sort_by(|a, b| (a.1, a.2, &a.0).cmp(&(b.1, b.2, &b.0)));

@@ -3,17 +3,36 @@ use super::*;
 #[test]
 fn language_for_filename_ctx_resolves_dot_h_by_repo_majority() {
     // `.h` follows the repo decision; nothing else moves.
-    assert_eq!(language_for_filename_ctx("x.h", true), Some(Language::Cpp));
-    assert_eq!(language_for_filename_ctx("x.h", false), Some(Language::C));
-    assert_eq!(language_for_filename_ctx("x.c", true), Some(Language::C));
+    let cpp = argot_lang::ext::RepoLangs {
+        header_is_cpp: true,
+        has_c_units: true,
+        ..Default::default()
+    };
+    let c = argot_lang::ext::RepoLangs {
+        has_c_units: true,
+        ..Default::default()
+    };
+    assert_eq!(language_for_filename_ctx("x.h", cpp), Some(Language::Cpp));
+    assert_eq!(language_for_filename_ctx("x.h", c), Some(Language::C));
+    assert_eq!(language_for_filename_ctx("x.c", cpp), Some(Language::C));
+    assert_eq!(language_for_filename_ctx("x.cpp", c), Some(Language::Cpp));
     assert_eq!(
-        language_for_filename_ctx("x.cpp", false),
-        Some(Language::Cpp)
-    );
-    assert_eq!(
-        language_for_filename_ctx("x.py", true),
+        language_for_filename_ctx("x.py", cpp),
         Some(Language::Python)
     );
+
+    // Fit must route an include exactly as check does — see
+    // `argot_lang::ext::ext_to_lang_ctx`, whose table this shares.
+    let pascal = argot_lang::ext::RepoLangs {
+        has_pascal_units: true,
+        ..Default::default()
+    };
+    assert_eq!(
+        language_for_filename_ctx("x.inc", pascal),
+        Some(Language::Pascal)
+    );
+    assert_eq!(language_for_filename_ctx("x.inc", cpp), Some(Language::Cpp));
+    assert_eq!(language_for_filename_ctx("x.inc", c), Some(Language::C));
 }
 
 #[test]

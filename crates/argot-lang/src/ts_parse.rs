@@ -68,49 +68,175 @@ thread_local! {
     static PAS_PARSER: RefCell<Parser> = RefCell::new(new_parser(Language::Pascal));
 }
 
-/// Object Pascal compiler directives (`{$…}`, `(*$…*)`) replaced by spaces,
-/// byte for byte, so every offset in the tree still addresses the original.
+/// One lexical region of Object Pascal source that is not code.
+enum PasSpan {
+    /// A `{$…}` or `(*$…*)` compiler directive: its body, and its full extent.
+    Directive { start: usize, end: usize },
+    /// A comment or string literal: skipped whole, never looked inside.
+    Skip { end: usize },
+}
+
+/// The non-code region starting at `i`, if one does. Comments (`{…}`,
+/// `(*…*)`, `//`) and string literals (`'…'`) are recognised so a directive
+/// *inside* one is not mistaken for a live directive — `//{$endif}` is an
+/// everyday way to disable a conditional and appears in MSEide/MSEgui, where
+/// counting it would unbalance the branch stack for the rest of the unit.
+fn pascal_span(source: &str, i: usize) -> Option<PasSpan> {
+    let bytes = source.as_bytes();
+    let after = |open: usize, close: &str| {
+        source[i + open..]
+            .find(close)
+            .map(|rel| i + open + rel + close.len())
+    };
+    if bytes[i..].starts_with(b"{$") {
+        return Some(match after(2, "}") {
+            Some(end) => PasSpan::Directive { start: i + 2, end },
+            None => PasSpan::Skip { end: source.len() },
+        });
+    }
+    if bytes[i..].starts_with(b"(*$") {
+        return Some(match after(3, "*)") {
+            Some(end) => PasSpan::Directive { start: i + 3, end },
+            None => PasSpan::Skip { end: source.len() },
+        });
+    }
+    let end = match bytes[i] {
+        b'{' => after(1, "}"),
+        b'(' if bytes.get(i + 1) == Some(&b'*') => after(2, "*)"),
+        b'/' if bytes.get(i + 1) == Some(&b'/') => {
+            Some(source[i..].find('\n').map_or(source.len(), |rel| i + rel))
+        }
+        // A Pascal string literal cannot span a line, so an unterminated quote
+        // ends with its line rather than swallowing the rest of the file — and
+        // with it every directive below.
+        b'\'' => {
+            let line_end = source[i..].find('\n').map_or(source.len(), |rel| i + rel);
+            Some(after(1, "'").map_or(line_end, |end| end.min(line_end)))
+        }
+        _ => return None,
+    };
+    Some(PasSpan::Skip {
+        end: end.unwrap_or(source.len()),
+    })
+}
+
+/// The conditional a directive body opens, continues, or closes.
+enum Cond {
+    Open,
+    Else,
+    End,
+    Other,
+}
+
+fn classify_directive(body: &str) -> Cond {
+    let word: String = body
+        .trim_start()
+        .chars()
+        .take_while(|c| c.is_ascii_alphanumeric())
+        .collect();
+    match word.to_ascii_lowercase().as_str() {
+        "ifdef" | "ifndef" | "ifopt" | "if" => Cond::Open,
+        "else" | "elseif" | "elifdef" | "elifndef" | "elsec" => Cond::Else,
+        "endif" | "ifend" | "endc" => Cond::End,
+        _ => Cond::Other,
+    }
+}
+
+/// Object Pascal compiler directives (`{$…}`, `(*$…*)`) resolved away, byte for
+/// byte, so every offset in the tree still addresses the original.
 ///
-/// The grammar cannot parse a directive between a routine header and its body
-/// — `function f: boolean; {$ifdef FPC}inline;{$endif}` — and an empty
-/// `{$ifdef}{$endif}` is enough to trip it. That is an everyday cross-platform
-/// idiom, and when it trips, the error node swallows the **rest of the unit**:
-/// 7 500 lines of `msedb.pas` in MSEide/MSEgui, whose functions then look
-/// structureless and are abstained on by every rule that reads placement.
+/// Two things happen, and the second is why this is not simply "blank them".
 ///
-/// A directive is a preprocessor instruction, not Pascal, so removing it
-/// before parsing loses nothing the tree should have described. Over that
-/// repository it takes the share of functions with no known structure from
-/// **21,5 % to 10,8 %** and recovers 1 574 functions that were not extracted at
-/// all. Rules that need to *see* a directive read the raw source, which is
-/// where a preprocessor instruction belongs.
+/// **Every directive is blanked.** The grammar cannot parse a directive between
+/// a routine header and its body — `function f: boolean; {$ifdef FPC}inline;
+/// {$endif}` — and an empty `{$ifdef}{$endif}` is enough to trip it. That is an
+/// everyday cross-platform idiom, and when it trips, the error node swallows the
+/// **rest of the unit**: 7 500 lines of `msedb.pas` in MSEide/MSEgui, whose
+/// functions then look structureless and are abstained on by every rule that
+/// reads placement. A directive is a preprocessor instruction, not Pascal, so
+/// removing it loses nothing the tree should have described; rules that need to
+/// *see* one read the raw source, which is where it belongs.
 ///
-/// Borrows unchanged when the source has no directive, so the common file pays
-/// nothing.
-fn blank_pascal_directives(source: &str) -> std::borrow::Cow<'_, str> {
+/// **Only the first branch of a conditional survives.** Blanking the directives
+/// alone leaves *both* branches standing, and in Object Pascal a conditional
+/// routinely sits inside a single declaration, where both branches are not two
+/// declarations but one broken one:
+///
+/// ```pascal
+/// {$ifdef USERECORDWITHMETHODS} TAes = record {$else} TAes = object {$endif}
+/// ```
+///
+/// blanked to `TAes = record … TAes = object` is a duplicate name and an
+/// unterminated `record`, and mORMot's `mormot.crypt.core.pas` loses all 10 643
+/// of its lines to one error node because of it. `TStrLen = {$ifdef FPC} SizeInt
+/// {$else} integer {$endif};` fails the same way. Keeping both branches is right
+/// for C — there they are two complete declarations, and that path is measured
+/// good — and wrong here. Taking the *first* branch is deterministic, so a
+/// repository parses the same way on every machine and run.
+///
+/// Dropping a branch costs the vocabulary it names — `uses jpeg` under
+/// `{$ifdef DELPHI}` is a dependency this repository really has, and 73 of
+/// mORMot's 229 units live only in a branch that is not the first. Which is why
+/// the *structure* of a file is read from one branch and its *dependencies* from
+/// all of them: see [`parse_pascal_every_branch`].
+///
+/// Replaces byte for byte and keeps newlines as newlines, so every row and
+/// column in the tree still addresses the original source. Borrows unchanged
+/// when the source has no directive, so the common file pays nothing.
+fn blank_pascal_directives(source: &str, drop_later_branches: bool) -> std::borrow::Cow<'_, str> {
     if !source.contains("{$") && !source.contains("(*$") {
         return std::borrow::Cow::Borrowed(source);
     }
-    let bytes = source.as_bytes();
     let mut out = source.to_string();
+    // One entry per open conditional: whether its *current* branch is kept.
+    // A branch nested inside a dropped branch is dropped whatever it says.
+    let mut stack: Vec<bool> = Vec::new();
+    let blank = |out: &mut String, from: usize, to: usize| {
+        let replacement: String = source[from..to]
+            .chars()
+            .map(|c| if c == '\n' { '\n' } else { ' ' })
+            .collect();
+        out.replace_range(from..to, &replacement);
+    };
     let mut i = 0;
-    while i < bytes.len() {
-        let (open, close) = if bytes[i..].starts_with(b"{$") {
-            (2, "}")
-        } else if bytes[i..].starts_with(b"(*$") {
-            (3, "*)")
-        } else {
-            i += 1;
+    while i < source.len() {
+        let Some(span) = pascal_span(source, i) else {
+            // Live code: blank it when every enclosing branch is not taken.
+            // One whole character at a time, so a multi-byte one is neither
+            // split nor mistaken for a delimiter.
+            let width = source[i..].chars().next().map_or(1, char::len_utf8);
+            if stack.iter().any(|kept| !kept) {
+                blank(&mut out, i, i + width);
+            }
+            i += width;
             continue;
         };
-        match source[i + open..].find(close) {
-            Some(rel) => {
-                let end = i + open + rel + close.len();
-                out.replace_range(i..end, &" ".repeat(end - i));
-                i = end;
+        match span {
+            PasSpan::Skip { end } => {
+                if stack.iter().any(|kept| !kept) {
+                    blank(&mut out, i, end);
+                }
+                i = end.max(i + 1);
             }
-            // Unterminated: leave it alone rather than blank to end of file.
-            None => break,
+            PasSpan::Directive { start, end } => {
+                let body = &source[start..end.saturating_sub(1).max(start)];
+                match classify_directive(body) {
+                    // The first branch of a conditional is the one kept.
+                    Cond::Open => stack.push(true),
+                    // Every branch after the first is dropped.
+                    Cond::Else => {
+                        if let Some(kept) = stack.last_mut() {
+                            *kept &= !drop_later_branches;
+                        }
+                    }
+                    Cond::End => {
+                        stack.pop();
+                    }
+                    Cond::Other => {}
+                }
+                blank(&mut out, i, end);
+                i = end.max(i + 1);
+            }
         }
     }
     std::borrow::Cow::Owned(out)
@@ -218,7 +344,7 @@ pub fn parse(source: &str, language: Language) -> Option<Tree> {
     if language == Language::Pascal {
         // See [`blank_pascal_directives`]: offsets are preserved, so the tree
         // still addresses `source`.
-        let masked = blank_pascal_directives(source);
+        let masked = blank_pascal_directives(source, true);
         return PAS_PARSER.with(|p| p.borrow_mut().parse(masked.as_ref(), None));
     }
     if language == Language::C || language == Language::Cpp {
@@ -282,6 +408,26 @@ pub fn parse(source: &str, language: Language) -> Option<Tree> {
         Language::Ruby => RB_PARSER.with(|p| p.borrow_mut().parse(source, None)),
         Language::Pascal => PAS_PARSER.with(|p| p.borrow_mut().parse(source, None)),
     }
+}
+
+/// Parse Object Pascal with **every** conditional branch standing.
+///
+/// [`parse`] keeps one branch, because a conditional inside a declaration makes
+/// the others a broken duplicate of it and the whole unit is lost. That is right
+/// for reading structure and wrong for reading dependencies: a unit named only
+/// under `{$ifdef DELPHI}` is one this repository really depends on, and if the
+/// model never learns it, every later `uses` of it reads as a brand-new
+/// dependency — a false alarm manufactured by the parser. 73 of mORMot's 229
+/// units, and 16 of Castle Game Engine's, are named only outside the first
+/// branch.
+///
+/// The tree this returns is *not* a reliable description of the file's shape —
+/// that is the trade being made — so it answers one question only: which units
+/// appear. Offsets are preserved exactly as in [`parse`], so its spans address
+/// the same source.
+pub fn parse_pascal_every_branch(source: &str) -> Option<Tree> {
+    let masked = blank_pascal_directives(source, false);
+    PAS_PARSER.with(|p| p.borrow_mut().parse(masked.as_ref(), None))
 }
 
 /// The direct children of `node`, in left-to-right tree order.

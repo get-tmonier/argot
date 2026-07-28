@@ -135,7 +135,7 @@ impl Detector for ScriptDetector {
         // (label mismatch, unresolvable side) degrades to no old side.
         let old_sides: std::collections::HashMap<(String, String), String> =
             argot_engine::check::two_sided::collect_two_sided(ctx.args, &|path| {
-                let language = ext_to_lang_ctx(&extension(path), ctx.header_cpp);
+                let language = ext_to_lang_ctx(&extension(path), ctx.repo_langs);
                 self.rules.iter().any(|r| r.covers_file(path, language))
             })
             .into_iter()
@@ -154,7 +154,7 @@ impl Detector for ScriptDetector {
         // Scored batches plus the unscored ones (unsupported extensions —
         // `.env`, CI configs…): a rule's `files` globs may claim the latter.
         for batch in ctx.batches.iter().chain(ctx.extra_batches) {
-            let language = ext_to_lang_ctx(&extension(&batch.file_path), ctx.header_cpp);
+            let language = ext_to_lang_ctx(&extension(&batch.file_path), ctx.repo_langs);
             let source = String::from_utf8_lossy(&batch.content).into_owned();
             let hunk_ranges: Vec<(usize, usize)> = batch
                 .hunks
