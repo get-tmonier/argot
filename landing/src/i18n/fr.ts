@@ -13,20 +13,15 @@ const fr: SiteContent = {
     docs: 'Docs',
   },
   hero: {
-    eyebrow: 'Vérifications ancrées dans le dépôt',
-    titleLead: 'Le code est correct.',
-    titleGradient: 'Personne ne l’a lu.',
+    eyebrow: 'Le harnais du code écrit par IA · des statistiques, pas un second LLM · 100 % local',
+    titleLead: 'Lintez les règles',
+    titleGradient: 'que personne n’a écrites.',
     subtitle:
-      'argot montre ce que votre agent a introduit qui [[mérite un regard]] — jugé sur l’historique de votre dépôt, pas sur l’avis d’un autre modèle.',
+      'L’IA écrit le code. argot le tient à la seule chose qui n’hallucine jamais : [[l’historique de votre dépôt]]. Déterministe, mesuré, local.',
     ctaPrimary: 'Commencer par un audit',
     ctaSetup: 'Configurez-le avec votre agent',
     proof:
       '[[97,3 %]] des motifs étrangers détectés · [[0,25 %]] des vraies modifications signalées · mesuré sur [[36 dépôts]]',
-    catches: [
-      'une dépendance nouvelle ici',
-      'une fonction que vous avez déjà',
-      'une convention jamais écrite',
-    ],
     ctaSecondary: 'Star sur GitHub',
     install: 'npm i -g @tmonier/argot',
     installNote:

@@ -1,6 +1,8 @@
 ---
+import HeroFormula from '#components/HeroFormula.astro';
 import Logo from '#components/Logo.astro';
 import VoiceField from '#components/VoiceField.astro';
+import { SITE } from '#lib/site';
 import { emphasize } from '#lib/text';
 import type { SiteContent } from '#i18n/types';
 
@@ -60,19 +62,6 @@ const rules = [
       set:html={emphasize(hero.subtitle)}
     />
 
-    <ul
-      class="hero-rules mt-5 flex flex-wrap items-center justify-center gap-2"
-      aria-label="What argot catches"
-    >
-      {
-        rules.map((rule, i) => (
-          <li class="hero-rule-chip" data-tier={rule.tier} style={`--i:${i}`}>
-            <a href={rule.href}>{hero.catches[i]}</a>
-          </li>
-        ))
-      }
-    </ul>
-
     <div class="mt-6 flex flex-col items-center justify-center gap-2.5 sm:mt-7 sm:flex-row sm:gap-3">
       <a
         href="#audit"
@@ -83,11 +72,55 @@ const rules = [
       </a>
       <a
         href="/docs/setup-prompt/"
-        class="group inline-flex min-h-12 w-full max-w-xs items-center justify-center gap-2 rounded-xl border border-line px-5 py-3 text-sm font-semibold text-ink transition-colors hover:border-ember/60 hover:text-ember sm:w-auto"
+        class="group inline-flex min-h-12 w-full max-w-xs items-center justify-center gap-2 rounded-xl border border-line bg-panel/50 px-5 py-3 text-sm font-semibold text-ink backdrop-blur-sm transition-colors hover:border-line-2 hover:bg-panel sm:w-auto"
       >
         {hero.ctaSetup}
         <span class="transition-transform group-hover:translate-x-0.5">→</span>
       </a>
+      <a
+        href={SITE.github}
+        target="_blank"
+        rel="noopener"
+        class="inline-flex min-h-12 w-full max-w-xs items-center justify-center gap-2 rounded-xl border border-line px-5 py-3 text-sm font-semibold text-ink-dim transition-colors hover:border-line-2 hover:text-ink sm:w-auto"
+      >
+        ★ {hero.ctaSecondary}
+      </a>
+    </div>
+
+    {/* The film, and the model in one line. Both are the page's least generic
+        assets and both had been dropped: the formula is literally the score
+        this repo computes — a max of token surprise plus a capped
+        call-receiver penalty — written on load with a travelling ember pen. */}
+    <div class="mt-5">
+      <button
+        type="button"
+        data-film-open
+        aria-haspopup="dialog"
+        class="film-trigger group inline-flex items-center gap-2 text-sm font-medium text-ink-dim transition-colors hover:text-ink"
+      >
+        <span
+          class="grid place-items-center rounded-full border border-line-2 bg-panel/70 transition-colors group-hover:border-ember"
+          style="width: 1.9rem; height: 1.9rem"
+          aria-hidden="true"
+        >
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            class="text-ember"
+            style="margin-left: 1px"
+          >
+            <path d="M8 5v14l11-7z"></path>
+          </svg>
+        </span>
+        {hero.watchFilm}
+        <span class="text-muted">· 0:45</span>
+      </button>
+    </div>
+
+    <div class="hidden md:block">
+      <HeroFormula />
     </div>
 
     {/* A proof tier under the buttons: the hero otherwise ends on the CTAs and
@@ -104,63 +137,6 @@ const rules = [
   /* --- the rules, previewed as chips: same slugs the Demo tabs and the
      Catches cards use, colour-coded by confidence tier, deep-linking down to
      their card. They pop in just after the rest of the hero settles. --- */
-  .hero-rules {
-    list-style: none;
-    padding: 0;
-  }
-  .hero-rule-chip a {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.45em;
-    border-radius: 999px;
-    border: 1px solid var(--line-2);
-    background: color-mix(in srgb, var(--panel) 55%, transparent);
-    padding: 0.32em 0.8em;
-    font-size: 0.75rem;
-    color: var(--ink-dim);
-    text-decoration: none;
-    backdrop-filter: blur(4px);
-    transition:
-      border-color 0.2s,
-      color 0.2s,
-      background-color 0.2s;
-  }
-  .hero-rule-chip a:hover,
-  .hero-rule-chip a:focus-visible {
-    color: var(--ink);
-    border-color: var(--line-2);
-    background: var(--panel);
-  }
-  .hero-rule-chip a::before {
-    content: '';
-    width: 5px;
-    height: 5px;
-    border-radius: 999px;
-    background: var(--amber);
-    box-shadow: 0 0 6px color-mix(in srgb, var(--amber) 70%, transparent);
-  }
-  .hero-rule-chip[data-tier='custom'] a::before {
-    background: var(--ember);
-    box-shadow: 0 0 6px color-mix(in srgb, var(--ember) 70%, transparent);
-  }
-  .hero-rule-chip[data-tier='flag'] a::before {
-    background: var(--flag);
-    box-shadow: 0 0 6px color-mix(in srgb, var(--flag) 70%, transparent);
-  }
-  :global(.js) .hero-rule-chip {
-    opacity: 0;
-    transform: translateY(6px) scale(0.94);
-  }
-  .reveal.is-visible .hero-rule-chip {
-    animation: hero-chip-in 0.5s var(--ease-out-expo) forwards;
-    animation-delay: calc(0.5s + var(--i) * 90ms);
-  }
-  @keyframes hero-chip-in {
-    to {
-      opacity: 1;
-      transform: none;
-    }
-  }
 
   .hero-grid {
     position: absolute;

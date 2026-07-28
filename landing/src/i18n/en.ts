@@ -13,23 +13,15 @@ const en: SiteContent = {
     docs: 'Docs',
   },
   hero: {
-    eyebrow: 'Repository-grounded checks',
-    titleLead: 'The code is fine.',
-    titleGradient: 'Nobody read it.',
+    eyebrow: 'The harness for AI-written code · statistics, not a second LLM · 100% local',
+    titleLead: 'Lint the rules',
+    titleGradient: 'you never wrote down.',
     subtitle:
-      'You are accountable for code your agent wrote and nobody reviewed. argot shows what it introduced that [[deserves a look]] — judged against your repository\u2019s own history, never another model\u2019s opinion.',
+      'AI writes the code. argot harnesses it with the one thing that can’t hallucinate: [[your repo’s own history]]. Deterministic, measured, local.',
     ctaPrimary: 'Start with an audit',
     ctaSetup: 'Set it up with your agent',
     proof:
       '[[97.3%]] of foreign patterns caught · [[0.25%]] of real edits flagged · measured on [[36 repositories]]',
-    catches: [
-      'a dependency this repo has never used',
-      'a function this repo already has',
-      'code filed away from its peers here',
-      'an import that reverses this repo’s layering',
-      'a test disabled beside the code it covered',
-      'a convention you never wrote down',
-    ],
     ctaSecondary: 'Star on GitHub',
     install: 'npm i -g @tmonier/argot',
     installNote:

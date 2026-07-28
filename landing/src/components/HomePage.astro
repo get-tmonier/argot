@@ -5,6 +5,7 @@ import Cta from '#components/Cta.astro';
 import CustomRules from '#components/CustomRules.astro';
 import Demo from '#components/Demo.astro';
 import Engine from '#components/Engine.astro';
+import Film from '#components/Film.astro';
 import Footer from '#components/Footer.astro';
 import Hero from '#components/Hero.astro';
 import Nav from '#components/Nav.astro';
@@ -23,6 +24,7 @@ const { content, locale } = Astro.props;
 
 <Base title={content.meta.title} description={content.meta.description} locale={locale} snap>
   <Nav content={content} locale={locale} />
+  <Film content={content} />
   <main id="main-content" tabindex="-1">
     <Hero content={content} locale={locale} />
     <Demo content={content} />
