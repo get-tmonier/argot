@@ -135,16 +135,17 @@ clean-cache:
     rm -rf target/debug/incremental target/release/incremental target/tmp
     @echo "after:  $(du -sh target 2>/dev/null | cut -f1) in target/, $(df -h . | tail -1 | awk '{print $4}') free"
 
-# Warn — never delete — when the build tree has grown past what a laptop wants
-# to carry. Cargo never garbage-collects target/, so it grows without bound;
-# this repo builds the workspace under four feature combinations plus the bench
-# harness, which is why it gets there fast. Advisory by design: a build tree
+# Warn — never delete — when the rebuild cache has grown past what a laptop
+# wants to carry. Cargo never garbage-collects target/, so it grows without
+# bound. This measures only what `clean-cache` can actually reclaim: warning on
+# total target/ size would keep firing after a clean, and an alarm you cannot
+# act on is one you learn to ignore. Advisory by design — a build tree
 # disappearing under a running agent is worse than a full disk.
 _disk-guard:
     #!/usr/bin/env bash
-    gb=$(du -sg target 2>/dev/null | cut -f1)
-    if [ "${gb:-0}" -gt 60 ]; then
-      echo "⚠ target/ is ${gb} GB — run \`just clean-cache\` to reclaim the rebuild cache"
+    gb=$(du -sgc target/*/incremental 2>/dev/null | tail -1 | cut -f1)
+    if [ "${gb:-0}" -ge 15 ]; then
+      echo "⚠ ${gb} GB of rebuild cache in target/ — \`just clean-cache\` reclaims it"
     fi
 
 # The feature-gated slices, which `verify`'s featureless base loop does not
