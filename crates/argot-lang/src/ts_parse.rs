@@ -191,10 +191,17 @@ fn blank_pascal_directives(source: &str, drop_later_branches: bool) -> std::borr
     // One entry per open conditional: whether its *current* branch is kept.
     // A branch nested inside a dropped branch is dropped whatever it says.
     let mut stack: Vec<bool> = Vec::new();
+    // Byte for byte, not character for character: one space per *byte* keeps
+    // `out` the exact length of `source`, so every later index still addresses
+    // the same place in both. Mapping characters instead turns a multi-byte one
+    // into a single space, and from the first accented letter in a dropped
+    // branch onwards every offset in the file is silently wrong. A continuation
+    // byte is never `\n`, so this cannot split a character or produce anything
+    // but ASCII.
     let blank = |out: &mut String, from: usize, to: usize| {
-        let replacement: String = source[from..to]
-            .chars()
-            .map(|c| if c == '\n' { '\n' } else { ' ' })
+        let replacement: String = source.as_bytes()[from..to]
+            .iter()
+            .map(|&b| if b == b'\n' { '\n' } else { ' ' })
             .collect();
         out.replace_range(from..to, &replacement);
     };

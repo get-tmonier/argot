@@ -55,10 +55,13 @@ middle column is argot's directive fix alone, the last adds this grammar.
 
 | corpus | before | + directive fix | + this grammar |
 |---|--:|--:|--:|
-| mormot2 | 29,16 % | 19,14 % | **9,70 %** |
-| castle-engine | 29,09 % | 28,42 % | **9,45 %** |
-| uos | 29,52 % | 6,74 % | **1,00 %** |
+| mormot2 | 29,16 % | 19,14 % | **8,49 %** |
+| castle-engine | 29,09 % | 28,42 % | **8,93 %** |
 | mseide-msegui | 16,14 % | 11,87 % | **7,41 %** |
+| uos | 29,52 % | 6,74 % | **1,62 %** |
+
+Three more Pascal corpora nobody had measured: ideu 4,01 %, strumpract 0,04 %,
+swp 0,05 %.
 
 ## Regenerating
 
