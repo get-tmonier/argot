@@ -1,7 +1,7 @@
 # Every finding argot raises on MSEide/MSEgui, judged by hand
 
-**Date:** 2026-07-28 · **Status:** branch + demo set complete; the 400-commit
-sweep is appended in a second pass.
+**Date:** 2026-07-28 · **Status:** complete — seven changesets and the
+400-commit sweep.
 
 **Question:** on a 924 048-line, 20-year Object Pascal repository, is each thing
 argot says worth a maintainer's minute — and where it is not, is that a defect
@@ -266,6 +266,109 @@ of the seven defects that produced the original 45 false findings is fixed in
 argot and pinned by a test; none is muted, and the fork's `argot.toml` disables
 no rule.
 
+---
+
+## 7. The 400-commit sweep — five years of accepted history
+
+```
+$ argot audit --commits 400
+  423 commits · 2 489 hunks · 25 findings · 0% carry AI markers
+```
+
+**25 findings over 2 489 hunks — 1.0%.** On the released binary the same sweep
+produced 32, with `layering` silent and one `superseded` false alarm.
+
+| rule | n | true | arguable | wrong |
+|---|--:|--:|--:|--:|
+| foreign-import | 8 | 8 | 0 | 0 |
+| redundant | 8 | 7 | 1 | 0 |
+| rare-tokens | 5 | 2 | 3 | 0 |
+| unfamiliar-callee | 3 | 2 | 1 | 0 |
+| layering | 1 | 1 | 0 | 0 |
+| misplaced | 0 | — | — | — |
+| superseded | 0 | — | — | — |
+| **total** | **25** | **20** | **5** | **0** |
+
+### Every widening of the dependency surface in five years, with its commit
+
+All eight `foreign-import` findings are the *first* use of a module in this
+repository's history, and all eight are true:
+
+| module | where it entered |
+|---|---|
+| `bgrabitmap`, `bgrabitmaptypes`, `bgradefaultbitmap` | `dialogx/msefiledialogx.pas` |
+| `cairo` | `kernel/linux/mcairoxlib.pas` |
+| `mshape` | `kernel/linux/mseguiintf.pas` |
+| `mx`, `mxutil` | `opengl/mseopengl.pas` |
+| `process` | `apps/ide/make.pas` |
+| `gettext` | `tools/POtools/MOdemo/modemo.pas` |
+| `streamio` | `tools/POtools/POdemo/POtoMO.pas` |
+| `msecwstring` | `kernel/linux/msesetlocale.pas` |
+
+The first row is the one to show a maintainer: **a third-party graphics library
+entered the tree through a file-dialog commit**, and the same commit's
+`unfamiliar-callee` names the API it brought (`loadimagebgra`, `loadimage`).
+
+### The `layering` finding — and it is real
+
+```
+layering · lib/common/graphics/msegraphics.pas
+    ↳ editwidgets → graphics is this repo's direction — this import reverses it
+```
+
+Checked by hand: `msegraphics.pas:1453` has an implementation-section `uses`
+pulling `mseedit` and `msegraphedits`, both under `lib/common/editwidgets/`.
+The learned graph has `editwidgets → graphics` **15×** and `graphics →
+editwidgets` **1×** — this is that one. A genuine layering inversion in the
+repository's own history, and before the container-descent fix argot could not
+see it, because every unit in the tree was in the same layer.
+
+### `redundant` — the same near-clone pair, seven times
+
+Seven of the eight are `lib/common/dialogs/msefiledialog.pas` ↔
+`lib/common/dialogx/msefiledialogx.pas` at 0.96, 0.92, 0.89, 0.89, 0.88, 0.87,
+0.87 (`filedialog1`, `filedialog` ×2, `backexe`, `listviewitemevent`,
+`formoncreate`, `onformcreated`). One pair of files, seven duplicated
+functions — the clearest single piece of technical debt the sweep surfaces.
+
+The eighth is **arguable**: `msedbgraphics.storebitmap` against
+`msebitmap.writetostream` at 0.86. The shared part is real (create a
+`tmsefilestream`, `writegraphic`, rewind, free in a `finally`), the purpose is
+not — one writes out, the other stores into a DB field. A maintainer could
+reasonably extract the stream dance, or reasonably leave it.
+
+### The five arguable ones, named
+
+- `rare-tokens` on `msesysintf.pas` (`Filecreate (0×)`, `Fileopen (0×)`) and on
+  `msedbedit.pas` (`tarightjustify (1×)` beside `textflags (164×)`): CamelCase
+  RTL spellings and mostly-attested identifiers. Style, not defect.
+- `rare-tokens` on `msefiledialogx.pas` (`dylib (0×)`, `zip (1×)`, `pyc (2×)`):
+  file-extension literals — data the dialog recognises, not idiom.
+- `unfamiliar-callee` on `tools/POtools/MOdemo/mo2arrays.pas` (`ParamStr`,
+  `FindClose`, `system.pos`): RTL basics that genuinely appear nowhere else in
+  the tree, because this is a standalone tool. Correct observation, thin value.
+
+The two `rare-tokens` counted **true** are the ones that name new API surface
+entering the kernel: `XSetErrorHandler`, `WhitePixel`, `wo_rounded` (X11) and
+`dragonfly`, `ptm_magic`, `ptm_interlock` (libc internals plus a new BSD
+target).
+
+---
+
+## Both sets together
+
+| | findings | true | arguable | wrong |
+|---|--:|--:|--:|--:|
+| seven changesets | 32 | 28 | 4 | 0 |
+| 400-commit sweep | 25 | 20 | 5 | 0 |
+| **total** | **57** | **48** | **9** | **0** |
+
+**84% true, 16% arguable, 0 wrong.** Nine defects in argot were found and fixed
+getting here; not one finding is muted, and the fork's `argot.toml` disables no
+rule.
+
+---
+
 ## The three rules that fire zero times, and why that is honest
 
 - **`superseded` — 0.** It fired six times out of seven before the coverage
@@ -294,3 +397,13 @@ no rule.
   has no test suite, so there is nothing for the rule to protect. Nothing to
   fix in argot; it is a property of the repo, and the product should say so
   rather than imply the rules passed.
+- **`misplaced` — 0**, after two gates that are both principled and both
+  costly. A body that calls nothing has no architectural home to judge, and a
+  callable recovered from inside a parse error has no known parent. The second
+  costs real coverage here and the number is worth stating: the tree-sitter
+  Pascal grammar fails at `lib/common/db/msedb.pas:1892` and the error region
+  runs to the end of the unit, so **3 530 of 15 078 extracted functions —
+  23.4%, across 111 of 333 files — are no longer judged for placement.** That
+  is the honest reduction rather than a silent one: their structural context
+  was never known. It also names the follow-up worth more than any tuning,
+  since the same gap costs `redundant` the same quarter of the tree.
