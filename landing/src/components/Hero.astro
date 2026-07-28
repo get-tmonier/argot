@@ -29,7 +29,7 @@ const rules = [
   <div class="hero-aurora" aria-hidden="true"></div>
   <VoiceField />
 
-  <div class="reveal relative z-10 mx-auto w-full max-w-3xl px-5 pt-24 pb-10 text-center md:py-10">
+  <div class="reveal relative z-10 mx-auto w-full max-w-3xl px-5 pt-20 pb-16 text-center md:py-10">
     <div class="mb-3 inline-flex items-center gap-2.5 sm:mb-4">
       <Logo size={36} draw />
       <span
@@ -138,14 +138,14 @@ const rules = [
   /* The eyebrow reads as three claims separated by dots; on a phone the middle
      one wraps it into a shouting three-line pill — keep the first and last
      claims only. */
-  @media (max-width: 639px) {
+  @media (max-width: 767px) {
     .eyebrow-mid {
       display: none;
     }
   }
   /* The narrowest phones keep the first claim only — the others already live in
      the subtitle right below. */
-  @media (max-width: 399px) {
+  @media (max-width: 479px) {
     .eyebrow-end {
       display: none;
     }
