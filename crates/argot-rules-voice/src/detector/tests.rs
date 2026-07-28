@@ -1,32 +1,71 @@
-use super::*;
+use crate::scoring::calibration::{fit_size_slope, size_threshold_adjustment};
 
 #[test]
-fn a_whole_file_rewrite_is_not_one_pattern_being_introduced() {
-    // uos' "Comment reordered for all the functions" changed 2 564 lines of one
-    // file in a single hunk. A hunk that size holds most of the file's
-    // vocabulary, so something in it is always unfamiliar.
-    assert!(is_oversized(false, 1, 2564));
-    assert!(is_oversized(false, 268, 1375));
+fn nine_hunks_in_ten_are_judged_exactly_as_before() {
+    // The reference is p90 of candidate sizes and the adjustment is clamped
+    // below it, so ordinary changes see precisely today's threshold. Taxing
+    // from the median up instead cost fmt three catches.
+    for lines in [1, 5, 15, 40, 43, 44] {
+        assert_eq!(
+            size_threshold_adjustment(lines, 0.55, 44),
+            0.0,
+            "{lines} lines must be unaffected"
+        );
+    }
 }
 
 #[test]
-fn a_new_file_is_never_oversized() {
-    // There the whole file legitimately *is* the change, and it is already
-    // judged against the new-file threshold rather than an edit distribution.
-    // uos added a real 1 495-line decoder this way — it must stay catchable.
-    assert!(!is_oversized(true, 1, 1495));
-    assert!(!is_oversized(true, 1, 12798));
+fn only_the_tail_pays() {
+    // bpe_score is a max over the hunk's tokens, so a bigger hunk scores higher
+    // for free. uos' "Comment reordered for all the functions" is 2 564 lines
+    // in one hunk and must clear a materially higher bar.
+    // uos fits slope 2,731 with a p90 of 44 lines; its 2 564-line rewrite pays
+    // heavily, while a 60-line change barely moves.
+    let rewrite = size_threshold_adjustment(2564, 2.731, 44);
+    assert!(rewrite > 10.0, "2564-line adjustment was {rewrite}");
+    let ordinary = size_threshold_adjustment(60, 2.731, 44);
+    assert!(ordinary < 1.0, "60-line adjustment was {ordinary}");
+    // The bar only ever rises: below the reference there is ample calibration
+    // data and the flat threshold is already right.
+    assert!(size_threshold_adjustment(5, 2.731, 44) >= 0.0);
 }
 
 #[test]
-fn every_catalogued_fixture_stays_under_the_cap() {
-    // The largest fixture in the whole catalogue is 80 lines (n=977, median 13,
-    // p99 59), so the cap costs no measurable recall. Pin the margin: if a
-    // fixture ever grows past it, this fails rather than silently going unjudged.
-    assert!(
-        !is_oversized(false, 1, 80),
-        "the largest fixture must still be judged"
-    );
-    assert!(!is_oversized(false, 1, MAX_SCORED_HUNK_LINES));
-    assert!(is_oversized(false, 1, MAX_SCORED_HUNK_LINES + 1));
+fn no_fit_means_no_correction() {
+    // Every refusal to fit must degrade to today's flat threshold exactly.
+    assert_eq!(size_threshold_adjustment(5000, 0.0, 44), 0.0);
+    assert_eq!(size_threshold_adjustment(5000, 0.55, 0), 0.0);
+    assert_eq!(size_threshold_adjustment(0, 0.55, 44), 0.0);
+}
+
+#[test]
+fn the_slope_is_recovered_from_a_sample() {
+    // Synthesize score = 1.0 + 0.5*ln(lines) and check the fit finds it.
+    let sized: Vec<(usize, f64)> = (1..=300)
+        .map(|i| {
+            let lines = 3 + (i % 200);
+            (lines, 1.0 + 0.5 * (lines as f64).ln())
+        })
+        .collect();
+    let (slope, reference) = fit_size_slope(&sized);
+    assert!((slope - 0.5).abs() < 0.05, "slope was {slope}");
+    assert!(reference > 0);
+}
+
+#[test]
+fn a_sample_too_small_or_too_flat_refuses_to_fit() {
+    // Refusing is always safe — it is exactly today's behaviour.
+    let tiny: Vec<(usize, f64)> = (0..10).map(|i| (10 + i, 2.0)).collect();
+    assert_eq!(fit_size_slope(&tiny).0, 0.0);
+    // 100 points, all the same size: nothing to regress on.
+    let flat: Vec<(usize, f64)> = (0..100).map(|i| (20, 1.0 + i as f64 * 0.01)).collect();
+    assert_eq!(fit_size_slope(&flat).0, 0.0);
+    // A negative fit means there is nothing to correct for.
+    let falling: Vec<(usize, f64)> = (1..=200)
+        .map(|i| {
+            let lines = 3 + (i % 150);
+            (lines, 10.0 - (lines as f64).ln())
+        })
+        .collect();
+    assert_eq!(fit_size_slope(&falling).0, 0.0);
 }

@@ -57,6 +57,10 @@ pub(super) struct Loaded {
     /// (issue #92 new-file flooding). Absent for configs predating the field —
     /// then new files keep the single-threshold behaviour.
     pub(super) new_file_thresholds: HashMap<String, f64>,
+    /// Per-language `(size_slope, size_reference_lines)` — how the threshold
+    /// scales with hunk size. Absent (and so inert) for configs fitted before
+    /// the field existed.
+    pub(super) size_scaling: HashMap<String, (f64, usize)>,
     /// Authoritative fit-corpus file set (repo-relative), including data-dominant
     /// files. A path absent here is a new file. Empty for configs predating the
     /// field — then new-file detection falls back to cluster membership, which
@@ -388,9 +392,18 @@ pub(super) fn load_scorers(
 
     // Per-language new-file thresholds (absent for configs predating the field).
     let mut new_file_thresholds: HashMap<String, f64> = HashMap::new();
+    let mut size_scaling: HashMap<String, (f64, usize)> = HashMap::new();
     for (lang, lc) in languages {
         if let Some(t) = lc.get("new_file_threshold").and_then(Value::as_f64) {
             new_file_thresholds.insert(lang.clone(), t);
+        }
+        let slope = lc.get("size_slope").and_then(Value::as_f64).unwrap_or(0.0);
+        let reference = lc
+            .get("size_reference_lines")
+            .and_then(Value::as_u64)
+            .unwrap_or(0) as usize;
+        if slope > 0.0 && reference > 0 {
+            size_scaling.insert(lang.clone(), (slope, reference));
         }
     }
 
@@ -415,6 +428,7 @@ pub(super) fn load_scorers(
         model_hash,
         slices,
         new_file_thresholds,
+        size_scaling,
         fit_corpus_files,
         supersessions,
     })

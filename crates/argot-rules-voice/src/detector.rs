@@ -81,10 +81,10 @@ struct BatchScored {
     /// Hunks that reached the scorer, plus those skipped for being out of the
     /// file's line range — both counted toward the scan statistics.
     counted: usize,
-    /// Hunks that would have fired but were larger than
-    /// [`MAX_SCORED_HUNK_LINES`]. Reported, never silent: a hunk not judged
-    /// must not look like a hunk judged clean.
-    oversized_hunks: usize,
+    /// Hunks that cleared the flat threshold but not the size-scaled one —
+    /// their score was what a hunk that big scores anyway. Reported, never
+    /// silent.
+    size_scaled_out: usize,
     hunks: Vec<HunkScored>,
 }
 
@@ -114,6 +114,7 @@ fn score_batch(
     filter_adapters: &HashMap<String, Box<dyn LanguageAdapter>>,
     slices: &HashMap<String, Vec<SliceEntry>>,
     new_file_thresholds: &HashMap<String, f64>,
+    size_scaling: &HashMap<String, (f64, usize)>,
     fit_corpus_files: &HashSet<String>,
     mute_rules: &[SuppressionRule],
     registry: &argot_engine::rules::Registry,
@@ -121,7 +122,7 @@ fn score_batch(
     header_cpp: bool,
 ) -> BatchScored {
     let mut counted = 0usize;
-    let mut oversized_hunks = 0usize;
+    let mut size_scaled_out = 0usize;
     let mut hunks: Vec<HunkScored> = Vec::new();
 
     let ext = extension(&batch.file_path);
@@ -238,17 +239,28 @@ fn score_batch(
                 },
             }
         };
-        // A rewrite of a whole file is not one pattern being introduced. Past
-        // [`MAX_SCORED_HUNK_LINES`] the hunk holds most of the file's
-        // vocabulary, so something in it is always unfamiliar and the verdict
-        // says more about the hunk's size than about the code. New files are
-        // exempt: there the whole file legitimately *is* the change, and the
-        // new-file threshold above already judges it on its own distribution.
-        let oversized = is_oversized(is_new_file, line, line_end);
-        if oversized && flagged {
-            oversized_hunks += 1;
-        }
-        let flagged = flagged && !oversized;
+        // `bpe_score` is a max over the hunk's tokens, so its expected value
+        // grows about logarithmically in hunk size whatever the token-surprise
+        // distribution is — a big hunk holds most of the file's vocabulary and
+        // is mechanically closer to firing with no change in how foreign it is.
+        // The bar therefore scales with size, by a slope this repo's own
+        // calibration fitted; a hunk of its typical size sees exactly the
+        // calibrated threshold. Foreign imports are a membership test, not a
+        // max, so they are unaffected and still fire regardless.
+        let (threshold, flagged) = match size_scaling.get(lang.unwrap_or("")) {
+            Some((slope, reference)) if reason != "import" => {
+                let lines = line_end.saturating_sub(line) + 1;
+                let adjusted = threshold
+                    + crate::scoring::calibration::size_threshold_adjustment(
+                        lines, *slope, *reference,
+                    );
+                if flagged && new_score < adjusted {
+                    size_scaled_out += 1;
+                }
+                (adjusted, flagged && new_score >= adjusted)
+            }
+            _ => (threshold, flagged),
+        };
         // Per-changeset novel-import dedup: an import alert whose foreign
         // modules were all already alerted in this run is the same decision
         // seen again (one dependency spread across a migration). Alert on
@@ -274,31 +286,9 @@ fn score_batch(
         skip_note: None,
         warnings,
         counted,
-        oversized_hunks,
+        size_scaled_out,
         hunks,
     }
-}
-
-/// Past this many lines a hunk stops being a reviewable unit and starts being
-/// the file. A whole-file rewrite — a comment reshuffle, a reformat, a licence
-/// header sweep — then holds most of the file's vocabulary, so something in it
-/// is always unfamiliar and the verdict reports the hunk's size rather than the
-/// code.
-///
-/// Measured over the 36 benchmark corpora: capping existing-file hunks here
-/// removes **73 of 471 false alarms (15,5 %)** across ten corpora, and costs
-/// nothing measurable — the largest fixture in the whole catalogue is **80
-/// lines** (n=977, median 13, p99 59), so no fixture is even close. uos alone
-/// gives back 47, from commits like "Comment reordered for all the functions"
-/// (2 564 insertions / 2 547 deletions in one file, scored as a single hunk).
-///
-/// New files are exempt: there the whole file legitimately is the change.
-const MAX_SCORED_HUNK_LINES: usize = 100;
-
-/// Whether a hunk is too large to judge — see [`MAX_SCORED_HUNK_LINES`]. A new
-/// file is never oversized: there the whole file legitimately is the change.
-fn is_oversized(is_new_file: bool, line: usize, line_end: usize) -> bool {
-    !is_new_file && line_end.saturating_sub(line) + 1 > MAX_SCORED_HUNK_LINES
 }
 
 /// Score each hunk, dispatching per language (`_score_patches`). Applies the
@@ -317,6 +307,7 @@ fn score_patches(
     filter_adapters: &HashMap<String, Box<dyn LanguageAdapter>>,
     slices: &HashMap<String, Vec<SliceEntry>>,
     new_file_thresholds: &HashMap<String, f64>,
+    size_scaling: &HashMap<String, (f64, usize)>,
     fit_corpus_files: &HashSet<String>,
     mute_rules: &[SuppressionRule],
     registry: &argot_engine::rules::Registry,
@@ -331,6 +322,7 @@ fn score_patches(
             filter_adapters,
             slices,
             new_file_thresholds,
+            size_scaling,
             fit_corpus_files,
             mute_rules,
             registry,
@@ -349,7 +341,7 @@ fn score_patches(
     // decision — alert on its first appearance, dedup the rest.
     let mut alerted_foreign_modules: HashSet<String> = HashSet::new();
     let mut deduped_import_alerts: usize = 0;
-    let mut oversized_total: usize = 0;
+    let mut size_scaled_total: usize = 0;
 
     for (batch, out) in patches.iter().zip(scored) {
         if let Some(note) = out.skip_note {
@@ -362,7 +354,7 @@ fn score_patches(
             }
         }
         hunk_count += out.counted;
-        oversized_total += out.oversized_hunks;
+        size_scaled_total += out.size_scaled_out;
         if out.counted > 0 {
             *file_counts.entry(batch.file_path.clone()).or_insert(0) += out.counted;
         }
@@ -401,11 +393,11 @@ fn score_patches(
              (same dependency across the change)\n"
         ));
     }
-    if oversized_total > 0 {
+    if size_scaled_total > 0 {
         stderr.push_str(&format!(
-            "[argot] {oversized_total} hunk(s) over {MAX_SCORED_HUNK_LINES} lines were not \
-             judged — that much at once is a rewrite, not one pattern being introduced, \
-             and holds most of the file's vocabulary. Review those by hand.\n"
+            "[argot] {size_scaled_total} large hunk(s) scored above the flat threshold but not \
+             above the one for their size — that much code scores that high anyway. \
+             Review them by hand if they are rewrites.\n"
         ));
     }
 
@@ -556,6 +548,7 @@ impl Detector for VoiceDetector {
             ctx.filter_adapters,
             &loaded.slices,
             &loaded.new_file_thresholds,
+            &loaded.size_scaling,
             &loaded.fit_corpus_files,
             ctx.mute_rules,
             ctx.registry,

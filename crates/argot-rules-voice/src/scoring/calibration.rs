@@ -443,6 +443,15 @@ struct LangConfig {
     /// `check` applies it only to new-file hunks; existing files keep
     /// `threshold`. Never below `threshold`.
     new_file_threshold: f64,
+    /// How the threshold scales with hunk size, fitted from this repo's own
+    /// calibration sample — see [`fit_size_slope`]. `check` raises the bar by
+    /// `size_slope · ln(lines / size_reference_lines)`, so a hunk of the
+    /// repo's typical size sees exactly `threshold`. 0 disables the
+    /// correction, which is what pre-existing configs read as.
+    #[serde(default)]
+    size_slope: f64,
+    #[serde(default)]
+    size_reference_lines: usize,
     call_receiver_alpha: f64,
     call_receiver_cap: usize,
     call_receiver_root_bonus: f64,
@@ -782,12 +791,38 @@ pub fn multi_seed_thresholds(
     typicality: &TypicalityModel,
     cfg: &ThresholdRunConfig,
 ) -> Vec<f64> {
+    multi_seed_thresholds_sized(
+        candidates,
+        bpe,
+        per_file_counts,
+        call_receiver,
+        adapter,
+        typicality,
+        cfg,
+    )
+    .0
+}
+
+/// [`multi_seed_thresholds`], also returning every `(hunk lines, score)` pair
+/// it scored — the sample [`fit_size_slope`] regresses on, collected here so
+/// the size fit costs no extra scoring.
+#[allow(clippy::too_many_arguments)]
+pub fn multi_seed_thresholds_sized(
+    candidates: &[Candidate],
+    bpe: &BpeScorer,
+    per_file_counts: Option<&PerFileTokenCounts>,
+    call_receiver: &mut CallReceiverScorer,
+    adapter: &dyn LanguageAdapter,
+    typicality: &TypicalityModel,
+    cfg: &ThresholdRunConfig,
+) -> (Vec<f64>, Vec<(usize, f64)>) {
     let effective_n_cal = cfg.n_cal.min(candidates.len());
-    let mut seed_thresholds = Vec::new();
+    let mut per_seed: Vec<Vec<(usize, f64)>> = Vec::new();
+    let mut sized: Vec<(usize, f64)> = Vec::new();
     for k in 0..cfg.n_seeds {
         let seed = cfg.base_seed.wrapping_add(k as u64);
         let idx = sample_indices(candidates.len(), effective_n_cal, seed);
-        let mut cal_scores = Vec::new();
+        let mut cal_scores: Vec<(usize, f64)> = Vec::new();
         for &i in &idx {
             let c = &candidates[i];
             if typicality.is_atypical(&c.hunk).0 {
@@ -818,13 +853,164 @@ pub fn multi_seed_thresholds(
                 Some((&c.file_source, c.hunk_start_line, c.hunk_end_line)),
                 &Default::default(),
             );
-            cal_scores.push(raw_bpe + contrib);
+            let score = raw_bpe + contrib;
+            let lines = c.hunk.lines().count();
+            if k == 0 {
+                sized.push((lines, score));
+            }
+            cal_scores.push((lines, score));
         }
-        // threshold_percentile default 100 → max.
-        let t = cal_scores.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-        seed_thresholds.push(if t.is_finite() { t } else { 0.0 });
+        per_seed.push(cal_scores);
     }
-    seed_thresholds
+
+    // The threshold stays `max(score)`, exactly as before. Two earlier shapes
+    // were measured and rejected:
+    //
+    // * Calibrating raw and subtracting the correction at check **double-counts**
+    //   — `max` is typically attained on a large candidate, so the threshold
+    //   already carries that hunk's size bonus. Cost 34 catches (613/756).
+    // * Calibrating over *corrected* scores fixes that, but only while the
+    //   correction is symmetric. Clamped below the reference — which is what
+    //   keeps ordinary changes judged as they are today — it lowers the
+    //   threshold without lowering the bar for the hunks that set it, so
+    //   everything small fires more: fastapi 1,46 % → 1,75 %, ideu 0,69 % →
+    //   0,78 % over-fire.
+    //
+    // Leaving the threshold alone and adjusting only above the reference is
+    // surgical: below it nothing changes at all, by construction.
+    let seed_thresholds = per_seed
+        .iter()
+        .map(|cal_scores| {
+            let t = cal_scores
+                .iter()
+                .map(|(_, score)| *score)
+                .fold(f64::NEG_INFINITY, f64::max);
+            if t.is_finite() {
+                t
+            } else {
+                0.0
+            }
+        })
+        .collect();
+    (seed_thresholds, sized)
+}
+
+/// The threshold's dependence on hunk size, learned from the repo's own
+/// calibration sample.
+///
+/// `bpe_score` is a **max over the hunk's tokens**, so by extreme-value theory
+/// `E[max of N]` grows about logarithmically in N whatever the token-surprise
+/// distribution is. Measured on argot's own corpus the effect is exactly that
+/// and it is large: mean score 1,68 at 6–10 lines against 3,90 at 321+, fitting
+/// `0,515 + 0,551·ln(lines)` on the full score. Against a single scalar
+/// threshold a big hunk is therefore *mechanically* closer to firing, with no
+/// change in how foreign it is — which is why whole-file rewrites flooded the
+/// benchmark's false alarms (29,3 % of them came from hunks over 50 lines).
+///
+/// Returns `(slope, reference_lines)`. `check` raises the bar by
+/// `slope · ln(lines / reference_lines)`, so a hunk of the repo's typical size
+/// sees exactly the calibrated threshold and the correction is a pure
+/// adjustment for scale.
+///
+/// Yields a zero slope — no correction at all — when the sample is too small to
+/// fit, when the fit comes out negative (nothing to correct for), or when the
+/// candidates carry too little size spread to regress on. Refusing to fit is
+/// always safe: the behaviour is then exactly today's scalar threshold.
+pub fn fit_size_slope(sized: &[(usize, f64)]) -> (f64, usize) {
+    const MIN_SAMPLE: usize = 60;
+    /// Below this spread in ln(lines) the sample is one size, and the slope
+    /// would be noise divided by nearly zero.
+    const MIN_LN_SPREAD: f64 = 0.75;
+    /// Regressing raw scores is not robust: they are heavy-tailed (the score is
+    /// itself a max), so a handful of very surprising hunks drag the slope.
+    /// Measured across corpora that gave 0,63 to 1,44 for what theory says is
+    /// one quantity, and fmt's inflated 1,02 cost three catches. Bin by size and
+    /// regress the per-bin **median** instead — the bin medians are the clean
+    /// monotone signal the raw points only hint at.
+    const BINS: usize = 8;
+    /// A bin with fewer than this contributes only noise to the line.
+    const MIN_PER_BIN: usize = 8;
+
+    let pts: Vec<(f64, f64)> = sized
+        .iter()
+        .filter(|(n, s)| *n > 0 && s.is_finite())
+        .map(|(n, s)| ((*n as f64).ln(), *s))
+        .collect();
+    if pts.len() < MIN_SAMPLE {
+        return (0.0, 0);
+    }
+    // The reference is a HIGH percentile, not the median. The artefact only
+    // needs neutralising in the tail: below it there is ample calibration data
+    // and the flat threshold is already the right bar, so taxing ordinary
+    // changes from the median up only costs recall — measured, it cost fmt
+    // three catches. Anchoring at p90 leaves nine hunks in ten judged exactly
+    // as they are today and bends the bar only where rewrites live.
+    let mut lines: Vec<usize> = sized.iter().map(|(n, _)| *n).filter(|n| *n > 0).collect();
+    lines.sort_unstable();
+    let reference = lines[(lines.len() * 9 / 10).min(lines.len() - 1)].max(1);
+
+    let (min_x, max_x) = pts.iter().fold((f64::MAX, f64::MIN), |(lo, hi), (x, _)| {
+        (lo.min(*x), hi.max(*x))
+    });
+    if max_x - min_x < MIN_LN_SPREAD {
+        return (0.0, reference);
+    }
+
+    // Equal-width bins over ln(lines), each reduced to (bin centre, median).
+    let width = (max_x - min_x) / BINS as f64;
+    let mut binned: Vec<(f64, f64)> = Vec::new();
+    for b in 0..BINS {
+        let lo = min_x + width * b as f64;
+        let hi = if b + 1 == BINS {
+            max_x + 1e-9
+        } else {
+            lo + width
+        };
+        let mut ys: Vec<f64> = pts
+            .iter()
+            .filter(|(x, _)| *x >= lo && *x < hi)
+            .map(|(_, y)| *y)
+            .collect();
+        if ys.len() < MIN_PER_BIN {
+            continue;
+        }
+        ys.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        let xs: f64 = pts
+            .iter()
+            .filter(|(x, _)| *x >= lo && *x < hi)
+            .map(|(x, _)| *x)
+            .sum::<f64>()
+            / ys.len() as f64;
+        binned.push((xs, ys[ys.len() / 2]));
+    }
+    if binned.len() < 3 {
+        return (0.0, reference);
+    }
+
+    let n = binned.len() as f64;
+    let sx: f64 = binned.iter().map(|(x, _)| x).sum();
+    let sy: f64 = binned.iter().map(|(_, y)| y).sum();
+    let sxx: f64 = binned.iter().map(|(x, _)| x * x).sum();
+    let sxy: f64 = binned.iter().map(|(x, y)| x * y).sum();
+    let denom = n * sxx - sx * sx;
+    if denom.abs() < f64::EPSILON {
+        return (0.0, reference);
+    }
+    let slope = (n * sxy - sx * sy) / denom;
+    if !slope.is_finite() || slope <= 0.0 {
+        return (0.0, reference);
+    }
+    (slope, reference)
+}
+
+/// How much the calibrated threshold rises for a hunk of `lines`, given the
+/// fitted `(slope, reference)` — see [`fit_size_slope`]. Zero slope, an unset
+/// reference, or an empty hunk mean no adjustment.
+pub fn size_threshold_adjustment(lines: usize, slope: f64, reference: usize) -> f64 {
+    if slope <= 0.0 || reference == 0 || lines <= reference {
+        return 0.0;
+    }
+    slope * (lines as f64 / reference as f64).ln()
 }
 
 /// Per-seed **new-file** thresholds: like [`multi_seed_thresholds`], but each
@@ -1335,7 +1521,7 @@ pub fn run_calibrate(
             .map(|(p, s)| (p.clone(), bpe.token_counts(s)))
             .collect();
 
-        let seed_thresholds = multi_seed_thresholds(
+        let seed_thresholds = multi_seed_thresholds_sized(
             &candidates,
             &bpe,
             Some(&per_file_counts),
@@ -1350,7 +1536,9 @@ pub fn run_calibrate(
                 cap: CR_CAP as f64,
             },
         );
+        let (seed_thresholds, sized_sample) = seed_thresholds;
         let threshold = median(seed_thresholds);
+        let (size_slope, size_reference_lines) = fit_size_slope(&sized_sample);
         t_thr.done();
 
         let t_nf = argot_engine::timing::phase(format!("calibrate[{name}]: new-file thresholds"));
@@ -1497,6 +1685,8 @@ pub fn run_calibrate(
             LangConfig {
                 threshold,
                 new_file_threshold,
+                size_slope,
+                size_reference_lines,
                 call_receiver_alpha: CR_ALPHA,
                 call_receiver_cap: CR_CAP,
                 call_receiver_root_bonus: CR_ROOT_BONUS,
