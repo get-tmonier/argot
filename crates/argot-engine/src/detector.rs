@@ -34,8 +34,9 @@ pub struct CheckContext<'a> {
     pub migrations: &'a [crate::config::MigrationRule],
     /// `[detect]` configuration (read by the semantic pass).
     pub detect: &'a DetectConfig,
-    /// Repo-wide `.h` → C/C++ routing majority.
-    pub header_cpp: bool,
+    /// Repo-wide routing facts for the extensions the name alone cannot settle
+    /// (`.h` → C/C++, `.inc` → Pascal/C).
+    pub repo_langs: argot_lang::ext::RepoLangs,
     /// Resolved rule severities.
     pub settings: &'a RuleSettings,
     /// The run's rule vocabulary (built-ins + discovered custom rules) —

@@ -11,9 +11,9 @@ use crate::scoring::adapters::Language;
 use crate::scoring::call_receiver::extract_callees;
 use crate::scoring::shape_primitive::{Baseline, ShapePrimitive};
 use crate::scoring::shape_primitives::population_mean_std;
-use std::cell::Cell;
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::path::PathBuf;
+use std::sync::OnceLock;
 
 const TOP_N: usize = 10;
 const MIN_VALID_FILES: usize = 3;
@@ -72,7 +72,7 @@ fn cluster_staples(cluster_files: &[(PathBuf, String)], language: Language) -> B
 /// Cluster-staple deficit primitive. Language captured on fit.
 #[derive(Default)]
 pub struct ClusterStapleDeficit {
-    language: Cell<Option<Language>>,
+    language: OnceLock<Language>,
 }
 
 impl ShapePrimitive for ClusterStapleDeficit {
@@ -87,7 +87,7 @@ impl ShapePrimitive for ClusterStapleDeficit {
     }
 
     fn set_language(&self, language: Language) {
-        self.language.set(Some(language));
+        let _ = self.language.set(language);
     }
 
     fn fit_cluster_baseline(
@@ -95,7 +95,7 @@ impl ShapePrimitive for ClusterStapleDeficit {
         cluster_files: &[(PathBuf, String)],
         language: Language,
     ) -> Option<Baseline> {
-        self.language.set(Some(language));
+        let _ = self.language.set(language);
         let staples = cluster_staples(cluster_files, language);
         let mut deficits: Vec<f64> = Vec::new();
         for (_path, source) in cluster_files {
@@ -126,7 +126,7 @@ impl ShapePrimitive for ClusterStapleDeficit {
         if cluster_size < self.min_cluster_size() {
             return 0.0;
         }
-        let Some(language) = self.language.get() else {
+        let Some(language) = self.language.get().copied() else {
             return 0.0;
         };
         let Some(deficit) = staple_deficit(hunk, language, top10_set) else {

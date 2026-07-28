@@ -13,7 +13,10 @@
 //!
 //! The fire rule is a k-NN area vote: a function is misplaced when the modal
 //! area of its nearest neighbours differs from the area it's filed under AND
-//! at most `z` of those neighbours share its area. `(merge τ, k, z)` are
+//! at most `z` of those neighbours share its area. Candidates must carry some
+//! substance first — a stub, or a body that calls nothing (a property setter is
+//! written entirely out of the names it assigns, so it embeds as whatever unit
+//! owns those names), has no architectural home to judge. `(merge τ, k, z)` are
 //! **self-calibrated at fit time** per repo: a transplant simulation (every
 //! sampled function claimed into every foreign area) plus an in-place
 //! over-fire measurement pick the config with the highest simulated recall
@@ -156,10 +159,19 @@ pub struct PlacementConfig {
 }
 
 /// A fired placement finding: where the function looks like it belongs.
+///
+/// Both areas are **base** areas — real directories the reader can open. The
+/// vote runs over *merged* groups (entangled areas are not judgeable apart),
+/// but a merged group is labelled after its biggest member, so rendering the
+/// label names a directory the function is not in and the peers are not in.
+/// Reporting the base areas instead keeps the sentence consistent with the
+/// peer lines printed under it.
 #[derive(Debug, Clone)]
 pub struct MisplacedFinding {
+    /// The directory the function is actually filed under.
     pub actual_area: String,
-    /// The modal (most common) merged area among the nearest neighbours.
+    /// Where the nearest neighbours live: the most common base area inside the
+    /// modal merged group.
     pub neighbor_area: String,
     pub in_area_fraction: f32,
     /// The modal area's share of the vote — what "belonging" looks like here.
@@ -214,6 +226,22 @@ impl<'a> PlacementScorer<'a> {
         if func.text.lines().count() < MIN_PLACEMENT_BODY_LINES {
             return None;
         }
+        // A nested helper's home is its parent, not a directory: MSEgui's
+        // `readbyte` is declared inside `dbtrystringtoguid` and assigns its
+        // result variable, so "this looks like kernel code filed under db" is
+        // not a statement anyone can act on.
+        if func.nested {
+            return None;
+        }
+        // …and a body that calls nothing does not *do* anything a layer owns.
+        // A property setter is written out of the names it assigns, so its
+        // neighbours are whatever unit owns those names — four of them in one
+        // new Object Pascal dialog form were reported as graphics code because
+        // `Font.ColorBackground := aValue` reads like the graphics unit's own
+        // setter of the same name. Misplaced *work* reaches for something.
+        if func.callees.is_empty() {
+            return None;
+        }
         // A function in a directory that did NOT exist at fit time is *new*, not
         // *misplaced* — placement can only judge a location the repo already has
         // an opinion about. (This is the dominant clean-commit F2 FP.)
@@ -241,6 +269,19 @@ impl<'a> PlacementScorer<'a> {
         if *modal == claimed || own > self.cfg.z {
             return None;
         }
+        // Report the base directory the neighbours in the modal group actually
+        // live in, not the group's label — see [`MisplacedFinding`].
+        let modal_base: Vec<String> = neigh
+            .iter()
+            .zip(&areas)
+            .filter(|(_, a)| **a == *modal)
+            .map(|(n, _)| self.walk.area(&self.index.entry(n.entry_index).path))
+            .collect();
+        let refs: Vec<&str> = modal_base.iter().map(String::as_str).collect();
+        let neighbor_area = area_counts(&refs)
+            .first()
+            .map(|(a, _)| a.clone())
+            .unwrap_or_else(|| modal.clone());
         let peers = neigh
             .iter()
             .take(3)
@@ -250,8 +291,8 @@ impl<'a> PlacementScorer<'a> {
             })
             .collect();
         Some(MisplacedFinding {
-            actual_area: claimed,
-            neighbor_area: modal.clone(),
+            actual_area: base,
+            neighbor_area,
             in_area_fraction: own as f32 / areas.len() as f32,
             expected_fraction: modal_n as f32 / areas.len() as f32,
             peers,

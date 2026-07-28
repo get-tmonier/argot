@@ -36,6 +36,7 @@ fn func_c(symbol: &str, path: &str, callees: &[&str], subtokens: &[&str]) -> Fun
         end_line: 16,
         text: text.clone(),
         embed_text: text,
+        nested: false,
         callees: callees.iter().map(|s| s.to_string()).collect(),
         subtokens: subtokens.iter().map(|s| s.to_string()).collect(),
     }
@@ -385,6 +386,7 @@ fn short_stub_never_fires_even_with_strong_overlap() {
         end_line: 4,
         text: "def normalize_slug(s):\n    a = s.strip()\n    b = a.lower()\n    return b".into(),
         embed_text: "def f(s):\n    a = s.strip()\n    b = a.lower()\n    return b".into(),
+        nested: false,
         callees: vec![],
         subtokens: vec!["slug".into(), "normalize".into(), "whitespace".into()],
     };
@@ -445,6 +447,7 @@ fn short_wrapper_is_filtered_when_overlap_is_weak() {
         end_line: 3,
         text: "fn show() {\n    round()\n}".into(), // 3 lines, below the substance floor
         embed_text: "fn f() {\n    round()\n}".into(),
+        nested: false,
         callees: vec!["round".into(), "x".into(), "y".into()], // callee_jac ≈0.20 (weak)
         subtokens: vec!["show".into()],
     };

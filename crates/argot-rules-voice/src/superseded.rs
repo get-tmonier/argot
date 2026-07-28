@@ -81,7 +81,7 @@ pub(crate) fn superseded_findings(
     mute_rules: &[SuppressionRule],
     registry: &Registry,
     settings: &RuleSettings,
-    header_cpp: bool,
+    repo_langs: argot_lang::ext::RepoLangs,
 ) -> Vec<Finding> {
     if settings.severity_of_reason("superseded") == Severity::Off {
         return Vec::new();
@@ -91,7 +91,7 @@ pub(crate) fn superseded_findings(
 
     for batch in batches {
         let ext = extension(&batch.file_path);
-        let Some(lang) = ext_to_lang_ctx(&ext, header_cpp) else {
+        let Some(lang) = ext_to_lang_ctx(&ext, repo_langs) else {
             continue;
         };
         let Some(adapter) = filter_adapters.get(lang) else {

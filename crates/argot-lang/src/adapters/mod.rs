@@ -55,11 +55,14 @@ pub struct CallableBody {
     pub symbol: String,
     pub start_line: usize,
     pub end_line: usize,
+    /// Declared inside another callable. Such a helper's home is its parent,
+    /// so the architectural senses must not judge where it is filed.
+    pub nested: bool,
 }
 
 /// Uniform language-adapter surface. Implemented by `PythonAdapter` and
 /// `TypeScriptAdapter`; the scorers dispatch through `&dyn LanguageAdapter`.
-pub trait LanguageAdapter {
+pub trait LanguageAdapter: Sync {
     /// Function/method definitions with their line ranges — the embeddable units
     /// for the semantic index. Default empty: a language with no implementation
     /// simply produces no semantic index (no reinvention/placement findings),
@@ -83,6 +86,25 @@ pub trait LanguageAdapter {
     /// function-valued variables). Local-binding attestation: code calling
     /// what it defines is not foreign voice.
     fn callable_definitions(&self, source: &str) -> HashSet<String>;
+
+    /// The module this single source file declares, if the language names one
+    /// (Pascal's `unit`, Go's `package`, a Java/C# namespace). Used at check
+    /// time to recognise a module the changeset itself introduces: a file that
+    /// declares `unit foo` makes `uses foo` a reference to the repo's own new
+    /// module, not to a dependency nobody has ever depended on.
+    ///
+    /// `None` for languages where an import is a path rather than a declared
+    /// name — those resolve through `internal_import_bindings` instead.
+    fn declared_module(&self, _source: &str) -> Option<String> {
+        None
+    }
+    /// Whether the language treats identifiers that differ only in case as the
+    /// same name. `false` everywhere but Object Pascal, where `DIV` and `div`
+    /// are one operator and `Self` and `self` one keyword — so a noise list
+    /// written in one casing must still match the others.
+    fn identifiers_are_case_insensitive(&self) -> bool {
+        false
+    }
     /// Names bound by imports from repo-internal (relative) specifiers.
     fn internal_import_bindings(&self, source: &str) -> HashSet<String>;
     /// Names bound by *non-relative* imports, each paired with the top-level
@@ -106,6 +128,12 @@ pub trait LanguageAdapter {
     fn is_auto_generated(&self, source: &str, markers: &[String]) -> bool;
     fn enumerate_sampleable_ranges(&self, source: &str) -> Vec<(usize, usize)>;
     fn prose_line_ranges(&self, source: &str) -> HashSet<usize>;
+    /// Prose sharing a line with code — `(row, col_start, col_end)`, 1-indexed
+    /// row, byte columns. Blanked in place rather than by the line, so the code
+    /// on that line survives and the words do not reach the scorers.
+    fn prose_spans(&self, _source: &str) -> Vec<(usize, usize, usize)> {
+        Vec::new()
+    }
     fn identifier_noise(&self) -> &HashSet<String>;
     /// The language's line-comment token — drives inline suppression-comment
     /// parsing (`# argot: …` vs `// argot: …`).
@@ -199,6 +227,9 @@ impl LanguageAdapter for python::PythonAdapter {
     fn prose_line_ranges(&self, source: &str) -> HashSet<usize> {
         python::PythonAdapter::prose_line_ranges(self, source)
     }
+    fn prose_spans(&self, source: &str) -> Vec<(usize, usize, usize)> {
+        python::PythonAdapter::prose_spans(self, source)
+    }
     fn identifier_noise(&self) -> &HashSet<String> {
         python::PythonAdapter::identifier_noise(self)
     }
@@ -246,6 +277,9 @@ impl LanguageAdapter for go::GoAdapter {
     }
     fn prose_line_ranges(&self, source: &str) -> HashSet<usize> {
         go::GoAdapter::prose_line_ranges(self, source)
+    }
+    fn prose_spans(&self, source: &str) -> Vec<(usize, usize, usize)> {
+        go::GoAdapter::prose_spans(self, source)
     }
     fn identifier_noise(&self) -> &HashSet<String> {
         go::GoAdapter::identifier_noise(self)
@@ -299,6 +333,9 @@ impl LanguageAdapter for rust::RustAdapter {
     fn prose_line_ranges(&self, source: &str) -> HashSet<usize> {
         rust::RustAdapter::prose_line_ranges(self, source)
     }
+    fn prose_spans(&self, source: &str) -> Vec<(usize, usize, usize)> {
+        rust::RustAdapter::prose_spans(self, source)
+    }
     fn identifier_noise(&self) -> &HashSet<String> {
         rust::RustAdapter::identifier_noise(self)
     }
@@ -349,6 +386,9 @@ impl LanguageAdapter for cpp::CppAdapter {
     fn prose_line_ranges(&self, source: &str) -> HashSet<usize> {
         cpp::CppAdapter::prose_line_ranges(self, source)
     }
+    fn prose_spans(&self, source: &str) -> Vec<(usize, usize, usize)> {
+        cpp::CppAdapter::prose_spans(self, source)
+    }
     fn identifier_noise(&self) -> &HashSet<String> {
         cpp::CppAdapter::identifier_noise(self)
     }
@@ -398,6 +438,9 @@ impl LanguageAdapter for ruby::RubyAdapter {
     }
     fn prose_line_ranges(&self, source: &str) -> HashSet<usize> {
         ruby::RubyAdapter::prose_line_ranges(self, source)
+    }
+    fn prose_spans(&self, source: &str) -> Vec<(usize, usize, usize)> {
+        ruby::RubyAdapter::prose_spans(self, source)
     }
     fn identifier_noise(&self) -> &HashSet<String> {
         ruby::RubyAdapter::identifier_noise(self)

@@ -34,3 +34,24 @@ fn future_is_never_foreign() {
     assert!(!scorer.is_foreign("__future__"));
     assert!(scorer.is_foreign("requests"));
 }
+
+#[test]
+fn a_module_the_changeset_declares_stops_reading_as_foreign() {
+    // The fit-time snapshot cannot know about a module the change itself adds.
+    // Without widening it, a port that introduces three units and wires them
+    // into six files reads as six foreign dependencies — the opposite of the
+    // signal, and precisely on the change a guardrail should be quiet about.
+    let mut s = ImportGraphScorer::new();
+    s.load_snapshot(["msetypes".to_string(), "sysutils".to_string()], []);
+
+    assert!(
+        s.is_foreign("mwayland"),
+        "unknown before the changeset says so"
+    );
+    s.extend_known(["mwayland".to_string()]);
+    assert!(!s.is_foreign("mwayland"), "declared by the changeset");
+
+    // And the hole this must not reopen: a genuine new dependency is never
+    // declared by a file in the diff, so it stays foreign.
+    assert!(s.is_foreign("fphttpclient"));
+}

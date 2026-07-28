@@ -12,9 +12,9 @@ use crate::scoring::adapters::Language;
 use crate::scoring::call_receiver::extract_callees;
 use crate::scoring::shape_primitive::{Baseline, ShapePrimitive};
 use crate::scoring::shape_primitives::population_mean_std;
-use std::cell::Cell;
 use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
+use std::sync::OnceLock;
 
 const MIN_VALID_FILES: usize = 3;
 const MIN_CALLS: usize = 2;
@@ -58,7 +58,7 @@ fn under_coverage(
 /// Callee-distribution under-coverage primitive. Language captured on fit.
 #[derive(Default)]
 pub struct CalleeDistributionUnderCoverage {
-    language: Cell<Option<Language>>,
+    language: OnceLock<Language>,
 }
 
 impl ShapePrimitive for CalleeDistributionUnderCoverage {
@@ -73,7 +73,7 @@ impl ShapePrimitive for CalleeDistributionUnderCoverage {
     }
 
     fn set_language(&self, language: Language) {
-        self.language.set(Some(language));
+        let _ = self.language.set(language);
     }
 
     fn fit_cluster_baseline(
@@ -81,7 +81,7 @@ impl ShapePrimitive for CalleeDistributionUnderCoverage {
         cluster_files: &[(PathBuf, String)],
         language: Language,
     ) -> Option<Baseline> {
-        self.language.set(Some(language));
+        let _ = self.language.set(language);
 
         // Pooled occurrence counts with first-insertion order for the
         // deterministic support cap.
@@ -152,7 +152,7 @@ impl ShapePrimitive for CalleeDistributionUnderCoverage {
         if cluster_size < self.min_cluster_size() {
             return 0.0;
         }
-        let Some(language) = self.language.get() else {
+        let Some(language) = self.language.get().copied() else {
             return 0.0;
         };
         let Some(divergence) = under_coverage(hunk, language, distribution) else {

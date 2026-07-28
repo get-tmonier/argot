@@ -1,6 +1,8 @@
 ---
+import HeroFormula from '#components/HeroFormula.astro';
 import Logo from '#components/Logo.astro';
 import VoiceField from '#components/VoiceField.astro';
+import { SITE } from '#lib/site';
 import { emphasize } from '#lib/text';
 import type { SiteContent } from '#i18n/types';
 
@@ -10,20 +12,44 @@ interface Props {
 }
 const { content } = Astro.props;
 const { hero } = content;
+
+// The rules, previewed as chips — same slugs the Demo tabs and the Catches
+// cards use below, so the vocabulary reads as one thread through the page.
+// `foreign-import` carries the "foreign" (flag) tier; the rest carry amber.
+// A confidence tier, not a ranking.
+const rules = [
+  { href: '#demo-tab-foreign-import', tier: 'flag' },
+  { href: '#demo-tab-redundant', tier: 'amber' },
+  { href: '#custom-rules', tier: 'custom' },
+] as const;
 ---
 
-<section class="snap-section relative flex overflow-hidden md:min-h-svh md:items-center">
+<section class="snap-section relative flex min-h-svh items-center overflow-hidden">
   <div class="hero-grid" aria-hidden="true"></div>
   <div class="hero-aurora" aria-hidden="true"></div>
   <VoiceField />
 
-  <div class="reveal relative z-10 mx-auto w-full max-w-3xl px-5 pt-28 pb-16 text-center md:py-10">
-    <div class="mb-4 inline-flex items-center gap-2.5">
+  <div class="reveal relative z-10 mx-auto w-full max-w-3xl px-5 pt-20 pb-16 text-center md:py-10">
+    <div class="mb-3 inline-flex items-center gap-2.5 sm:mb-4">
       <Logo size={36} draw />
       <span
         class="rounded-full border border-line-2 bg-panel/70 px-3 py-1 text-[0.65rem] font-semibold tracking-wide uppercase shadow-[0_0_24px_-6px_var(--ember-bright)] backdrop-blur-sm sm:text-xs"
       >
-        <span class="voice-text-shimmer">{hero.eyebrow}</span>
+        <span class="voice-text-shimmer">
+          {
+            hero.eyebrow.split(' · ').map((part, i, all) => (
+              <span
+                class:list={[
+                  i > 0 && i < all.length - 1 && 'eyebrow-mid',
+                  i > 0 && i === all.length - 1 && 'eyebrow-end',
+                ]}
+              >
+                {i > 0 ? ' · ' : ''}
+                {part}
+              </span>
+            ))
+          }
+        </span>
       </span>
     </div>
 
@@ -33,11 +59,11 @@ const { hero } = content;
     </h1>
 
     <p
-      class="mx-auto mt-5 max-w-lg text-base leading-relaxed text-balance text-ink-dim sm:text-lg"
+      class="mx-auto mt-4 max-w-lg text-base leading-relaxed text-balance text-ink-dim sm:mt-5 sm:text-lg"
       set:html={emphasize(hero.subtitle)}
     />
 
-    <div class="mt-7 flex justify-center">
+    <div class="mt-6 flex flex-col items-center justify-center gap-2.5 sm:mt-7 sm:flex-row sm:gap-3">
       <a
         href="#audit"
         class="group inline-flex min-h-12 w-full max-w-xs items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-ember to-ember-deep px-5 py-3 text-sm font-semibold text-bg shadow-lg shadow-ember/20 transition-transform hover:-translate-y-0.5 sm:w-auto"
@@ -45,11 +71,158 @@ const { hero } = content;
         {hero.ctaPrimary}
         <span class="transition-transform group-hover:translate-x-0.5">→</span>
       </a>
+      <a
+        href="/docs/setup-prompt/"
+        class="group inline-flex min-h-12 w-full max-w-xs items-center justify-center gap-2 rounded-xl border border-line bg-panel/50 px-5 py-3 text-sm font-semibold text-ink backdrop-blur-sm transition-colors hover:border-line-2 hover:bg-panel sm:w-auto"
+      >
+        {hero.ctaSetup}
+        <span class="transition-transform group-hover:translate-x-0.5">→</span>
+      </a>
+      <a
+        href={SITE.github}
+        target="_blank"
+        rel="noopener"
+        class="inline-flex min-h-12 w-full max-w-xs items-center justify-center gap-2 rounded-xl border border-line px-5 py-3 text-sm font-semibold text-ink-dim transition-colors hover:border-line-2 hover:text-ink sm:w-auto"
+      >
+        ★ {hero.ctaSecondary}
+      </a>
     </div>
+
+    {/* The film, and the model in one line. Both are the page's least generic
+        assets and both had been dropped: the formula is literally the score
+        this repo computes — a max of token surprise plus a capped
+        call-receiver penalty — written on load with a travelling ember pen. */}
+    <div class="mt-5">
+      <button
+        type="button"
+        data-film-open
+        aria-haspopup="dialog"
+        class="film-trigger group inline-flex items-center gap-2 text-sm font-medium text-ink-dim transition-colors hover:text-ink"
+      >
+        <span
+          class="grid place-items-center rounded-full border border-line-2 bg-panel/70 transition-colors group-hover:border-ember"
+          style="width: 1.9rem; height: 1.9rem"
+          aria-hidden="true"
+        >
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            class="text-ember"
+            style="margin-left: 1px"
+          >
+            <path d="M8 5v14l11-7z"></path>
+          </svg>
+        </span>
+        {hero.watchFilm}
+        <span class="text-muted">· 0:45</span>
+      </button>
+    </div>
+
+    <div class="hidden md:block">
+      <HeroFormula />
+    </div>
+
+    {/* A proof tier under the buttons: the hero otherwise ends on the CTAs and
+        reads empty on a phone, where `min-h-svh` centres it in a full screen.
+        These are the measured headline numbers, not adjectives. */}
+    <p
+      class="mx-auto mt-7 max-w-md text-xs leading-relaxed text-balance text-muted sm:mt-8 sm:text-sm"
+      set:html={emphasize(hero.proof)}
+    />
+
+    {/* Speed, demonstrated rather than asserted. The bar fills in exactly the
+        duration it names, so the claim times itself in front of the reader —
+        "one more slow thing in my loop" is what stops adoption faster than any
+        accuracy number, and a sentence never answers it. Measured 2026-07-29 on
+        a clean checkout: 148 ms for 2 changed files, 173 ms for 19, 764 ms for
+        194 — see docs/research/evidence/check-latency.md. */}
+    <p class="speed mx-auto mt-2.5 text-xs text-muted">
+      {hero.speed}
+      <span class="speed-chip">
+        <span class="speed-fill" aria-hidden="true"></span>
+        <span class="speed-value">{hero.speedValue}</span>
+      </span>
+    </p>
   </div>
 </section>
 
 <style>
+  .speed-chip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    margin-left: 0.4em;
+    padding: 0.1em 0.5em;
+    border: 1px solid var(--line-2);
+    border-radius: 6px;
+    overflow: hidden;
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-dim);
+  }
+  /* The fill runs for exactly the duration on the chip. */
+  .speed-fill {
+    position: absolute;
+    inset: 0;
+    transform-origin: left center;
+    scale: 0 1;
+    background: linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--ember) 30%, transparent),
+      color-mix(in srgb, var(--ember-bright) 42%, transparent)
+    );
+  }
+  .speed-value {
+    position: relative;
+  }
+  .reveal.is-visible .speed-fill {
+    animation: speed-run 200ms linear 1.15s both;
+  }
+  .speed-chip:hover .speed-fill {
+    animation: speed-run 200ms linear both;
+  }
+  @keyframes speed-run {
+    from {
+      scale: 0 1;
+    }
+    70% {
+      scale: 1 1;
+      opacity: 1;
+    }
+    to {
+      scale: 1 1;
+      opacity: 0;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .reveal.is-visible .speed-fill,
+    .speed-chip:hover .speed-fill {
+      animation: none;
+    }
+  }
+
+  /* The eyebrow reads as three claims separated by dots; on a phone the middle
+     one wraps it into a shouting three-line pill — keep the first and last
+     claims only. */
+  @media (max-width: 767px) {
+    .eyebrow-mid {
+      display: none;
+    }
+  }
+  /* The narrowest phones keep the first claim only — the others already live in
+     the subtitle right below. */
+  @media (max-width: 479px) {
+    .eyebrow-end {
+      display: none;
+    }
+  }
+
+  /* --- the rules, previewed as chips: same slugs the Demo tabs and the
+     Catches cards use, colour-coded by confidence tier, deep-linking down to
+     their card. They pop in just after the rest of the hero settles. --- */
+
   .hero-grid {
     position: absolute;
     inset: -2px;

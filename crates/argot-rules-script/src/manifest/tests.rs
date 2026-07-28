@@ -39,7 +39,6 @@ severity = "error"
 languages = ["python", "typescript"]
 
 [engine]
-api = 1
 script = "check.rhai"
 "#,
         r#"report(1, "x");"#,
@@ -87,14 +86,17 @@ fn rejections_are_per_rule_and_explain_themselves() {
         "",
     );
     assert!(load_rule_dir(&d).unwrap_err().contains("schema 9"));
-    // api from the future
+    // There is one host API, so a manifest declaring a generation of it is a
+    // manifest written against a concept argot no longer has — say so rather
+    // than accept and ignore it.
     let d = write_rule(
         &root,
         "api9",
         "[rule]\nschema = 1\nname = \"api9\"\n[engine]\napi = 9\n",
         "",
     );
-    assert!(load_rule_dir(&d).unwrap_err().contains("host API 9"));
+    let err = load_rule_dir(&d).unwrap_err();
+    assert!(err.contains("unknown field `api`"), "{err}");
     // dir/name mismatch
     let d = write_rule(
         &root,

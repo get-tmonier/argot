@@ -9,7 +9,7 @@ const canonicalManifest = manifest as ClaimManifest;
 
 test('canonical claims expose their value and qualifier through stable keys', () => {
   expect(claimValue('foreign.visible_symbol')).toBe(
-    '595/605 (98.3%) — detector-specific fixture recall; not a product-wide accuracy claim',
+    '620/637 (97.3%) — detector-specific fixture recall; not a product-wide accuracy claim',
   );
   expect(claim('performance.audit_timing').status).toBe('unavailable');
 });
@@ -19,8 +19,8 @@ test('manifest keeps the selected lineages and rejects known stale denominators'
   expect(
     canonicalManifest.claims.find((record) => record.key === 'foreign.visible_symbol'),
   ).toMatchObject({
-    numerator: 595,
-    denominator: 605,
+    numerator: 620,
+    denominator: 637,
   });
   expect(
     canonicalManifest.claims.find((record) => record.key === 'architecture.layering'),
@@ -28,9 +28,24 @@ test('manifest keeps the selected lineages and rejects known stale denominators'
     numerator: 264,
     denominator: 272,
   });
+  // The semantic senses report separately: misplacement abstains where a repo
+  // has no separable architecture, so its denominator covers only the corpora
+  // it could evaluate. One aggregate over both would hide that.
+  expect(
+    canonicalManifest.claims.find((record) => record.key === 'semantic.reinvention'),
+  ).toMatchObject({
+    numerator: 477,
+    denominator: 584,
+  });
+  expect(
+    canonicalManifest.claims.find((record) => record.key === 'semantic.misplacement'),
+  ).toMatchObject({
+    numerator: 15285,
+    denominator: 16032,
+  });
   expect(canonicalManifest.claims.find((record) => record.key === 'integrity.catch')).toMatchObject(
     {
-      numerator: 155,
+      numerator: 154,
       denominator: 164,
     },
   );
@@ -42,7 +57,7 @@ test('manifest keeps the selected lineages and rejects known stale denominators'
     validateManifest({
       ...canonicalManifest,
       claims: canonicalManifest.claims.map((record) =>
-        record.key === 'foreign.visible_symbol' ? { ...record, denominator: 618 } : record,
+        record.key === 'foreign.visible_symbol' ? { ...record, denominator: 700 } : record,
       ),
     }),
   ).toThrow('percentage does not match');

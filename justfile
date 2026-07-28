@@ -122,7 +122,43 @@ verify:
     cargo fmt --check
     cargo clippy --workspace --all-targets -- -D warnings
     cargo test --workspace
+    @just verify-features
+    @just _disk-guard
     @echo "✓ all checks passed"
+
+# `target/*/incremental` is a pure rebuild cache — deleting it costs one slower
+# recompile and nothing else — and it is the fastest-growing thing here: it
+# reached 57 GB, more than the rest of debug/ put together.
+# Reclaim disk from the build tree (safe any time; removes no build input).
+clean-cache:
+    @echo "before: $(du -sh target 2>/dev/null | cut -f1) in target/, $(df -h . | tail -1 | awk '{print $4}') free"
+    rm -rf target/debug/incremental target/release/incremental target/tmp
+    @echo "after:  $(du -sh target 2>/dev/null | cut -f1) in target/, $(df -h . | tail -1 | awk '{print $4}') free"
+
+# Warn — never delete — when the rebuild cache has grown past what a laptop
+# wants to carry. Cargo never garbage-collects target/, so it grows without
+# bound. This measures only what `clean-cache` can actually reclaim: warning on
+# total target/ size would keep firing after a clean, and an alarm you cannot
+# act on is one you learn to ignore. Advisory by design — a build tree
+# disappearing under a running agent is worse than a full disk.
+_disk-guard:
+    #!/usr/bin/env bash
+    gb=$(du -sgc target/*/incremental 2>/dev/null | tail -1 | cut -f1)
+    if [ "${gb:-0}" -ge 15 ]; then
+      echo "⚠ ${gb} GB of rebuild cache in target/ — \`just clean-cache\` reclaims it"
+    fi
+
+# The feature-gated slices, which `verify`'s featureless base loop does not
+# build. Release binaries ship every one of them, so a green base loop verifies
+# a configuration nobody runs: a test asserting behaviour that had changed sat
+# green locally through several pushes and only failed in CI. These three are
+# pure Rust and cost seconds; `semantic` needs the llama.cpp C++ build and stays
+# CI-only (see "Keep PR CI fast").
+verify-features:
+    for f in script arch integrity; do \
+        cargo clippy --workspace --all-targets --features "$f" -- -D warnings || exit 1; \
+        cargo test --workspace --features "$f" || exit 1; \
+    done
 
 verify-fix:
     cargo fmt

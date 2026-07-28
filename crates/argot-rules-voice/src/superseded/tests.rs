@@ -54,7 +54,7 @@ fn scan(
         &[],
         Registry::builtin(),
         &settings,
-        false,
+        argot_lang::ext::RepoLangs::default(),
     )
 }
 

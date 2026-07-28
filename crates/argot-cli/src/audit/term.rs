@@ -282,6 +282,35 @@ pub fn render(report: &AuditReport, color: bool) -> String {
     );
     push(&mut out, &format!("    {CI_GUIDE_URL}"));
 
+    // Calibration: a rule firing on this much of the repo's own accepted
+    // history is describing the repository, not flagging anything in it.
+    // Reported with the number so the reader can judge; never acted on.
+    if !report.over_firing.is_empty() {
+        push(&mut out, "");
+        push(
+            &mut out,
+            &bold(&format!("  Calibration {}", "─".repeat(WIDTH - 14))),
+        );
+        for r in &report.over_firing {
+            push(
+                &mut out,
+                &format!(
+                    "  {} fired on {:.1}% of scanned hunks ({} findings)",
+                    r.rule, r.rate_pct, r.findings
+                ),
+            );
+        }
+        for line in wrap(
+            "That is your own accepted history, so these are describing the repository \
+             rather than flagging it. Scope the rule to the tree that trips it \
+             (rule = { exclude = [...] }), soften it to \"warn\", or accept it — \
+             argot does not choose for you.",
+            WIDTH - 2,
+        ) {
+            push(&mut out, &dim(&format!("  {line}")));
+        }
+    }
+
     // Share affordance: the copy-pasteable hook, wrapped to the card width.
     if let Some(cap) = super::report::share_caption(report) {
         push(&mut out, "");
@@ -430,6 +459,7 @@ mod tests {
             },
             hunks_scanned: hunks,
             groups,
+            over_firing: super::super::report::over_firing_rules(&findings, hunks),
             findings,
         }
     }
@@ -571,5 +601,39 @@ mod tests {
             );
         }
         assert!(card.contains("… and 3 more"));
+    }
+
+    #[test]
+    fn a_rule_that_fires_on_its_own_history_is_called_out() {
+        // 30 findings over 200 scanned hunks is 15 % — a rule describing the
+        // repository, not flagging anything in it. A healthy repo sits at
+        // 0,3–0,7 % per rule (see OVER_FIRE_PCT).
+        let noisy: Vec<Finding> = (0..30)
+            .map(|i| {
+                finding(
+                    "unfamiliar-callee",
+                    "unusual",
+                    &format!("src/f{i}.rs"),
+                    Attribution::Human,
+                )
+            })
+            .collect();
+        let card = render(&base_report(noisy, 200), false);
+        assert!(card.contains("Calibration"), "{card}");
+        assert!(card.contains("unfamiliar-callee fired on 15.0%"), "{card}");
+        // It must propose, never decide.
+        assert!(card.contains("argot does not choose for you"), "{card}");
+    }
+
+    #[test]
+    fn a_quiet_repo_gets_no_calibration_section() {
+        // Two findings in 1 200 hunks is 0,17 % — normal, and the section must
+        // stay absent rather than render an empty heading.
+        let ok = vec![
+            finding("foreign-import", "unusual", "src/a.rs", Attribution::Human),
+            finding("foreign-import", "unusual", "src/b.rs", Attribution::Human),
+        ];
+        let card = render(&base_report(ok, 1200), false);
+        assert!(!card.contains("Calibration"), "{card}");
     }
 }

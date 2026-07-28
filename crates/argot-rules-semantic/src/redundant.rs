@@ -214,6 +214,7 @@ pub fn calibrate_reinvention(index: &SemanticIndex, recent: &[bool]) -> Reinvent
             end_line: e.line + 10,
             text: "x\n".repeat(12),
             embed_text: "x\n".repeat(12),
+            nested: false,
             callees: e.callees.clone(),
             subtokens: e.subtokens.clone(),
         };

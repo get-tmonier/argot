@@ -72,7 +72,7 @@ fn score_hunk_matches_python_golden_no_cr() {
         evidence_corpus: None,
         detect: argot_core::config::DetectConfig::default(),
     };
-    let mut scorer = SequentialImportBpeScorer::from_config(
+    let scorer = SequentialImportBpeScorer::from_config(
         &repo_files,
         GENERIC_BASELINE_JSON,
         Box::new(PythonAdapter::new()),

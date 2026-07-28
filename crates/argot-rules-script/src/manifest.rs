@@ -1,19 +1,13 @@
 //! The rule manifest — `.argot/rules/<name>/rule.toml`.
 //!
 //! The manifest is the declarative frame of a scripted rule: identity,
-//! default severity, language scope, and which host-API generation the
-//! script targets. The detection logic lives next to it in a Rhai script
+//! default severity, language scope, and which script file carries the logic
 //! (`check.rhai` by default). One rule per directory; the directory name and
 //! the manifest `name` must agree, so a rule is addressable by its path.
 
 use argot_engine::rules::{CustomRule, Severity};
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
-
-/// The newest host-API generation this build understands. A manifest asking
-/// for a newer one is skipped with a clear message — an old binary must never
-/// half-run a rule written against calls it doesn't have.
-pub const HOST_API_VERSION: u32 = 2;
 
 /// The manifest schema generation (the TOML shape itself).
 pub const MANIFEST_SCHEMA_VERSION: u32 = 1;
@@ -61,8 +55,6 @@ struct RawRule {
 #[derive(Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct RawEngine {
-    /// Host-API generation the script targets (default 1).
-    api: Option<u32>,
     /// Script file, relative to the rule directory (default `check.rhai`).
     script: Option<String>,
 }
@@ -146,13 +138,6 @@ pub fn load_rule_dir(dir: &Path) -> Result<ScriptRule, String> {
         return Err(format!(
             "{dir_name}: rule.toml schema {} — this argot understands schema {}",
             raw.rule.schema, MANIFEST_SCHEMA_VERSION
-        ));
-    }
-    let api = raw.engine.api.unwrap_or(1);
-    if api > HOST_API_VERSION {
-        return Err(format!(
-            "{dir_name}: targets host API {api} — this argot provides API {HOST_API_VERSION}; \
-             update argot to run this rule"
         ));
     }
     if raw.rule.name != dir_name {

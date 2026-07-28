@@ -606,6 +606,7 @@ pub fn run_audit(repo: &Path, spec: WindowSpec, format: AuditFormat) -> ExitCode
         },
         hunks_scanned,
         groups,
+        over_firing: crate::audit::report::over_firing_rules(&findings, hunks_scanned),
         findings,
     };
 

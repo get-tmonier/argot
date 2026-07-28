@@ -1,6 +1,6 @@
-//! Read-only repository access for scripts — host API v2.
+//! Read-only repository access for scripts.
 //!
-//! Everything a rule could reach before host API v2 was the changed file
+//! Everything a rule could reach at first was the changed file
 //! itself. That is enough for "this line is wrong" and structurally not enough
 //! for the whole family of rules about *two* files: a contract and the
 //! implementations that must answer it, a migration and the schema it belongs

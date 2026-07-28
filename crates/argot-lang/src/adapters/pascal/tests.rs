@@ -43,17 +43,98 @@ end.
 fn uses_clause_yields_top_segments() {
     let a = PascalAdapter::new();
     let imports = a.extract_imports(UNIT);
-    // interface + implementation uses, dotted unit collapses to its top segment.
-    assert!(imports.contains("SysUtils"), "{imports:?}");
-    assert!(imports.contains("Classes"), "{imports:?}");
+    // interface + implementation uses, dotted unit collapses to its top
+    // segment, every unit reduced to its case-insensitive identity.
+    assert!(imports.contains("sysutils"), "{imports:?}");
+    assert!(imports.contains("classes"), "{imports:?}");
     assert!(
-        imports.contains("Generics"),
+        imports.contains("generics"),
         "dotted → top segment: {imports:?}"
     );
     assert!(
-        imports.contains("StrUtils"),
+        imports.contains("strutils"),
         "impl-section uses: {imports:?}"
     );
+}
+
+#[test]
+fn unit_names_fold_to_one_identity() {
+    let a = PascalAdapter::new();
+    // Pascal is case-insensitive and MSEide/MSEgui writes all four spellings of
+    // this unit; four spellings must not read as four dependencies.
+    for spelling in ["SysUtils", "sysutils", "sysUtils", "Sysutils"] {
+        let imports = a.extract_imports(&format!("unit u;\ninterface\nuses\n {spelling};\n"));
+        assert!(imports.contains("sysutils"), "{spelling}: {imports:?}");
+    }
+    // …and a declaration compares equal to a `uses` of it, whatever the casing.
+    assert_eq!(
+        a.declared_module("unit MSEGui;\n"),
+        Some("msegui".to_string())
+    );
+}
+
+#[test]
+fn conditional_directive_inside_uses_does_not_hide_a_unit() {
+    let a = PascalAdapter::new();
+    // Verbatim from lib/common/kernel/linux/msesetlocale.pas — the `{$if}`
+    // branch has no trailing comma, so the grammar wraps `cwstring` in an ERROR
+    // node. Losing it made every later `uses cwstring` read as a new dependency.
+    let imports = a.extract_imports(
+        "unit u;\ninterface\nuses\n{$if defined(openbsd) or defined(darwin)} cwstring \
+         {$else} msecwstring {$endif} ,sysutils;\nimplementation\nend.",
+    );
+    assert!(imports.contains("cwstring"), "{imports:?}");
+    assert!(imports.contains("msecwstring"), "{imports:?}");
+    assert!(imports.contains("sysutils"), "{imports:?}");
+    // The `{$if …}` condition parses as a `pp` leaf: none of its identifiers
+    // may leak in as units.
+    assert!(!imports.contains("defined"), "{imports:?}");
+    assert!(!imports.contains("openbsd"), "{imports:?}");
+}
+
+#[test]
+fn a_unit_named_only_outside_the_first_branch_is_still_a_dependency() {
+    let a = PascalAdapter::new();
+    // Structure is read from one branch, because a conditional inside a
+    // declaration makes the others a broken duplicate of it and the unit is
+    // lost. Dependencies are read from all of them: 73 of mORMot's 229 units —
+    // the whole Delphi-only side, `jpeg`, `dbtables`, `midaslib`, the NexusDB
+    // family — are named only under a branch that is not the first, and a model
+    // that never learns them turns every later `uses` into a false alarm.
+    let imports = a.extract_imports(
+        "unit u;\ninterface\nuses\n  {$ifdef FPC}sockets{$else}winsock2{$endif}, sysutils;\n\
+         implementation\nend.",
+    );
+    assert!(imports.contains("sockets"), "{imports:?}");
+    assert!(imports.contains("winsock2"), "{imports:?}");
+    assert!(imports.contains("sysutils"), "{imports:?}");
+
+    // Reading the source twice must not report the same unit twice, nor move a
+    // span: both maskings preserve offsets, so the union dedupes on position.
+    let spans = a.extract_imports_with_spans(
+        "unit u;\ninterface\nuses\n  {$ifdef FPC}sockets{$else}winsock2{$endif};\n\
+         implementation\nend.",
+    );
+    let sockets: Vec<_> = spans.iter().filter(|(s, ..)| s == "sockets").collect();
+    assert_eq!(sockets.len(), 1, "{spans:?}");
+    assert_eq!(sockets[0].1, 4, "the span still addresses the original");
+}
+
+#[test]
+fn inline_comment_does_not_make_a_code_line_prose() {
+    let a = PascalAdapter::new();
+    // Verbatim shape from lib/common/kernel/sdl/msesystimer.pas: a unit
+    // commented out in place. Blanking the whole line as prose deleted the
+    // `uses` clause, after which the parser recovered the next constant as a
+    // module and the import stage scored a dependency that does not exist.
+    let src = "unit u;\ninterface\nuses\n msewinglob,mseevent,msesys,msedynload{,mseguiintf};\n";
+    let prose = a.prose_line_ranges(src);
+    assert!(!prose.contains(&4), "code line marked prose: {prose:?}");
+    let imports = a.extract_imports(src);
+    assert!(imports.contains("msedynload"), "{imports:?}");
+    // A line that is nothing but a comment still counts as prose.
+    let only = a.prose_line_ranges("unit u;\n// just a note\n");
+    assert!(only.contains(&2), "{only:?}");
 }
 
 #[test]
@@ -69,10 +150,12 @@ fn import_spans_point_at_top_segment() {
     let a = PascalAdapter::new();
     let spans = a.extract_imports_with_spans("uses Winapi.Windows, System.SysUtils;\n");
     let specs: Vec<&str> = spans.iter().map(|(s, ..)| s.as_str()).collect();
-    assert!(specs.contains(&"Winapi"), "{specs:?}");
-    assert!(specs.contains(&"System"), "{specs:?}");
+    assert!(specs.contains(&"winapi"), "{specs:?}");
+    assert!(specs.contains(&"system"), "{specs:?}");
     let (spec, line, col_start, col_end) = &spans[0];
     assert_eq!(*line, 1);
+    // The caret spans the source spelling, which the folded identity matches
+    // in length.
     assert_eq!(col_end - col_start, spec.len());
 }
 
@@ -191,4 +274,67 @@ fn module_declaration_name_reads_unit_program_library() {
 fn name_top_segment_splits_on_dot() {
     assert_eq!(name_top_segment("mormot.core.json"), "mormot");
     assert_eq!(name_top_segment("SysUtils"), "SysUtils");
+    assert_eq!(unit_identity("SysUtils"), "sysutils");
+}
+
+#[test]
+fn declared_module_reports_the_unit_this_file_defines() {
+    let a = PascalAdapter::new();
+    assert_eq!(
+        a.declared_module("unit mwayland;\ninterface\nimplementation\nend.\n"),
+        Some("mwayland".to_string())
+    );
+    // The licence header every MSEgui unit carries must not hide the name.
+    assert_eq!(
+        a.declared_module("{ Copyright (c) 1999\n  see COPYING }\nunit msegui;\n"),
+        Some("msegui".to_string())
+    );
+    // Reduced to the same top segment `extract_imports` produces, so a
+    // declaration and a `uses` entry compare equal.
+    assert_eq!(
+        a.declared_module("unit mormot.core.json;\n"),
+        Some("mormot".to_string())
+    );
+    assert_eq!(
+        a.declared_module("program demo;\n"),
+        Some("demo".to_string())
+    );
+    assert_eq!(a.declared_module("// nothing declared here\n"), None);
+}
+
+#[test]
+fn a_declared_unit_matches_how_that_unit_is_imported() {
+    // The property that makes the changeset-attestation work: whatever a file
+    // declares is exactly what a `uses` of it resolves to.
+    let a = PascalAdapter::new();
+    let declared = a
+        .declared_module("unit sdl4msegui;\ninterface\nend.\n")
+        .unwrap();
+    let imported = a.extract_imports("unit user;\ninterface\nuses\n sdl4msegui,msetypes;\n");
+    assert!(
+        imported.contains(&declared),
+        "declared {declared:?} not found in {imported:?}"
+    );
+}
+
+#[test]
+fn an_inline_comment_is_blanked_in_place_not_by_the_line() {
+    let a = PascalAdapter::new();
+    // Both halves of the same line matter: the code must survive the mask (or
+    // the import stage invents a dependency), and the prose must not (or a
+    // trailing `//  ^^^^ optional rounding` scores as the hunk's rarest
+    // tokens). Blanking the comment's span, not its line, is what does both.
+    let src = "unit u;\ninterface\nuses\n msedynload{,mseguiintf};\nimplementation\nbegin\n y:= x DIV 2;   // optional rounding\nend.\n";
+    assert!(!a.prose_line_ranges(src).contains(&4));
+    let spans = a.prose_spans(src);
+    let rows: Vec<usize> = spans.iter().map(|(r, ..)| *r).collect();
+    assert!(
+        rows.contains(&4),
+        "the `{{,mseguiintf}}` comment: {spans:?}"
+    );
+    assert!(rows.contains(&7), "the trailing `// …` comment: {spans:?}");
+    for (row, a_col, b_col) in &spans {
+        let line = src.split('\n').nth(row - 1).unwrap();
+        assert!(a_col < b_col && *b_col <= line.len(), "{spans:?}");
+    }
 }

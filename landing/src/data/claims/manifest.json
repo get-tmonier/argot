@@ -1,29 +1,51 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-07-22",
+  "generatedAt": "2026-07-28",
   "claims": [
     {
       "key": "foreign.visible_symbol",
       "status": "canonical",
       "source": "landing/src/data/foreign.json",
-      "revision": "7be8b1eb16addbde9af795d5bd76a4c2d8d3ebb4; generated_at=2026-07-14",
-      "observedAt": "2026-07-14",
-      "scope": "22 corpora / visible foreign-import and foreign-api fixture symbols after excluded-host purge",
+      "revision": "d1007f50; generated_at=2026-07-28",
+      "observedAt": "2026-07-28",
+      "scope": "36 corpora / 12 languages / visible foreign-import and foreign-api fixture symbols after excluded-host purge",
       "qualifier": "detector-specific fixture recall; not a product-wide accuracy claim",
-      "numerator": 595,
-      "denominator": 605,
-      "percentage": 98.34710743801654,
-      "supersedes": ["foreign.legacy"]
+      "numerator": 620,
+      "denominator": 637,
+      "percentage": 97.33124018838305,
+      "supersedes": [
+        "foreign.legacy"
+      ]
     },
     {
-      "key": "semantic.aggregate",
-      "status": "unavailable",
+      "key": "semantic.reinvention",
+      "status": "canonical",
       "source": "landing/src/data/semantic.json",
-      "revision": "a4c9dee5; generated_at=2026-07-14",
-      "observedAt": "2026-07-14",
-      "scope": "reinvention corpus records",
-      "qualifier": "no aggregate public claim approved",
-      "unavailableReason": "the source has per-corpus records but no traced aggregate lineage"
+      "revision": "3a3cb5f7; generated_at=2026-07-28",
+      "observedAt": "2026-07-28",
+      "scope": "31 corpora / 11 languages; authored reinvention fixtures, window 150",
+      "qualifier": "detector-specific fixture recall, aggregated over corpora that vary widely (28%-100%); median 89%. Not a product-wide accuracy claim",
+      "numerator": 477,
+      "denominator": 584,
+      "percentage": 81.67808219178082,
+      "supersedes": [
+        "semantic.aggregate"
+      ]
+    },
+    {
+      "key": "semantic.misplacement",
+      "status": "canonical",
+      "source": "landing/src/data/semantic.json",
+      "revision": "3a3cb5f7; generated_at=2026-07-28",
+      "observedAt": "2026-07-28",
+      "scope": "the 24 of 31 corpora with separable architecture / 11 languages; window 150. The other 7 abstain, having no layering the detector can read",
+      "qualifier": "detector-specific recall on evaluable corpora only; abstention elsewhere is by design, not a miss. Not a product-wide accuracy claim",
+      "numerator": 15285,
+      "denominator": 16032,
+      "percentage": 95.34056886227546,
+      "supersedes": [
+        "semantic.aggregate"
+      ]
     },
     {
       "key": "architecture.layering",
@@ -36,20 +58,24 @@
       "numerator": 264,
       "denominator": 272,
       "percentage": 97.05882352941177,
-      "supersedes": ["architecture.legacy"]
+      "supersedes": [
+        "architecture.legacy"
+      ]
     },
     {
       "key": "integrity.catch",
       "status": "canonical",
       "source": "docs/research/evidence/test-integrity-capstone.md",
-      "revision": "7886a7967c6fe5b822a249083c7871894db1efcf; Pascal extension dated 2026-07-20",
-      "observedAt": "2026-07-20",
-      "scope": "23 corpora / 12 languages; authored production fit-to-check gaming fixtures",
+      "revision": "1b0de32d; just integrity-verify, 2026-07-28",
+      "observedAt": "2026-07-28",
+      "scope": "23 corpora / 12 languages; authored test-gaming fixtures, production fit\u2192check",
       "qualifier": "detector-specific fixture catch; controls and accepted-history results are separate",
-      "numerator": 155,
+      "numerator": 154,
       "denominator": 164,
-      "percentage": 94.51219512195122,
-      "supersedes": ["integrity.original"]
+      "percentage": 93.90243902439023,
+      "supersedes": [
+        "integrity.original"
+      ]
     },
     {
       "key": "integrity.controls",
@@ -62,7 +88,9 @@
       "numerator": 0,
       "denominator": 106,
       "percentage": 0,
-      "supersedes": ["integrity.original.controls"]
+      "supersedes": [
+        "integrity.original.controls"
+      ]
     },
     {
       "key": "integrity.accepted_history",

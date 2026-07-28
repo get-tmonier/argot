@@ -1169,11 +1169,11 @@ fn detect_ruby_context(paths: &[&str]) -> (Vec<String>, HashSet<String>, Option<
     let mut roots: HashSet<String> = HashSet::from([String::new()]);
     for p in paths {
         let top = p.split('/').next().unwrap_or("");
-        if matches!(top, "lib" | "app") && p.contains('/') {
+        if matches!(top.to_ascii_lowercase().as_str(), "lib" | "app") && p.contains('/') {
             roots.insert(top.to_string());
         }
     }
-    let roots = sorted_roots(roots);
+    let roots = path_anchored_roots(roots, paths);
     let mut internal: HashSet<String> = HashSet::new();
     for p in paths {
         if let Some(layer) = layer_under(&roots, p) {
@@ -1185,20 +1185,21 @@ fn detect_ruby_context(paths: &[&str]) -> (Vec<String>, HashSet<String>, Option<
     (roots, internal, None)
 }
 
-/// Pascal: roots are the repo root plus any top-level `src`/`source`/`packages`
-/// dir; the layer is the first component under a root. `internal` collects those
-/// layer names (parity with the other path-anchored resolvers). The pathless
-/// `uses` resolution itself goes through the unit-name→layer index, built in
-/// `fit`.
+/// Pascal: roots are the repo root plus any top-level source dir by the usual
+/// names ([`is_conventional_source_dir`]), each descended through pure
+/// containers; the layer is the first component under a root. `internal`
+/// collects those layer names (parity with the other path-anchored resolvers).
+/// The pathless `uses` resolution itself goes through the unit-name→layer
+/// index, built in `fit`.
 fn detect_pascal_context(paths: &[&str]) -> (Vec<String>, HashSet<String>, Option<String>) {
     let mut roots: HashSet<String> = HashSet::from([String::new()]);
     for p in paths {
         let top = p.split('/').next().unwrap_or("");
-        if matches!(top, "src" | "source" | "packages" | "units" | "lib") && p.contains('/') {
+        if is_conventional_source_dir(top) && p.contains('/') {
             roots.insert(top.to_string());
         }
     }
-    let roots = sorted_roots(roots);
+    let roots = path_anchored_roots(roots, paths);
     let mut internal: HashSet<String> = HashSet::new();
     for p in paths {
         if let Some(layer) = layer_under(&roots, p) {
@@ -1232,11 +1233,83 @@ fn join_root(root: &str, sub: &str) -> String {
     }
 }
 
+/// Whether a top-level directory carries a source tree by the conventional
+/// names. Case-insensitive: Object Pascal projects ship `Source/` as readily as
+/// `source/`, and the name is a convention, not an identifier.
+fn is_conventional_source_dir(dir: &str) -> bool {
+    matches!(
+        dir.to_ascii_lowercase().as_str(),
+        "src" | "source" | "sources" | "packages" | "units" | "lib"
+    )
+}
+
 /// Sort roots longest-first (so `layer_under` prefers the most specific) into a Vec.
 fn sorted_roots(roots: HashSet<String>) -> Vec<String> {
     let mut v: Vec<String> = roots.into_iter().collect();
     v.sort_by_key(|d| std::cmp::Reverse(d.len()));
     v
+}
+
+/// Path-anchored roots for a repo, derived from the shape of its tree.
+///
+/// A directory that holds source files but is not itself a layer boundary is a
+/// *container*: taking "the first path component under the root" then yields
+/// the container's single child for every file and collapses the tree. `lib/`
+/// holding only `lib/common/` is that shape — MSEide/MSEgui's 924k lines came
+/// out as three nodes and five edges, and the rule never fired once in 400
+/// commits. Descending containers is the path-anchored analog of
+/// [`detect_bases`], which already does this for namespace-anchored languages
+/// (`com`→`google`→…).
+///
+/// The descent is structural — it names no directory — so it holds for any
+/// layout whose source root has a single package under it, not just this one.
+/// Which directories are *candidate* roots stays with the per-language
+/// resolver, which is where a language's conventions belong.
+fn path_anchored_roots(seeds: HashSet<String>, paths: &[&str]) -> Vec<String> {
+    sorted_roots(
+        seeds
+            .into_iter()
+            .map(|r| descend_container(&r, paths))
+            .collect(),
+    )
+}
+
+/// Descend `root` while it is a pure container: no source file of its own and
+/// exactly one sub-directory. Bounded by the deepest path, so it always halts.
+///
+/// Only the unambiguous case. A *dominant*-child rule was measured and
+/// rejected: across eleven corpora no top-level directory reaches 90% of its
+/// tree, and this repo's own `lib/` is 78% — every corpus root is a genuine
+/// fan-out, so a share threshold either never fires or restructures trees whose
+/// layering was already right. Descending a dominant child would also strand
+/// its smaller siblings, which the namespace-anchored [`detect_bases`] can
+/// afford to split out and a directory tree cannot.
+fn descend_container(root: &str, paths: &[&str]) -> String {
+    let mut root = root.to_string();
+    loop {
+        let prefix = if root.is_empty() {
+            String::new()
+        } else {
+            format!("{root}/")
+        };
+        let mut children: HashSet<&str> = HashSet::new();
+        let mut has_own_file = false;
+        for p in paths {
+            let Some(rest) = p.strip_prefix(prefix.as_str()) else {
+                continue;
+            };
+            match rest.split_once('/') {
+                Some((child, _)) => {
+                    children.insert(child);
+                }
+                None => has_own_file = true,
+            }
+        }
+        if has_own_file || children.len() != 1 {
+            return root;
+        }
+        root = join_root(&root, children.into_iter().next().unwrap());
+    }
 }
 
 /// The layer name for the path components below a namespace prefix: the first, or
@@ -1317,7 +1390,7 @@ fn c_source_roots(paths: &[&str]) -> Vec<String> {
             roots.insert(String::new());
         }
     }
-    sorted_roots(roots)
+    path_anchored_roots(roots, paths)
 }
 
 /// Distinct TS/JS source roots (a file's layer is the first dir under one): the
@@ -1334,9 +1407,7 @@ fn ts_source_roots(paths: &[&str]) -> Vec<String> {
             roots.insert(String::new());
         }
     }
-    let mut v: Vec<String> = roots.into_iter().collect();
-    v.sort_by_key(|d| std::cmp::Reverse(d.len()));
-    v
+    path_anchored_roots(roots, paths)
 }
 
 /// The `module X` line of a `go.mod`.
@@ -2037,6 +2108,40 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec!["org.junit".to_string()]
         );
+    }
+
+    #[test]
+    fn a_root_holding_one_sub_directory_is_a_container_not_a_layer() {
+        // MSEide/MSEgui: `lib/` holds only `lib/common/`, which holds the 27
+        // real subsystems. Taking "the first component under a root" collapsed
+        // 924k lines of Object Pascal to three nodes (common / apps / tools),
+        // five edges, and the rule never fired once in 400 commits.
+        let paths = vec![
+            "lib/common/kernel/msegui.pas",
+            "lib/common/kernel/msesys.pas",
+            "lib/common/graphics/msegraphics.pas",
+            "lib/common/widgets/msewidgets.pas",
+            "apps/ide/mseide.pas",
+            "tools/bmp2pas.pas",
+        ];
+        let (roots, internal, _) = detect_pascal_context(&paths);
+        assert!(
+            roots.contains(&"lib/common".to_string()),
+            "descend the container: {roots:?}"
+        );
+        assert_eq!(layer_under(&roots, paths[0]), Some("kernel".to_string()));
+        assert_eq!(layer_under(&roots, paths[2]), Some("graphics".to_string()));
+        // …without swallowing the siblings that are not under it.
+        assert_eq!(layer_under(&roots, paths[4]), Some("apps".to_string()));
+        assert_eq!(layer_under(&roots, paths[5]), Some("tools".to_string()));
+        for want in ["kernel", "graphics", "widgets", "apps", "tools"] {
+            assert!(internal.contains(want), "{want} missing from {internal:?}");
+        }
+
+        // A root that holds a file of its own is a real layer boundary: a
+        // single sub-directory beside `src/lib.rs` must not move the root.
+        let rust_like = vec!["src/main.rs", "src/util/helper.rs"];
+        assert_eq!(descend_container("src", &rust_like), "src");
     }
 
     #[test]

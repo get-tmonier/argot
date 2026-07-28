@@ -26,7 +26,10 @@ fn func(symbol: &str, path: &str) -> FunctionRef {
         end_line: 20,
         text: "def f():\n    a\n    b\n    c\n    d\n    e\n    g".into(),
         embed_text: "def f():\n    a\n    b\n    c\n    d\n    e\n    g".into(),
-        callees: Vec::new(),
+        // Placement abstains on a body that calls nothing, so a judgeable
+        // candidate has to reach for something.
+        nested: false,
+        callees: vec!["fetch".into()],
         subtokens: Vec::new(),
     }
 }
@@ -128,7 +131,83 @@ fn stub_and_new_dir_candidates_abstain() {
 }
 
 #[test]
+fn a_merged_group_is_named_by_the_directories_it_holds() {
+    // Three areas where two are entangled and merge under one label. The
+    // finding must name the directories the reader can open — the file's own
+    // and the peers' — never the merge group's label, which is a real
+    // directory neither of them is in. On MSEide/MSEgui that rendered as
+    // "looks like lib/common/kernel code filed under lib/common/dialogs" for a
+    // file in lib/common/dialogx whose nearest peer was in lib/common/graphics:
+    // both halves false, both naming real directories, so both believable.
+    let mut entries = Vec::new();
+    for i in 0..24 {
+        // `graphics` and `image` are one semantic blob → they merge, and the
+        // group is labelled after whichever is bigger. Both need enough
+        // functions to be areas in their own right rather than merging up.
+        let dir = if i % 2 == 0 {
+            "src/image"
+        } else {
+            "src/graphics"
+        };
+        entries.push(entry(
+            &format!("g{i}"),
+            &format!("{dir}/m{i}.py"),
+            vec![1.0, 0.01 * i as f32, 0.0],
+        ));
+    }
+    for i in 0..12 {
+        entries.push(entry(
+            &format!("d{i}"),
+            &format!("src/dialogs/v{i}.py"),
+            vec![0.0, 1.0, 0.02 * i as f32],
+        ));
+    }
+    let idx = SemanticIndex { dim: 3, entries };
+    let cfg = calibrate_placement(&idx);
+    assert!(cfg.enabled, "{cfg:?}");
+    assert_eq!(
+        cfg.area_map.get("src/image"),
+        cfg.area_map.get("src/graphics"),
+        "the two entangled areas must share one merge label: {:?}",
+        cfg.area_map
+    );
+    let scorer = PlacementScorer::new(&idx, &cfg);
+    let q = unit(vec![1.0, 0.02, 0.0]);
+    let f = scorer
+        .evaluate(&func("draw", "src/dialogs/form.py"), &q)
+        .expect("graphics-flavoured function filed under dialogs fires");
+    assert_eq!(f.actual_area, "src/dialogs", "the file's own directory");
+    // The peers decide the name, so it is a directory that actually holds
+    // them — not necessarily the label their merge group carries.
+    let peer_dirs: Vec<&str> = f.peers.iter().map(|(_, p, _)| parent_dir(p)).collect();
+    assert!(
+        peer_dirs.contains(&f.neighbor_area.as_str()),
+        "named {} but the peers live in {peer_dirs:?}",
+        f.neighbor_area
+    );
+}
+
+#[test]
 fn parent_dir_extracts_directory() {
     assert_eq!(parent_dir("src/ui/widgets.py"), "src/ui");
     assert_eq!(parent_dir("main.py"), "");
+}
+
+#[test]
+fn a_body_that_calls_nothing_has_no_architectural_home() {
+    // Four Object Pascal property setters in one new dialog form were reported
+    // as graphics code: `Font.ColorBackground := aValue` is written entirely
+    // out of the names it assigns, so it embeds as whatever unit owns them.
+    // Long enough to clear the line floor, and still not judgeable.
+    let idx = index();
+    let cfg = calibrate_placement(&idx);
+    let scorer = PlacementScorer::new(&idx, &cfg);
+    let q = unit(vec![1.0, 0.03, 0.0]);
+    let mut setter = func("set_fontcolor", "src/ui/widgets.py");
+    assert!(
+        scorer.evaluate(&setter, &q).is_some(),
+        "the same function with a call in it is judged"
+    );
+    setter.callees.clear();
+    assert!(scorer.evaluate(&setter, &q).is_none());
 }

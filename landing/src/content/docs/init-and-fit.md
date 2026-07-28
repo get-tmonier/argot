@@ -49,10 +49,27 @@ Each `check` can schedule a background refresh when the accepted-history fit is 
 uses an accepted-history anchor and avoids dirty or unmerged source changes; it can be disabled with
 `[fit] auto-refresh = false`. It does not replace a deliberate refit after you change exclusions.
 
+## Adopting on an existing codebase
+
+A repository with history will have findings the day you fit it. Decide which
+starting line you want before wiring argot into anything:
+
+- **Baseline** — `argot check --add-ignores` writes an inline ignore above every finding that
+  exists today, so only new code is judged from here. Right for a mature codebase adopting argot
+  without a cleanup project first. Those ignores are a snapshot: re-score them periodically, or the
+  baseline quietly becomes permanent.
+- **Clean slate** — fix or mute the existing findings now. Right for a smaller or younger repository.
+
 ## Health and offline use
 
 `argot inspect` reports `Ready`, `Ready with notes`, or `Not recommended`. Treat notes as tuning
-evidence, and down-weight findings if the fit is not recommended. The semantic index uses a local
+evidence, and down-weight findings if the fit is not recommended. `--format json` makes the verdict
+and its reasons machine-readable, so a setup flow can gate on them rather than eyeball a line.
+
+One reason is worth acting on immediately: `voice_not_where_the_work_is` means a directory shapes a
+large share of the voice while taking almost none of the recent changes — a model learned from code
+nobody edits, judging the code everybody does. It names the directory and both shares. If that tree
+is demos, vendored, or generated, exclude it and refit. The semantic index uses a local
 embedding model that may download once to a machine cache. Run `argot model fetch` before going
 offline, or use the offline configuration where semantic checks are unavailable.
 

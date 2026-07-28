@@ -147,7 +147,7 @@ fn new_code_cannot_attest_its_own_callees() {
     let baseline = std::fs::read(repo.join(".argot/generic-baseline.json")).unwrap();
 
     // Snapshot path (what check does now): the new callees are unattested.
-    let mut from_snapshot = SequentialImportBpeScorer::from_model(
+    let from_snapshot = SequentialImportBpeScorer::from_model(
         &model,
         &baseline,
         Box::new(PythonAdapter::new()),
@@ -175,7 +175,7 @@ fn new_code_cannot_attest_its_own_callees() {
         .map(PathBuf::from)
         .filter_map(|p| read_text_lossy(&p).ok().map(|s| (p, s)))
         .collect();
-    let mut from_disk = SequentialImportBpeScorer::from_config(
+    let from_disk = SequentialImportBpeScorer::from_config(
         &repo_files,
         &baseline,
         Box::new(PythonAdapter::new()),

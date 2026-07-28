@@ -12,8 +12,8 @@
 use crate::scoring::adapters::Language;
 use crate::scoring::shape_primitive::{Baseline, ShapePrimitive};
 use crate::scoring::shape_primitives::{is_call_kind, parse, population_mean_std, walk_preorder};
-use std::cell::Cell;
 use std::path::PathBuf;
+use std::sync::OnceLock;
 use tree_sitter::Node;
 
 /// Boundary kinds between module scope and nested scope, per grammar.
@@ -56,7 +56,7 @@ fn fraction_module_scope(source: &str, language: Language) -> Option<f64> {
 /// (interior mutability) and reused at score time.
 #[derive(Default)]
 pub struct CallScopeFraction {
-    language: Cell<Option<Language>>,
+    language: OnceLock<Language>,
 }
 
 impl ShapePrimitive for CallScopeFraction {
@@ -71,7 +71,7 @@ impl ShapePrimitive for CallScopeFraction {
     }
 
     fn set_language(&self, language: Language) {
-        self.language.set(Some(language));
+        let _ = self.language.set(language);
     }
 
     fn fit_cluster_baseline(
@@ -79,7 +79,7 @@ impl ShapePrimitive for CallScopeFraction {
         cluster_files: &[(PathBuf, String)],
         language: Language,
     ) -> Option<Baseline> {
-        self.language.set(Some(language));
+        let _ = self.language.set(language);
         let mut fractions: Vec<f64> = Vec::new();
         for (_path, source) in cluster_files {
             if let Some(frac) = fraction_module_scope(source, language) {
@@ -100,7 +100,7 @@ impl ShapePrimitive for CallScopeFraction {
         if cluster_size < self.min_cluster_size() {
             return 0.0;
         }
-        let Some(language) = self.language.get() else {
+        let Some(language) = self.language.get().copied() else {
             return 0.0;
         };
         let Some(hunk_frac) = fraction_module_scope(hunk, language) else {

@@ -91,6 +91,18 @@ struct Manifest {
     fit_timestamp: String,
     corpus: CorpusSummary,
     languages: Vec<LangSummary>,
+    /// Languages present in the corpus but too thin to learn a voice from, and
+    /// therefore not checked at all. Recorded so the skip is inspectable rather
+    /// than silent — silence that means *not checked* must not read as silence
+    /// that means *nothing found*. See [`MIN_LANGUAGE_FILES`].
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    unlearnable_languages: Vec<UnlearnableLanguage>,
+}
+
+#[derive(Serialize, Default)]
+struct UnlearnableLanguage {
+    language: String,
+    files: usize,
 }
 
 #[derive(Serialize)]
@@ -163,12 +175,29 @@ fn rglob_sorted(dir: &Path, ext: &str) -> Vec<PathBuf> {
     out
 }
 
-/// [`language_for_filename`], but resolving the C/C++ `.h` ambiguity with a
-/// repo-level `header_is_cpp` decision so all stages agree.
-pub fn language_for_filename_ctx(name: &str, header_is_cpp: bool) -> Option<Language> {
-    match (language_for_filename(name), header_is_cpp) {
-        (Some(Language::C), true) if name.ends_with(".h") => Some(Language::Cpp),
-        (other, _) => other,
+/// [`language_for_filename`], but resolving the extensions the name alone cannot
+/// settle (`.h` → C/C++, `.inc` → Pascal/C) against what the repository writes,
+/// so fit and check route a file the same way. See
+/// [`argot_lang::ext::ext_to_lang_ctx`], which this must agree with.
+pub fn language_for_filename_ctx(
+    name: &str,
+    langs: argot_lang::ext::RepoLangs,
+) -> Option<Language> {
+    let ext = argot_lang::ext::extension(name);
+    match argot_lang::ext::ext_to_lang_ctx(&ext, langs)? {
+        "python" => Some(Language::Python),
+        "typescript" => Some(Language::Typescript),
+        "javascript" => Some(Language::Javascript),
+        "go" => Some(Language::Go),
+        "rust" => Some(Language::Rust),
+        "c" => Some(Language::C),
+        "java" => Some(Language::Java),
+        "csharp" => Some(Language::CSharp),
+        "php" => Some(Language::Php),
+        "cpp" => Some(Language::Cpp),
+        "ruby" => Some(Language::Ruby),
+        "pascal" => Some(Language::Pascal),
+        _ => None,
     }
 }
 
@@ -288,23 +317,37 @@ pub fn collect_candidates_with(
     detect: &argot_engine::config::DetectConfig,
 ) -> Vec<Candidate> {
     // `.h` routes to whichever of C / C++ this repo predominantly is, so a
-    // header-only C++ library's headers calibrate under the C++ model, not C.
-    let exts: Vec<&str> = match adapter.language() {
+    // header-only C++ library's headers calibrate under the C++ model, not C;
+    // `.inc` to Pascal only where the repo has Pascal units. One walk answers
+    // both, and this must agree with `language_for_filename_ctx` — a file
+    // collected here under one language and scored under another is a model
+    // learning code it will never be asked about.
+    let langs = argot_engine::corpus::repo_langs(source_dir);
+    let inc_is: Option<Language> = match (langs.has_pascal_units, langs.has_c_units) {
+        (true, _) => Some(Language::Pascal),
+        (false, true) if langs.header_is_cpp => Some(Language::Cpp),
+        (false, true) => Some(Language::C),
+        (false, false) => None,
+    };
+    let mut exts: Vec<&str> = match adapter.language() {
         Language::Python => vec![".py"],
         Language::Typescript => vec![".ts", ".tsx"],
         Language::Javascript => vec![".js", ".jsx"],
         Language::Go => vec![".go"],
         Language::Rust => vec![".rs"],
-        Language::C if header_is_cpp(source_dir) => vec![".c"],
+        Language::C if langs.header_is_cpp => vec![".c"],
         Language::C => vec![".c", ".h"],
         Language::Java => vec![".java"],
         Language::CSharp => vec![".cs"],
         Language::Php => vec![".php"],
-        Language::Cpp if header_is_cpp(source_dir) => vec![".cpp", ".cc", ".hpp", ".cxx", ".h"],
+        Language::Cpp if langs.header_is_cpp => vec![".cpp", ".cc", ".hpp", ".cxx", ".h"],
         Language::Cpp => vec![".cpp", ".cc", ".hpp", ".cxx"],
         Language::Ruby => vec![".rb"],
-        Language::Pascal => vec![".pas", ".pp", ".dpr", ".lpr", ".inc"],
+        Language::Pascal => vec![".pas", ".pp", ".dpr", ".lpr"],
     };
+    if inc_is == Some(adapter.language()) {
+        exts.push(".inc");
+    }
     let head = HeadSource::new(source_dir);
     let mut out = Vec::new();
     for &ext in &exts {
@@ -360,20 +403,32 @@ pub fn sample_indices(len: usize, n: usize, seed: u64) -> Vec<usize> {
 }
 
 /// Reimpl of `_blank_prose_lines` (keepends).
-fn blank_prose_lines(src: &str, ranges: &HashSet<usize>) -> String {
-    if ranges.is_empty() {
+fn blank_prose_lines(
+    src: &str,
+    ranges: &HashSet<usize>,
+    spans: &[(usize, usize, usize)],
+) -> String {
+    if ranges.is_empty() && spans.is_empty() {
         return src.to_string();
     }
     let lines = splitlines_keepends(src);
     let mut result = String::with_capacity(src.len());
     for (i, line) in lines.iter().enumerate() {
-        if ranges.contains(&(i + 1)) {
+        let ln = i + 1;
+        if ranges.contains(&ln) {
             if line.ends_with('\n') {
                 result.push('\n');
             }
-        } else {
-            result.push_str(line);
+            continue;
         }
+        let mut masked = line.to_string();
+        for (_, a, b) in spans.iter().filter(|(r, ..)| *r == ln) {
+            let (a, b) = ((*a).min(masked.len()), (*b).min(masked.len()));
+            if a < b && masked.is_char_boundary(a) && masked.is_char_boundary(b) {
+                masked.replace_range(a..b, &" ".repeat(b - a));
+            }
+        }
+        result.push_str(&masked);
     }
     result
 }
@@ -419,6 +474,15 @@ struct LangConfig {
     /// `check` applies it only to new-file hunks; existing files keep
     /// `threshold`. Never below `threshold`.
     new_file_threshold: f64,
+    /// How the threshold scales with hunk size, fitted from this repo's own
+    /// calibration sample — see [`fit_size_slope`]. `check` raises the bar by
+    /// `size_slope · ln(lines / size_reference_lines)`, so a hunk of the
+    /// repo's typical size sees exactly `threshold`. 0 disables the
+    /// correction, which is what pre-existing configs read as.
+    #[serde(default)]
+    size_slope: f64,
+    #[serde(default)]
+    size_reference_lines: usize,
     call_receiver_alpha: f64,
     call_receiver_cap: usize,
     call_receiver_root_bonus: f64,
@@ -600,6 +664,46 @@ struct ScorerConfig {
     corpus_files: Vec<String>,
 }
 
+/// A language needs this many files in the fit corpus before its scorer may
+/// gate. Below it there is no voice to learn: the vocabulary is so small that
+/// anything new is unseen by construction.
+///
+/// Measured over the 36 benchmark corpora: language cells with fewer than 50
+/// replayed hunks false-alarm at **21,9 % (41/187)** against **1,3 %
+/// (472/35 630)** for the rest — 17× worse. 35 of 97 cells hold ≤10 files and
+/// every one is incidental: one Ruby file in castle-engine, one Rust file in
+/// dagster, one `.inc` in rocksdb, two each of Go/Java/C#/PHP/C++ in bat (a
+/// Rust tool carrying syntax *samples*). None is a language its repo writes.
+/// The worst cells fire on everything — `rocksdb/pascal` 27/27, `curl/pascal`
+/// 2/2. Ten matches [`SLICE_AUTO_MIN_FILES`], the same "enough to be a thing"
+/// floor this file already applies to directories.
+const MIN_LANGUAGE_FILES: usize = 10;
+
+/// Drop languages the repo has barely written, returning `(language, files)`
+/// for each, sorted. They get no scorer, so `check` abstains on their files the
+/// same way it does for an unsupported extension — the caller reports them.
+///
+/// Only ever drops a language when another one clears the floor: a genuinely
+/// small single-language repo keeps its voice, since there the file count is
+/// the repo's size rather than evidence the language is incidental.
+fn drop_unlearnable_languages(
+    by_lang: &mut BTreeMap<&'static str, (Language, Vec<PathBuf>)>,
+) -> Vec<(String, usize)> {
+    if !by_lang
+        .values()
+        .any(|(_, files)| files.len() >= MIN_LANGUAGE_FILES)
+    {
+        return Vec::new();
+    }
+    let dropped: Vec<(String, usize)> = by_lang
+        .iter()
+        .filter(|(_, (_, files))| files.len() < MIN_LANGUAGE_FILES)
+        .map(|(name, (_, files))| (name.to_string(), files.len()))
+        .collect();
+    by_lang.retain(|_, (_, files)| files.len() >= MIN_LANGUAGE_FILES);
+    dropped
+}
+
 fn adapter_for(language: Language) -> Box<dyn LanguageAdapter> {
     match language {
         Language::Python => Box::new(PythonAdapter::new()),
@@ -718,19 +822,45 @@ pub fn multi_seed_thresholds(
     typicality: &TypicalityModel,
     cfg: &ThresholdRunConfig,
 ) -> Vec<f64> {
+    multi_seed_thresholds_sized(
+        candidates,
+        bpe,
+        per_file_counts,
+        call_receiver,
+        adapter,
+        typicality,
+        cfg,
+    )
+    .0
+}
+
+/// [`multi_seed_thresholds`], also returning every `(hunk lines, score)` pair
+/// it scored — the sample [`fit_size_slope`] regresses on, collected here so
+/// the size fit costs no extra scoring.
+#[allow(clippy::too_many_arguments)]
+pub fn multi_seed_thresholds_sized(
+    candidates: &[Candidate],
+    bpe: &BpeScorer,
+    per_file_counts: Option<&PerFileTokenCounts>,
+    call_receiver: &mut CallReceiverScorer,
+    adapter: &dyn LanguageAdapter,
+    typicality: &TypicalityModel,
+    cfg: &ThresholdRunConfig,
+) -> (Vec<f64>, Vec<(usize, f64)>) {
     let effective_n_cal = cfg.n_cal.min(candidates.len());
-    let mut seed_thresholds = Vec::new();
+    let mut per_seed: Vec<Vec<(usize, f64)>> = Vec::new();
+    let mut sized: Vec<(usize, f64)> = Vec::new();
     for k in 0..cfg.n_seeds {
         let seed = cfg.base_seed.wrapping_add(k as u64);
         let idx = sample_indices(candidates.len(), effective_n_cal, seed);
-        let mut cal_scores = Vec::new();
+        let mut cal_scores: Vec<(usize, f64)> = Vec::new();
         for &i in &idx {
             let c = &candidates[i];
             if typicality.is_atypical(&c.hunk).0 {
                 continue;
             }
             let prose = adapter.prose_line_ranges(&c.hunk);
-            let blanked = blank_prose_lines(&c.hunk, &prose);
+            let blanked = blank_prose_lines(&c.hunk, &prose, &adapter.prose_spans(&c.hunk));
             let raw_bpe = match per_file_counts.and_then(|m| m.get(&c.file_path)) {
                 Some(counts) => bpe.bpe_score_excluding(&blanked, counts),
                 None => bpe.bpe_score(&blanked),
@@ -754,13 +884,164 @@ pub fn multi_seed_thresholds(
                 Some((&c.file_source, c.hunk_start_line, c.hunk_end_line)),
                 &Default::default(),
             );
-            cal_scores.push(raw_bpe + contrib);
+            let score = raw_bpe + contrib;
+            let lines = c.hunk.lines().count();
+            if k == 0 {
+                sized.push((lines, score));
+            }
+            cal_scores.push((lines, score));
         }
-        // threshold_percentile default 100 → max.
-        let t = cal_scores.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-        seed_thresholds.push(if t.is_finite() { t } else { 0.0 });
+        per_seed.push(cal_scores);
     }
-    seed_thresholds
+
+    // The threshold stays `max(score)`, exactly as before. Two earlier shapes
+    // were measured and rejected:
+    //
+    // * Calibrating raw and subtracting the correction at check **double-counts**
+    //   — `max` is typically attained on a large candidate, so the threshold
+    //   already carries that hunk's size bonus. Cost 34 catches (613/756).
+    // * Calibrating over *corrected* scores fixes that, but only while the
+    //   correction is symmetric. Clamped below the reference — which is what
+    //   keeps ordinary changes judged as they are today — it lowers the
+    //   threshold without lowering the bar for the hunks that set it, so
+    //   everything small fires more: fastapi 1,46 % → 1,75 %, ideu 0,69 % →
+    //   0,78 % over-fire.
+    //
+    // Leaving the threshold alone and adjusting only above the reference is
+    // surgical: below it nothing changes at all, by construction.
+    let seed_thresholds = per_seed
+        .iter()
+        .map(|cal_scores| {
+            let t = cal_scores
+                .iter()
+                .map(|(_, score)| *score)
+                .fold(f64::NEG_INFINITY, f64::max);
+            if t.is_finite() {
+                t
+            } else {
+                0.0
+            }
+        })
+        .collect();
+    (seed_thresholds, sized)
+}
+
+/// The threshold's dependence on hunk size, learned from the repo's own
+/// calibration sample.
+///
+/// `bpe_score` is a **max over the hunk's tokens**, so by extreme-value theory
+/// `E[max of N]` grows about logarithmically in N whatever the token-surprise
+/// distribution is. Measured on argot's own corpus the effect is exactly that
+/// and it is large: mean score 1,68 at 6–10 lines against 3,90 at 321+, fitting
+/// `0,515 + 0,551·ln(lines)` on the full score. Against a single scalar
+/// threshold a big hunk is therefore *mechanically* closer to firing, with no
+/// change in how foreign it is — which is why whole-file rewrites flooded the
+/// benchmark's false alarms (29,3 % of them came from hunks over 50 lines).
+///
+/// Returns `(slope, reference_lines)`. `check` raises the bar by
+/// `slope · ln(lines / reference_lines)`, so a hunk of the repo's typical size
+/// sees exactly the calibrated threshold and the correction is a pure
+/// adjustment for scale.
+///
+/// Yields a zero slope — no correction at all — when the sample is too small to
+/// fit, when the fit comes out negative (nothing to correct for), or when the
+/// candidates carry too little size spread to regress on. Refusing to fit is
+/// always safe: the behaviour is then exactly today's scalar threshold.
+pub fn fit_size_slope(sized: &[(usize, f64)]) -> (f64, usize) {
+    const MIN_SAMPLE: usize = 60;
+    /// Below this spread in ln(lines) the sample is one size, and the slope
+    /// would be noise divided by nearly zero.
+    const MIN_LN_SPREAD: f64 = 0.75;
+    /// Regressing raw scores is not robust: they are heavy-tailed (the score is
+    /// itself a max), so a handful of very surprising hunks drag the slope.
+    /// Measured across corpora that gave 0,63 to 1,44 for what theory says is
+    /// one quantity, and fmt's inflated 1,02 cost three catches. Bin by size and
+    /// regress the per-bin **median** instead — the bin medians are the clean
+    /// monotone signal the raw points only hint at.
+    const BINS: usize = 8;
+    /// A bin with fewer than this contributes only noise to the line.
+    const MIN_PER_BIN: usize = 8;
+
+    let pts: Vec<(f64, f64)> = sized
+        .iter()
+        .filter(|(n, s)| *n > 0 && s.is_finite())
+        .map(|(n, s)| ((*n as f64).ln(), *s))
+        .collect();
+    if pts.len() < MIN_SAMPLE {
+        return (0.0, 0);
+    }
+    // The reference is a HIGH percentile, not the median. The artefact only
+    // needs neutralising in the tail: below it there is ample calibration data
+    // and the flat threshold is already the right bar, so taxing ordinary
+    // changes from the median up only costs recall — measured, it cost fmt
+    // three catches. Anchoring at p90 leaves nine hunks in ten judged exactly
+    // as they are today and bends the bar only where rewrites live.
+    let mut lines: Vec<usize> = sized.iter().map(|(n, _)| *n).filter(|n| *n > 0).collect();
+    lines.sort_unstable();
+    let reference = lines[(lines.len() * 9 / 10).min(lines.len() - 1)].max(1);
+
+    let (min_x, max_x) = pts.iter().fold((f64::MAX, f64::MIN), |(lo, hi), (x, _)| {
+        (lo.min(*x), hi.max(*x))
+    });
+    if max_x - min_x < MIN_LN_SPREAD {
+        return (0.0, reference);
+    }
+
+    // Equal-width bins over ln(lines), each reduced to (bin centre, median).
+    let width = (max_x - min_x) / BINS as f64;
+    let mut binned: Vec<(f64, f64)> = Vec::new();
+    for b in 0..BINS {
+        let lo = min_x + width * b as f64;
+        let hi = if b + 1 == BINS {
+            max_x + 1e-9
+        } else {
+            lo + width
+        };
+        let mut ys: Vec<f64> = pts
+            .iter()
+            .filter(|(x, _)| *x >= lo && *x < hi)
+            .map(|(_, y)| *y)
+            .collect();
+        if ys.len() < MIN_PER_BIN {
+            continue;
+        }
+        ys.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        let xs: f64 = pts
+            .iter()
+            .filter(|(x, _)| *x >= lo && *x < hi)
+            .map(|(x, _)| *x)
+            .sum::<f64>()
+            / ys.len() as f64;
+        binned.push((xs, ys[ys.len() / 2]));
+    }
+    if binned.len() < 3 {
+        return (0.0, reference);
+    }
+
+    let n = binned.len() as f64;
+    let sx: f64 = binned.iter().map(|(x, _)| x).sum();
+    let sy: f64 = binned.iter().map(|(_, y)| y).sum();
+    let sxx: f64 = binned.iter().map(|(x, _)| x * x).sum();
+    let sxy: f64 = binned.iter().map(|(x, y)| x * y).sum();
+    let denom = n * sxx - sx * sx;
+    if denom.abs() < f64::EPSILON {
+        return (0.0, reference);
+    }
+    let slope = (n * sxy - sx * sy) / denom;
+    if !slope.is_finite() || slope <= 0.0 {
+        return (0.0, reference);
+    }
+    (slope, reference)
+}
+
+/// How much the calibrated threshold rises for a hunk of `lines`, given the
+/// fitted `(slope, reference)` — see [`fit_size_slope`]. Zero slope, an unset
+/// reference, or an empty hunk mean no adjustment.
+pub fn size_threshold_adjustment(lines: usize, slope: f64, reference: usize) -> f64 {
+    if slope <= 0.0 || reference == 0 || lines <= reference {
+        return 0.0;
+    }
+    slope * (lines as f64 / reference as f64).ln()
 }
 
 /// Per-seed **new-file** thresholds: like [`multi_seed_thresholds`], but each
@@ -797,7 +1078,7 @@ pub fn multi_seed_new_file_thresholds(
                 continue;
             }
             let prose = adapter.prose_line_ranges(&c.hunk);
-            let blanked = blank_prose_lines(&c.hunk, &prose);
+            let blanked = blank_prose_lines(&c.hunk, &prose, &adapter.prose_spans(&c.hunk));
             let raw_bpe = match per_file_counts.and_then(|m| m.get(&c.file_path)) {
                 Some(counts) => bpe.bpe_score_excluding(&blanked, counts),
                 None => bpe.bpe_score(&blanked),
@@ -983,8 +1264,9 @@ pub fn run_calibrate(
         bail!("empty repo corpus");
     }
 
-    // Partition corpus by language (routing `.h` per the repo's C/C++ majority).
-    let header_cpp = header_is_cpp(repo_dir);
+    // Partition corpus by language, routing `.h` and `.inc` per what the repo
+    // itself writes.
+    let header_cpp = argot_engine::corpus::repo_langs(repo_dir);
     let mut by_lang: BTreeMap<&'static str, (Language, Vec<PathBuf>)> = BTreeMap::new();
     for f in &corpus_files {
         if let Some(lang) = language_for_filename_ctx(&basename(f), header_cpp) {
@@ -997,6 +1279,21 @@ pub fn run_calibrate(
     }
     if by_lang.is_empty() {
         bail!("no recognized language files in repo corpus");
+    }
+    let unlearnable = drop_unlearnable_languages(&mut by_lang);
+    for (language, files) in &unlearnable {
+        let plural = if *files == 1 { "" } else { "s" };
+        eprintln!(
+            "[argot] {language}: {files} file{plural} — too few to learn a voice \
+             (needs {MIN_LANGUAGE_FILES}). Files in this language are NOT checked."
+        );
+    }
+    if !unlearnable.is_empty() {
+        eprintln!(
+            "        With this little of a language, every construct reads as \
+             unfamiliar and the rule would fire on all of it. If an extension is \
+             routed to the wrong language here, exclude it in argot.toml."
+        );
     }
 
     // Resolve `--slice` specs to concrete path sets once (cross-language). Each
@@ -1186,7 +1483,7 @@ pub fn run_calibrate(
             && CR_N_CLUSTERS > 1
             && !candidates.is_empty()
         {
-            let mut probe_cr = CallReceiverScorer::new(
+            let probe_cr = CallReceiverScorer::new(
                 corpus,
                 language,
                 CR_ALPHA,
@@ -1219,7 +1516,10 @@ pub fn run_calibrate(
                 );
                 hunks_scored += 1;
             }
-            let fire_rate = probe_cr.rare_branch_hunks_fired as f64 / hunks_scored.max(1) as f64;
+            let rare_hunks_fired = probe_cr
+                .rare_branch_hunks_fired
+                .load(std::sync::atomic::Ordering::Relaxed);
+            let fire_rate = rare_hunks_fired as f64 / hunks_scored.max(1) as f64;
             let keep_rule = fire_rate < opts.asym_fire_rate_threshold;
             // Internal calibration diagnostic — noise on a normal `argot init`.
             // Only surface it when debugging (ARGOT_DEBUG set); the decision it
@@ -1227,7 +1527,7 @@ pub fn run_calibrate(
             if std::env::var_os("ARGOT_DEBUG").is_some() {
                 eprintln!(
                     "[{name}][auto-asym] cluster_rare probe: rare_hunks_fired={}/{} fire_rate={:.3} threshold={:.3} → {}",
-                    probe_cr.rare_branch_hunks_fired,
+                    rare_hunks_fired,
                     hunks_scored,
                     fire_rate,
                     opts.asym_fire_rate_threshold,
@@ -1253,7 +1553,7 @@ pub fn run_calibrate(
             .map(|(p, s)| (p.clone(), bpe.token_counts(s)))
             .collect();
 
-        let seed_thresholds = multi_seed_thresholds(
+        let seed_thresholds = multi_seed_thresholds_sized(
             &candidates,
             &bpe,
             Some(&per_file_counts),
@@ -1268,7 +1568,9 @@ pub fn run_calibrate(
                 cap: CR_CAP as f64,
             },
         );
+        let (seed_thresholds, sized_sample) = seed_thresholds;
         let threshold = median(seed_thresholds);
+        let (size_slope, size_reference_lines) = fit_size_slope(&sized_sample);
         t_thr.done();
 
         let t_nf = argot_engine::timing::phase(format!("calibrate[{name}]: new-file thresholds"));
@@ -1415,6 +1717,8 @@ pub fn run_calibrate(
             LangConfig {
                 threshold,
                 new_file_threshold,
+                size_slope,
+                size_reference_lines,
                 call_receiver_alpha: CR_ALPHA,
                 call_receiver_cap: CR_CAP,
                 call_receiver_root_bonus: CR_ROOT_BONUS,
@@ -1499,6 +1803,13 @@ pub fn run_calibrate(
             lines: total_lines,
         },
         languages: lang_summaries,
+        unlearnable_languages: unlearnable
+            .iter()
+            .map(|(language, files)| UnlearnableLanguage {
+                language: language.clone(),
+                files: *files,
+            })
+            .collect(),
     };
     if let Some(parent) = output.parent() {
         let manifest_path = parent.join(MANIFEST_FILE);
@@ -1552,10 +1863,10 @@ fn build_evidence_corpus(
         let clean = if prose.is_empty() {
             source.clone()
         } else {
-            blank_prose_lines(&source, &prose)
+            blank_prose_lines(&source, &prose, &adapter.prose_spans(&source))
         };
         for ident in extract_identifiers(&clean) {
-            if !noise.contains(&ident) {
+            if !crate::scoring::evidence::bpe::is_noise(&ident, noise, adapter) {
                 *identifier_counts.entry(ident).or_insert(0) += 1;
             }
         }

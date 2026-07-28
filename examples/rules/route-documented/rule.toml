@@ -8,5 +8,4 @@ severity = "warn"
 include = ["src/routes/**"]
 
 [engine]
-api = 2
 script = "check.rhai"

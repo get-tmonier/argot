@@ -21,7 +21,8 @@ This is a founder-level operating layer; it does not change the engineering conv
 Always use `just` — it's the canonical interface for all dev commands.
 
 ```
-just verify       # cargo fmt --check + clippy -D warnings + cargo test
+just verify       # fmt --check + clippy -D warnings + test, then verify-features
+just verify-features  # the same, per feature: script · arch · integrity
 just test         # cargo test --workspace
 just extract .    # run extract on this repo → .argot/dataset.jsonl
 just dogfood      # run full pipeline against argot itself (or any path) — fast monorepo check
@@ -30,6 +31,13 @@ just bench-quick  # ~1 min bench smoke (one fixture per category + 50 controls)
 just arch-verify  # ~25 s architecture-layer fixture-recall regression guard
 just integrity-verify  # gaming-fixture recall + control guard for the integrity rules
 ```
+
+`just verify` now runs `verify-features` too. The base loop builds with **no
+features**, but release binaries ship every slice — so a green base loop was
+verifying a configuration nobody runs. A test asserting behaviour that had
+changed sat green locally through several pushes and only failed in CI. The
+three pure-Rust features cost seconds; `semantic` stays CI-only because it needs
+the llama.cpp C++ build (see "Keep PR CI fast").
 
 `just dogfood` exercises extract → train → calibrate → check end-to-end and asserts both Python and TypeScript rows landed in `dataset.jsonl` plus a `scorer-config.json` was emitted. It's a **dev loop, not a CI gate** — informational signal that monorepo handling didn't silently break. Drift is the contributor's responsibility; nothing forces it to run.
 
@@ -83,6 +91,11 @@ crates/
                          #   audit/ · voice_diff.rs · describe.rs (describe-voice) ·
                          #   auto_refit.rs · update_check.rs · uninstall.rs · worktree.rs
   argot-bench/           # research harness (never shipped; publish = false)
+vendor/
+  tree-sitter-pascal/    # the ONE forked grammar (upstream 0.10.2 + 12 rules).
+                         #   `src/parser.c` is generated and committed, so the
+                         #   build still needs only `cc`; Node is required only to
+                         #   regenerate. What was added and why: its README.md.
 ```
 
 Dependency direction is strict: `lang ← engine ← rules-* ← core ← cli/bench`.
@@ -142,7 +155,7 @@ are suite curation, not gaming) and are pinned confidence `suspicious`. Same
 build-time-gate shape as `semantic`/`arch` — off in dev/CI base loops, ON in
 releases. Per-repo gates are learned at fit from a mini-replay of the repo's
 accepted history and stored in `.argot/integrity.json` (a rebuildable sibling
-of `scorer-config.json`). Validated at 94.5% catch (155/164 authored gaming
+of `scorer-config.json`). Validated at 93.9% catch (154/164 authored gaming
 fixtures, 23 corpora / 12 languages), 0/106 legitimate-refactor controls
 fired, and 1.25% of replayed accepted test-touching commits flagged at gating
 severity; evidence in `docs/research/evidence/test-integrity-capstone.md`.

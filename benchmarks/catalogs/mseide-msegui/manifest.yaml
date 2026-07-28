@@ -1,0 +1,201 @@
+# mseide-msegui — 8/10 novel-pattern (80%) at the pinned SHA.
+#
+# In family: six shipped corpora score lower (outline 70%, guava 75%, scrapy
+# 75%, hono 77%, gh-cli 78%), and per-corpus scores run 70%→100%. The ≥85% gate
+# is the AGGREGATE headline, not a per-corpus bar; adding this corpus moves it
+# 639/746 = 85.7% → 647/756 = 85.6%, still above the gate.
+#
+# The two uncaught fixtures are reported here, not swapped (RUBRIC: "a fixture
+# that fails to fire is a finding to report"). Both are the thinnest in their
+# class, and this is the largest corpus in the set — 504 files, 13 057 attested
+# callees, threshold 5.33, against castle-engine's much lower one, where the
+# equivalent thin fixture fires. Its over-fire is 0.85% against a 2% bar, so
+# there is calibration headroom; testing that is a scoring change for its own
+# sake, not something to do to move one corpus's number.
+corpus: mseide-msegui
+language: pascal
+categories:
+- foreign_import
+- foreign_api
+- naming_shape_break
+- semantic_convention
+injection_hosts:
+- pr: 0
+  sha: 4233521f2e5e627cbbc765000e5fc986f1d423af
+fixtures:
+- id: fi_synapse_http_1
+  file: breaks/break_fi_synapse_http_1.pas
+  category: foreign_import
+  class: foreign_import
+  hunk_start_line: 2
+  hunk_end_line: 19
+  rationale: "uses httpsend, blcksock (Ararat Synapse) to fetch a URL. Verified 0-usage\
+    \ at the pinned SHA: httpsend, blcksock and THTTPSend are 0 grep hits across *.pas/*.pp/*.inc.\
+    \ MSEgui ships no network client at all \u2014 the toolkit stops at the filesystem."
+  difficulty: easy
+  host_file: lib/common/kernel/msefileutils.pas
+  host_inject_at_line: 1246
+- id: fi_fcljson_1
+  file: breaks/break_fi_fcljson_1.pas
+  category: foreign_import
+  class: foreign_import
+  hunk_start_line: 3
+  hunk_end_line: 23
+  rationale: 'uses fpjson, jsonparser (FCL JSON) to read settings. Verified 0-usage
+    at the pinned SHA: fpjson, jsonparser, TJSONParser and TJSONData are 0 grep hits.
+    MSEgui persists through its own msestatfile/statreader format.'
+  difficulty: easy
+  host_file: lib/common/kernel/msestatfile.pas
+  host_inject_at_line: 565
+- id: fi_lcl_1
+  file: breaks/break_fi_lcl_1.pas
+  category: foreign_import
+  class: foreign_import
+  hunk_start_line: 3
+  hunk_end_line: 12
+  rationale: 'uses LCLType, LazUTF8, LazFileUtils (Lazarus LCL). Verified 0-usage
+    at the pinned SHA: LCLType, LazUTF8 and LazFileUtils are 0 grep hits. The LCL
+    is the competing widget set; MSEgui has msetypes/msestrings/msefileutils for all
+    three.'
+  difficulty: easy
+  host_file: lib/common/kernel/msefileutils.pas
+  host_inject_at_line: 2234
+- id: fi_zipper_1
+  file: breaks/break_fi_zipper_1.pas
+  category: foreign_import
+  class: foreign_import
+  hunk_start_line: 3
+  hunk_end_line: 21
+  rationale: 'uses Zipper (FCL archive support). Verified 0-usage at the pinned SHA:
+    Zipper and TZipper are 0 grep hits. MSEgui wraps zlib directly in msezlib where
+    it needs compression, and depends on no archive library.'
+  difficulty: easy
+  host_file: lib/common/kernel/msestream.pas
+  host_inject_at_line: 2055
+- id: fi_regexpr_1
+  file: breaks/break_fi_regexpr_1.pas
+  category: foreign_import
+  class: foreign_import
+  hunk_start_line: 2
+  hunk_end_line: 16
+  rationale: 'uses RegExpr (TRegExpr). Verified 0-usage at the pinned SHA: RegExpr
+    and TRegExpr are 0 grep hits. MSEgui matches with its own msestrings helpers.'
+  difficulty: easy
+  host_file: lib/common/kernel/msestrings.pas
+  host_inject_at_line: 3440
+- id: fa_synapse_httpmethod_1
+  file: breaks/break_fa_synapse_httpmethod_1.pas
+  category: foreign_api
+  class: foreign_api
+  hunk_start_line: 2
+  hunk_end_line: 14
+  rationale: "THTTPSend.Create / .HTTPMethod reached without importing httpsend \u2014\
+    \ the call-receiver path. Verified 0-usage at the pinned SHA: THTTPSend and HTTPMethod\
+    \ are 0 grep hits."
+  difficulty: easy
+  host_file: lib/common/kernel/mseapplication.pas
+  host_inject_at_line: 1364
+- id: fa_fcljson_getjson_1
+  file: breaks/break_fa_fcljson_getjson_1.pas
+  category: foreign_api
+  class: foreign_api
+  hunk_start_line: 2
+  hunk_end_line: 15
+  rationale: "GetJSON / TJSONObject.Get reached without importing fpjson \u2014 the\
+    \ call-receiver path. Verified 0-usage at the pinned SHA: GetJSON, TJSONObject\
+    \ and TJSONArray are 0 grep hits."
+  difficulty: easy
+  host_file: lib/common/kernel/msestatfile.pas
+  host_inject_at_line: 818
+- id: fa_indy_idhttp_1
+  file: breaks/break_fa_indy_idhttp_1.pas
+  category: foreign_api
+  class: foreign_api
+  hunk_start_line: 2
+  hunk_end_line: 13
+  rationale: "TIdHTTP.Create / .Get reached without importing IdHTTP \u2014 the call-receiver\
+    \ path. Verified 0-usage at the pinned SHA: IdHTTP and IdGlobal are 0 grep hits.\
+    \ Indy is the other Pascal network stack MSEgui does not use."
+  difficulty: easy
+  host_file: lib/common/kernel/msestream.pas
+  host_inject_at_line: 3148
+- id: fa_base64_1
+  file: breaks/break_fa_base64_1.pas
+  category: foreign_api
+  class: foreign_api
+  hunk_start_line: 2
+  hunk_end_line: 8
+  rationale: "EncodeStringBase64 reached without importing base64 \u2014 the call-receiver\
+    \ path. Verified 0-usage at the pinned SHA: EncodeStringBase64 is 0 grep hits.\
+    \ NOT CAUGHT at the pinned SHA \u2014 reported per the RUBRIC, not swapped. A\
+    \ bare foreign free function with no receiver, no namespace and no import: the\
+    \ call-receiver path deliberately treats a bare unattested callee with no foreign\
+    \ association as the codebase's own new code. castle-engine's equivalent (FtpPutFile)\
+    \ does fire, so this is not a blanket Pascal limit; the difference is this corpus's\
+    \ far higher calibrated threshold (504 files, 13 057 attested callees)."
+  difficulty: easy
+  host_file: lib/common/kernel/msestrings.pas
+  host_inject_at_line: 6283
+- id: fa_regexpr_exec_1
+  file: breaks/break_fa_regexpr_exec_1.pas
+  category: foreign_api
+  class: foreign_api
+  hunk_start_line: 2
+  hunk_end_line: 16
+  rationale: "TRegExpr.Create / .Exec / .Match reached without importing RegExpr \u2014\
+    \ the call-receiver path. Verified 0-usage at the pinned SHA: TRegExpr is 0 grep\
+    \ hits. NOT CAUGHT at the pinned SHA \u2014 reported per the RUBRIC, not swapped.\
+    \ TRegExpr.Create is a type-receiver form like THTTPSend/TIdHTTP/TJSONObject,\
+    \ which do fire here; the rest of this hunk's callees (length, copy) are attested\
+    \ and the local receiver re1 is attested by its own binding, so the hunk's foreign\
+    \ share is diluted below the bar."
+  difficulty: easy
+  host_file: lib/common/kernel/mseformatstr.pas
+  host_inject_at_line: 4206
+- id: ns_camelcase_1
+  file: breaks/break_ns_camelcase_1.pas
+  category: naming_shape_break
+  class: naming_shape_break
+  hunk_start_line: 2
+  hunk_end_line: 15
+  rationale: 'camelCase identifiers (calculateWindowOffset, senderWidget, currentBounds)
+    in a tree whose Pascal is 88% flat lower-case (argot conventions: flat 88% / snake
+    5% / pascal 4% / camel 1%). Secondary class, reported and never gated.'
+  difficulty: easy
+  host_file: lib/common/widgets/msewidgets.pas
+  host_inject_at_line: 4493
+- id: ns_hungarian_1
+  file: breaks/break_ns_hungarian_1.pas
+  category: naming_shape_break
+  class: naming_shape_break
+  hunk_start_line: 2
+  hunk_end_line: 15
+  rationale: "Hungarian notation (szCaption, iMax, bTruncated) \u2014 a morphology\
+    \ this tree never uses. Secondary class, reported and never gated."
+  difficulty: easy
+  host_file: lib/common/kernel/msestrings.pas
+  host_inject_at_line: 6243
+- id: sc_raw_writeln_log_1
+  file: breaks/break_sc_raw_writeln_log_1.pas
+  category: semantic_convention
+  class: semantic_convention
+  hunk_start_line: 3
+  hunk_end_line: 8
+  rationale: raw writeln for diagnostics where this tree routes through debugwriteln
+    (18 files at the pinned SHA). Misuse of the repo's own attested vocabulary; secondary
+    class, reported and never gated.
+  difficulty: easy
+  host_file: lib/common/kernel/msefileutils.pas
+  host_inject_at_line: 1216
+- id: sc_halt_exit_1
+  file: breaks/break_sc_halt_exit_1.pas
+  category: semantic_convention
+  class: semantic_convention
+  hunk_start_line: 3
+  hunk_end_line: 7
+  rationale: halt() to end the process where this tree uses application.terminate.
+    Misuse of the repo's own attested vocabulary; secondary class, reported and never
+    gated.
+  difficulty: easy
+  host_file: lib/common/kernel/mseapplication.pas
+  host_inject_at_line: 2109

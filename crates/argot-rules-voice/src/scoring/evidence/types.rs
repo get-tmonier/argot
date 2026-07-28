@@ -87,6 +87,20 @@ pub enum Evidence {
     CallReceiver(CallReceiverEvidence),
 }
 
+impl Evidence {
+    /// Whether this payload names the thing the finding is about — the foreign
+    /// specifiers, the unfamiliar callees, the surprising identifiers. False
+    /// leaves the reader only the "common here" corpus line, which says what
+    /// the repo usually does without saying what this hunk did.
+    pub fn names_something(&self) -> bool {
+        match self {
+            Evidence::Bpe(e) => !e.surprising_identifiers.is_empty(),
+            Evidence::Import(e) => !e.foreign_specifiers.is_empty(),
+            Evidence::CallReceiver(e) => !e.unfamiliar_callees.is_empty(),
+        }
+    }
+}
+
 /// Denominators for the rarity stats baked into [`EvidenceCorpus`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct EvidenceCorpusTotals {

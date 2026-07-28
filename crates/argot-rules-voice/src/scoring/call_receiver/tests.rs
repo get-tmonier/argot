@@ -159,8 +159,8 @@ fn knows_file_tracks_fit_membership() {
 fn gated_df_at_one_matches_off_behaviour() {
     // Every globally-attested callee has df >= 1, so GatedDf{min_df: 1}
     // must reproduce the baseline (rule-off) contributions exactly on any hunk.
-    let mut off = toy_scorer(RarityWeighting::Off);
-    let mut gated = toy_scorer(RarityWeighting::GatedDf { min_df: 1 });
+    let off = toy_scorer(RarityWeighting::Off);
+    let gated = toy_scorer(RarityWeighting::GatedDf { min_df: 1 });
     for hunk in [
         "rare_helper()\nfoo()\n",
         "baz()\n",
@@ -198,8 +198,8 @@ fn linear_df_shrinks_rare_callee_cluster_contribution() {
     // `rare_helper` is globally attested (df=1) — in a file from the
     // foo/bar cluster it takes a cluster branch. Under LinearDf its
     // bonus is scaled by 1/13; alpha branches are untouched.
-    let mut off = toy_scorer(RarityWeighting::Off);
-    let mut lin = toy_scorer(RarityWeighting::LinearDf);
+    let off = toy_scorer(RarityWeighting::Off);
+    let lin = toy_scorer(RarityWeighting::LinearDf);
     let hunk = "rare_helper()\n";
     let a = off.weighted_contribution_for_file(
         hunk,

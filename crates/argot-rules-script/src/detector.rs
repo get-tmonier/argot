@@ -14,7 +14,7 @@ use argot_engine::finding::{Finding, RenderEvidence};
 use argot_engine::rules::{self, CustomRule};
 use argot_engine::suppress::{hit_hash, FileSuppressions};
 use argot_lang::ext::{ext_to_lang_ctx, extension};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 /// One scripted rule's rendered evidence: the lines its `report_span` opts
 /// carried, plus the optional symbol.
@@ -52,9 +52,19 @@ pub struct ScriptDetector {
     rules: Vec<ScriptRule>,
     /// Compiled ASTs, one per rule (indices match `rules`).
     compiled: Vec<Option<rhai::AST>>,
-    /// Rules disabled for this run (sandbox trips, runtime errors).
+    /// Rules disabled for this run: a script that fails to compile, or one
+    /// that trips the sandbox on [`MAX_TRIPS_BEFORE_DISABLE`] separate files —
+    /// evidence the script is wrong rather than the input large.
     disabled: HashSet<String>,
+    /// Files each rule was skipped on, and the first reason. A trip is the
+    /// file's problem until it is the rule's: killing the rule outright on the
+    /// first one loses it across every remaining file, and "no findings" then
+    /// cannot be told from "the rule died on file 3 of 921".
+    skipped: HashMap<String, (usize, String)>,
 }
+
+/// Separate files a rule may trip on before it is the rule that is wrong.
+const MAX_TRIPS_BEFORE_DISABLE: usize = 5;
 
 impl ScriptDetector {
     pub fn new() -> Self {
@@ -125,7 +135,7 @@ impl Detector for ScriptDetector {
         // (label mismatch, unresolvable side) degrades to no old side.
         let old_sides: std::collections::HashMap<(String, String), String> =
             argot_engine::check::two_sided::collect_two_sided(ctx.args, &|path| {
-                let language = ext_to_lang_ctx(&extension(path), ctx.header_cpp);
+                let language = ext_to_lang_ctx(&extension(path), ctx.repo_langs);
                 self.rules.iter().any(|r| r.covers_file(path, language))
             })
             .into_iter()
@@ -135,7 +145,7 @@ impl Detector for ScriptDetector {
                     .filter_map(move |f| f.old.map(|old| ((source.clone(), f.path), old)))
             })
             .collect();
-        // Read-only repository access for host API v2, opened once per check:
+        // Read-only repository access, opened once per check:
         // the listing is git's index, not a walk.
         let repo_files: std::rc::Rc<dyn crate::repo::RepoFiles> = std::rc::Rc::new(
             crate::repo::RepoRoot::open(std::path::Path::new(&ctx.args.repo_path)),
@@ -144,7 +154,7 @@ impl Detector for ScriptDetector {
         // Scored batches plus the unscored ones (unsupported extensions —
         // `.env`, CI configs…): a rule's `files` globs may claim the latter.
         for batch in ctx.batches.iter().chain(ctx.extra_batches) {
-            let language = ext_to_lang_ctx(&extension(&batch.file_path), ctx.header_cpp);
+            let language = ext_to_lang_ctx(&extension(&batch.file_path), ctx.repo_langs);
             let source = String::from_utf8_lossy(&batch.content).into_owned();
             let hunk_ranges: Vec<(usize, usize)> = batch
                 .hunks
@@ -238,15 +248,39 @@ impl Detector for ScriptDetector {
                         }
                     }
                     Err(e) => {
-                        self.disabled.insert(rule.name.clone());
-                        ctx.stderr.push_str(&format!(
-                            "[argot] custom rule {}: {} — rule disabled for this run\n",
-                            rule.name,
-                            e.trim_end()
-                        ));
+                        let entry = self
+                            .skipped
+                            .entry(rule.name.clone())
+                            .or_insert_with(|| (0, e.trim_end().to_string()));
+                        entry.0 += 1;
+                        if entry.0 >= MAX_TRIPS_BEFORE_DISABLE {
+                            self.disabled.insert(rule.name.clone());
+                            ctx.stderr.push_str(&format!(
+                                "[argot] custom rule {}: {} — tripped on {} files, \
+                                 rule disabled for the rest of this run\n",
+                                rule.name,
+                                e.trim_end(),
+                                entry.0
+                            ));
+                        }
                     }
                 }
             }
+        }
+        // Say what was skipped. A rule that quietly evaluated fewer files than
+        // the changeset has is indistinguishable from a rule that found
+        // nothing, and the second reads as a clean bill of health.
+        let mut skipped: Vec<(&String, &(usize, String))> = self
+            .skipped
+            .iter()
+            .filter(|(name, _)| !self.disabled.contains(*name))
+            .collect();
+        skipped.sort_by(|a, b| a.0.cmp(b.0));
+        for (name, (files, reason)) in skipped {
+            ctx.stderr.push_str(&format!(
+                "[argot] custom rule {name}: skipped {files} file(s) over budget ({reason}) \
+                 — every other file was checked\n"
+            ));
         }
         findings
     }

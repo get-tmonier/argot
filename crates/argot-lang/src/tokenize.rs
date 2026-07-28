@@ -27,6 +27,28 @@ pub fn language_for_path(path: &str) -> Option<Language> {
     }
 }
 
+/// [`language_for_path`], resolving the extensions the name alone cannot settle
+/// (`.h` → C/C++, `.inc` → Pascal/C) against what the repository writes. Routes
+/// through [`crate::ext::ext_to_lang_ctx`], the one table that decides this, so
+/// the dataset labels match how calibrate and check route the same file.
+pub fn language_for_path_ctx(path: &str, langs: crate::ext::RepoLangs) -> Option<Language> {
+    match crate::ext::ext_to_lang_ctx(&crate::ext::extension(path), langs)? {
+        "typescript" => Some(Language::Typescript),
+        "javascript" => Some(Language::Javascript),
+        "python" => Some(Language::Python),
+        "go" => Some(Language::Go),
+        "rust" => Some(Language::Rust),
+        "c" => Some(Language::C),
+        "java" => Some(Language::Java),
+        "csharp" => Some(Language::Csharp),
+        "php" => Some(Language::Php),
+        "cpp" => Some(Language::Cpp),
+        "ruby" => Some(Language::Ruby),
+        "pascal" => Some(Language::Pascal),
+        _ => None,
+    }
+}
+
 fn basename(path: &str) -> &str {
     match path.rfind('/') {
         Some(i) => &path[i + 1..],

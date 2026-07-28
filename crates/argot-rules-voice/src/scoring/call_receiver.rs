@@ -19,6 +19,8 @@ use crate::scoring::shape_primitive::{Baseline, ShapePrimitive};
 use md5::{Digest, Md5};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::AtomicUsize;
+use std::sync::Mutex;
 
 /// Dotted-callee extraction (per-language call-expression dispatch) is shared
 /// with the semantic layer's reinvention confirmation, so it lives in the
@@ -350,11 +352,13 @@ pub struct CallReceiverScorer {
     shape_primitives: Vec<Box<dyn ShapePrimitive>>,
     /// primitive name → cluster id → fitted baseline.
     primitive_baselines: HashMap<String, HashMap<usize, Baseline>>,
-    /// Per-primitive fire counts (bench observability).
-    pub primitive_fire_count: HashMap<String, usize>,
-    pub rare_branch_fire_count: usize,
-    pub rare_branch_hunks_fired: usize,
-    pub hunks_scored: usize,
+    /// Per-primitive fire counts (bench observability). Behind a lock because
+    /// scoring runs across threads; primitives are configured only by the
+    /// bench, so on the production path this is never contended.
+    pub primitive_fire_count: Mutex<HashMap<String, usize>>,
+    /// Hunks that fired the cluster-rare branch (read by calibration and the
+    /// bench). Atomic for the same reason.
+    pub rare_branch_hunks_fired: AtomicUsize,
 }
 
 impl CallReceiverScorer {
@@ -472,10 +476,8 @@ impl CallReceiverScorer {
             rarity_weighting: RarityWeighting::Off,
             shape_primitives: Vec::new(),
             primitive_baselines: HashMap::new(),
-            primitive_fire_count: HashMap::new(),
-            rare_branch_fire_count: 0,
-            rare_branch_hunks_fired: 0,
-            hunks_scored: 0,
+            primitive_fire_count: Mutex::new(HashMap::new()),
+            rare_branch_hunks_fired: AtomicUsize::new(0),
         })
     }
 
@@ -594,10 +596,8 @@ impl CallReceiverScorer {
             rarity_weighting: RarityWeighting::Off,
             shape_primitives: Vec::new(),
             primitive_baselines: HashMap::new(),
-            primitive_fire_count: HashMap::new(),
-            rare_branch_fire_count: 0,
-            rare_branch_hunks_fired: 0,
-            hunks_scored: 0,
+            primitive_fire_count: Mutex::new(HashMap::new()),
+            rare_branch_hunks_fired: AtomicUsize::new(0),
         })
     }
 
@@ -657,8 +657,9 @@ impl CallReceiverScorer {
             }
             self.primitive_baselines
                 .insert(primitive.name().to_string(), per_cluster);
-            self.primitive_fire_count
-                .insert(primitive.name().to_string(), 0);
+            if let Ok(mut c) = self.primitive_fire_count.lock() {
+                c.insert(primitive.name().to_string(), 0);
+            }
         }
         self.shape_primitives = primitives;
         self
@@ -850,14 +851,41 @@ impl CallReceiverScorer {
 
     /// [`Self::distinct_unattested`] minus local bindings — the evidence view
     /// matching what the contribution actually counted.
+    ///
+    /// `host_context` is the same parse-error fallback
+    /// [`Self::weighted_contribution`] scores through: git cuts hunks, not the
+    /// parser, so a fragment starting mid-`var`-block does not parse standalone
+    /// and [`Self::distinct_unattested_impl`] returns nothing for it. Without
+    /// the fallback such a hunk is scored and gated on callees derived from its
+    /// region of the host file, then explained with none — a finding whose
+    /// whole subject is missing.
     pub fn distinct_unattested_excluding(
         &self,
         hunk: &str,
+        host_context: Option<(&str, usize, usize)>,
         local_bindings: &LocalBindings,
     ) -> Vec<String> {
-        self.distinct_unattested_impl(hunk)
+        let callees: Vec<String> = if has_root_error(hunk, self.language) {
+            match host_context {
+                Some((src, s, e)) => callees_in_source_region(src, self.language, s, e),
+                None => return Vec::new(),
+            }
+        } else {
+            return self
+                .distinct_unattested_impl(hunk)
+                .into_iter()
+                .filter(|c| !local_bindings.attests(c) && !self.method_attested(c))
+                .collect();
+        };
+        let mut seen: HashSet<String> = HashSet::new();
+        callees
             .into_iter()
-            .filter(|c| !local_bindings.attests(c) && !self.method_attested(c))
+            .filter(|c| {
+                !self.attested.contains(c)
+                    && !local_bindings.attests(c)
+                    && !self.method_attested(c)
+                    && seen.insert(c.clone())
+            })
             .collect()
     }
 
@@ -1054,7 +1082,7 @@ impl CallReceiverScorer {
     /// [`Self::contribution_events_for_file`].
     #[allow(clippy::too_many_arguments)]
     pub fn weighted_contribution_for_file(
-        &mut self,
+        &self,
         hunk: &str,
         file_path: Option<&Path>,
         alpha: f64,
@@ -1065,7 +1093,6 @@ impl CallReceiverScorer {
         host_context: Option<(&str, usize, usize)>,
         local_bindings: &LocalBindings,
     ) -> f64 {
-        self.hunks_scored += 1;
         let events = self.contribution_events_for_file(
             hunk,
             file_path,
@@ -1087,7 +1114,6 @@ impl CallReceiverScorer {
                 ContributionBranch::Unattested => weights += alpha,
                 ContributionBranch::ClusterAbsent => weights += cluster_bonus * rarity,
                 ContributionBranch::ClusterRare => {
-                    self.rare_branch_fire_count += 1;
                     hunk_fired_rare = true;
                     weights += cluster_bonus * rarity;
                 }
@@ -1107,14 +1133,17 @@ impl CallReceiverScorer {
                         .and_then(|m| m.get(&cid));
                     let contribution = self.shape_primitives[i].score(hunk, baseline, cluster_size);
                     if contribution > 0.0 {
-                        *self.primitive_fire_count.entry(name).or_insert(0) += 1;
+                        if let Ok(mut c) = self.primitive_fire_count.lock() {
+                            *c.entry(name).or_insert(0) += 1;
+                        }
                         weights += contribution;
                     }
                 }
             }
         }
         if hunk_fired_rare {
-            self.rare_branch_hunks_fired += 1;
+            self.rare_branch_hunks_fired
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         }
         weights.min(cap)
     }

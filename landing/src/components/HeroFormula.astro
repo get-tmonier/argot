@@ -6,7 +6,12 @@
  */
 import katex from 'katex';
 
-const tex = String.raw`\text{score}(\text{hunk}) \;=\; \underbrace{\max_{t}\,\log\frac{P_\text{baseline}(t)}{P_\text{repo}(t)}}_{\text{BPE surprise}} \;+\; \underbrace{\min\!\big(\textstyle\sum_{c} w(c),\, \text{cap}\big)}_{\text{call-receiver penalty}}`;
+// The decision, not just the score. Both sides are what the binary computes:
+// `bpe_score` is a max of per-token surprise, the call-receiver contribution is
+// capped, and the threshold now scales with hunk size — a max over n tokens
+// grows about logarithmically in n, so the bar rises past the repo's own p90
+// rather than letting a whole-file rewrite clear a flat line.
+const tex = String.raw`\text{flag} \iff \underbrace{\max_{t}\,\log\frac{P_\text{baseline}(t)}{P_\text{repo}(t)}}_{\text{token surprise}} \;+\; \underbrace{\min\!\big(\textstyle\sum_{c} w(c),\, \text{cap}\big)}_{\text{call-receiver}} \;>\; \underbrace{\theta \;+\; \beta\,\log\tfrac{n}{n_{90}}}_{\text{size-aware threshold}}`;
 
 const html = katex.renderToString(tex, {
   displayMode: true,

@@ -3,8 +3,14 @@
 </p>
 
 <p align="center">
-  <strong>Review changes against the patterns your repository has already accepted.</strong><br/>
-  <em>argot surfaces repository-grounded divergence; you decide what to accept.</em>
+  <strong>Lint the rules you never wrote down.</strong>
+</p>
+
+<p align="center">
+  <em>AI writes the code. argot harnesses it with the one thing that can’t
+  hallucinate: <strong>your repo’s own history</strong>.<br/>
+  Statistics, not a second LLM. 100% local. It surfaces the divergence — you
+  decide what to accept.</em>
 </p>
 
 <p align="center">
@@ -20,9 +26,28 @@
 <p align="center">
   <a href="https://github.com/get-tmonier/argot/releases/latest"><img src="https://img.shields.io/github/v/release/get-tmonier/argot?color=E67E45" alt="Release" /></a>
   <a href="https://www.npmjs.com/package/@tmonier/argot"><img src="https://img.shields.io/npm/v/@tmonier/argot?logo=npm" alt="npm" /></a>
-  <a href="https://github.com/get-tmonier/argot/actions/workflows/ci.yml"><img src="https://github.com/get-tmonier/argot/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <a href="https://github.com/get-tmonier/argot/blob/main/LICENSE"><img src="https://img.shields.io/github/license/get-tmonier/argot?color=E67E45" alt="License" /></a>
 </p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/rust-single%20static%20binary-DEA584?logo=rust&logoColor=white" alt="One statically-linked Rust binary" />
+  <img src="https://img.shields.io/badge/100%25-local%20%C2%B7%20no%20cloud%20%C2%B7%20no%20account-2EA043" alt="100% local, no cloud, no account" />
+  <a href="https://argot.tmonier.com/docs/languages/"><img src="https://img.shields.io/badge/supported%20languages-12-E67E45" alt="12 supported languages" /></a>
+  <a href="https://argot.tmonier.com/benchmarks"><img src="https://img.shields.io/badge/benchmarked%20on-36%20real%20repositories-8B5CF6" alt="Benchmarked on 36 real repositories" /></a>
+</p>
+
+<table align="center">
+  <tr>
+    <td align="center" valign="middle">
+      <a href="https://glama.ai/mcp/servers/get-tmonier/argot"><img src="https://glama.ai/mcp/servers/get-tmonier/argot/badges/card.svg" alt="argot MCP server on Glama" width="340" /></a>
+    </td>
+    <td align="center" valign="middle">
+      <a href="https://argot.tmonier.com/#film"><img src="landing/public/argot-film-poster.jpg" alt="Watch the argot launch film" width="180" /></a>
+      <br/>
+      <em>🎬 <a href="https://argot.tmonier.com/#film">Watch the 45-second launch film</a></em>
+    </td>
+  </tr>
+</table>
 
 ## Start with an audit
 
@@ -63,17 +88,33 @@ does not prove the change correct or fully idiomatic. Read the
 
 ## What it surfaces
 
-argot is a probabilistic review guardrail, not a correctness oracle. Its
-current detector composition can surface a foreign dependency/API/idiom, a
-function that duplicates one already present, code placed away from its peers,
-an internal import that reverses a learned direction, or a test weakened,
-disabled, or deleted alongside the production change it covers. Repositories
-can also add their own versioned scripted rules — a TOML manifest plus a
-sandboxed Rhai script under `.argot/rules/`, with working ones to copy in
-[`examples/rules/`](examples/rules/).
+**Type checkers ask if it compiles. argot asks if it’s yours.** A clean,
+type-correct, well-reviewed pull request can still be foreign to the repository
+it lands in. These are the rules argot ships, every one of them learned from
+your own history rather than configured by hand:
 
-Each finding carries repository evidence. Treat it as a prompt to inspect and
-make the human decision explicit—never as proof that the code is wrong.
+| Rule                | Group        | What it flags                                                    |
+| ------------------- | ------------ | ---------------------------------------------------------------- |
+| `foreign-import`    | voice        | an import of a dependency the repo has never used                 |
+| `unfamiliar-callee` | voice        | a call to a receiver or callee the repo's code never calls        |
+| `rare-tokens`       | voice        | a token sequence statistically foreign to the repo's voice        |
+| `convention`        | voice        | a construction that breaks a convention learned from the repo     |
+| `superseded`        | voice        | a pattern this repo has been replacing, or declared migrated away |
+| `redundant`         | semantic     | a new function that duplicates one the repo already has           |
+| `misplaced`         | semantic     | a function that looks like it belongs in another module area      |
+| `layering`          | architecture | an internal import that reverses the repo's layer direction       |
+| `test-deleted`      | integrity    | a test removed while the code it exercised still exists           |
+| `test-disabled`     | integrity    | a skip marker added, or a test gutted, as production changes      |
+| `test-weakened`     | integrity    | assertions removed, tautologized, or loosened alongside a change  |
+| `rule-tampered`     | governance   | a change that removes or weakens a locked rule                    |
+
+Repositories add their own on top — a TOML manifest plus a sandboxed Rhai
+script under `.argot/rules/`, with working ones to copy in
+[`examples/rules/`](examples/rules/). No recompilation.
+
+argot is a probabilistic review guardrail, not a correctness oracle. Each
+finding carries repository evidence. Treat it as a prompt to inspect and make
+the human decision explicit—never as proof that the code is wrong.
 
 ## Choose how to run it
 
@@ -99,9 +140,14 @@ Current public measurements are detector-specific, not a product-wide accuracy
 or combined-brief claim. The [approved claim manifest](landing/src/data/claims/manifest.json)
 records:
 
-- visible foreign-symbol fixtures: **595/605** across 22 corpora;
-- layering fixtures: **264/272** across 25 corpora and 12 languages;
-- test-integrity fixtures: **155/164** across 23 corpora and 12 languages.
+- visible foreign-symbol fixtures: **620/637 — 97.3%** across 36 corpora and 12 languages;
+- layering fixtures: **264/272 — 97.1%** across 25 corpora and 12 languages;
+- test-integrity fixtures: **154/164 — 93.9%** across 23 corpora and 12 languages.
+
+A catch rate means little without the noise it costs, so both are published. On
+the same 36 corpora, the voice detectors flag **0.25%** of ordinary accepted
+edits — and **0.00%** of the hunks in newly added files, where a repository has
+the least to say about what belongs.
 
 Each number has a distinct corpus, denominator, and qualifier. The combined
 briefing/noise result, semantic aggregate, and ordinary-repository timing are
@@ -148,3 +194,19 @@ Read the complete [privacy and security boundary](https://argot.tmonier.com/priv
 Contributions are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md), then
 see the [product strategy](docs/strategy/ARGOT_STRATEGY.md) for the maintained
 decision record and [research log](docs/research/README.md) for evidence.
+
+## Acknowledgements
+
+Every number argot publishes is measured against the real history of 36
+open-source projects, across the twelve supported languages — fastapi, rich,
+faker, saleor, wagtail, scrapy, hono, ink, faker-js, excalidraw, outline,
+express, commander, eslint, gh-cli, hugo, ripgrep, bat, guava, junit5,
+powershell, jellyfin, redis, curl, rocksdb, fmt, homebrew, rubocop, laravel,
+composer, castle-engine, mORMot2, uos, ideU, MSEide/MSEgui, and dagster.
+
+The benchmark would not exist without them, and we are grateful to their
+maintainers and contributors. Argot vendors and redistributes none of their
+code: the harness clones each repository at a pinned SHA, reads its history
+locally, and ships nothing from it. Each project remains under its own license,
+held by its own authors. Full list with links, and what argot does commit:
+[`benchmarks/README.md`](benchmarks/README.md#acknowledgements).

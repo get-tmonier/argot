@@ -53,7 +53,7 @@ fn toy_scorer() -> SequentialImportBpeScorer {
 /// both).
 #[test]
 fn data_rows_are_skipped_but_code_rows_in_data_files_are_scored() {
-    let mut scorer = toy_scorer();
+    let scorer = toy_scorer();
     // A data-dominant host: one long table plus one function.
     let mut file = String::from("NAMES = [\n");
     for i in 0..40 {
@@ -88,7 +88,7 @@ fn data_rows_are_skipped_but_code_rows_in_data_files_are_scored() {
 /// Hunks without file context (bare fragments) are unaffected by the gate.
 #[test]
 fn bare_hunks_skip_the_data_row_gate() {
-    let mut scorer = toy_scorer();
+    let scorer = toy_scorer();
     let scored = scorer.score_hunk("def f(x):\n    return x + 1", None, None, None, None);
     assert!(!matches!(
         scored.reason,
@@ -101,7 +101,7 @@ fn bare_hunks_skip_the_data_row_gate() {
 /// slices the docstring interior. A real top-level foreign import still fires.
 #[test]
 fn import_inside_a_docstring_is_not_flagged_foreign() {
-    let mut scorer = toy_scorer();
+    let scorer = toy_scorer();
     let file = "import math\n\n\ndef run(xs):\n    \"\"\"Do the thing.\n\n    Example::\n\n        import gevent\n        gevent.spawn(run)\n    \"\"\"\n    return math.fsum(xs)\n";
     let lines: Vec<&str> = file.lines().collect();
     // A hunk covering the docstring body (lines 5..=11), including `import gevent`.
@@ -196,7 +196,7 @@ fn call_receiver_flags_only_with_foreign_context() {
             )
         })
         .collect();
-    let mut scorer = SequentialImportBpeScorer::from_config(
+    let scorer = SequentialImportBpeScorer::from_config(
         &files,
         GENERIC_BASELINE_JSON,
         Box::new(PythonAdapter::new()),
@@ -249,7 +249,7 @@ fn file_level_foreign_import_does_not_amplify_benign_hunk() {
             )
         })
         .collect();
-    let mut scorer = SequentialImportBpeScorer::from_config(
+    let scorer = SequentialImportBpeScorer::from_config(
         &files,
         GENERIC_BASELINE_JSON,
         Box::new(PythonAdapter::new()),
@@ -296,7 +296,7 @@ fn foreign_import_wins_over_import_gated_call_receiver() {
             )
         })
         .collect();
-    let mut scorer = SequentialImportBpeScorer::from_config(
+    let scorer = SequentialImportBpeScorer::from_config(
         &files,
         GENERIC_BASELINE_JSON,
         Box::new(PythonAdapter::new()),
@@ -320,4 +320,88 @@ fn foreign_import_wins_over_import_gated_call_receiver() {
         Reason::Import,
         "the foreign import — not an import-gated call-receiver — carries the hit: {scored:?}"
     );
+}
+
+#[test]
+fn evidence_knows_whether_it_names_anything() {
+    // The predicate the reason arbitration reads: a payload that names nothing
+    // leaves the reader the "common here" corpus line and no finding. On a real
+    // Object Pascal backend port that was four `unfamiliar-callee` hits naming
+    // zero callees and two `foreign-import` hits naming zero modules.
+    use crate::scoring::evidence::types::{
+        BpeEvidence, CallReceiverEvidence, CommonEntry, ImportEvidence, RarityStat,
+    };
+    let rarity = || RarityStat {
+        flagged_count: 0,
+        attested_total: 9,
+        noun: "callee".to_string(),
+        where_: "repo".to_string(),
+    };
+    let named = CommonEntry {
+        name: "msgspec".to_string(),
+        count: 0,
+    };
+    let cases: &[(Evidence, bool)] = &[
+        (
+            Evidence::Bpe(BpeEvidence {
+                surprising_identifiers: vec![named.clone()],
+            }),
+            true,
+        ),
+        (
+            Evidence::Bpe(BpeEvidence {
+                surprising_identifiers: Vec::new(),
+            }),
+            false,
+        ),
+        (
+            Evidence::Import(ImportEvidence {
+                foreign_specifiers: vec!["msgspec".to_string()],
+                rarity: rarity(),
+                common_here: vec![named.clone()],
+                foreign_specifier_spans: Vec::new(),
+            }),
+            true,
+        ),
+        (
+            // The shape that shipped: the corpus line is populated, the thing
+            // the finding is about is not.
+            Evidence::Import(ImportEvidence {
+                foreign_specifiers: Vec::new(),
+                rarity: rarity(),
+                common_here: vec![named.clone()],
+                foreign_specifier_spans: Vec::new(),
+            }),
+            false,
+        ),
+        (
+            Evidence::CallReceiver(CallReceiverEvidence {
+                unfamiliar_callees: vec!["decode".to_string()],
+                rarity: rarity(),
+                common_here: Vec::new(),
+            }),
+            true,
+        ),
+        (
+            Evidence::CallReceiver(CallReceiverEvidence {
+                unfamiliar_callees: Vec::new(),
+                rarity: rarity(),
+                common_here: vec![named],
+            }),
+            false,
+        ),
+    ];
+    for (evidence, want) in cases {
+        assert_eq!(evidence.names_something(), *want, "{evidence:?}");
+    }
+}
+
+#[test]
+fn the_scorer_is_shareable_across_threads() {
+    // The batch loop scores files in parallel, so the scorer must be usable
+    // from several workers at once. Everything mutable on the hot path is
+    // gone: the per-file memo lives in a thread-local and the observability
+    // counters are atomic.
+    fn assert_sync<T: Sync>() {}
+    assert_sync::<SequentialImportBpeScorer>();
 }

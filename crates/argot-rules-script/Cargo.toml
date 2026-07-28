@@ -14,7 +14,7 @@ description = "The scripted rule group: community rules loaded at run time from 
 argot-engine = { path = "../argot-engine" }
 argot-lang = { path = "../argot-lang" }
 # Pinned minor: the Rhai language surface is part of the rule-author contract
-# (manifest `api` gates the host API; the interpreter shouldn't drift under it).
+# (rules are written against the host API; the interpreter shouldn't drift under them).
 rhai = "1.25"
 serde.workspace = true
 serde_json.workspace = true

@@ -9,6 +9,16 @@
 > the FPCUnit/DUnit convention). New aggregate: **23 corpora / 12 languages · 155/164 = 94.5% catch
 > · 0/106 controls · 45/3602 = 1.25% gating-FP.** See [`pascal-language-port.md`](pascal-language-port.md).
 > The 11-language canonical run below is the original.
+>
+> **↻ RE-MEASURED (2026-07-28) — 154/164, not 155.** `just integrity-verify` on
+> `fix/status-repo-flag` reports **154/164 = 93,9 %**, with controls unchanged at
+> **0/106** and every tactic matching except `test_deletion` (23/25 → 22/25); the
+> three misses are hono, laravel and composer. An A/B against the same branch
+> *without* that day's grammar fixes reproduces hono 5/7 with the identical two
+> misses, so the difference **predates** them and is not attributable to any
+> change made that day. Deliberately not bisected further: one fixture, no
+> control movement. The claim manifest carries the measured 154/164; this
+> document keeps 155 as the number the original run produced.
 
 **Date:** 2026-07-10 · **Branch:** `feat/new-signal` · **Rubric:**
 `benchmarks/catalogs/RUBRIC-INTEGRITY.md` (frozen taxonomy + one recorded

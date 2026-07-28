@@ -22,7 +22,7 @@ use crate::scoring::adapters::rust::RustAdapter;
 use crate::scoring::adapters::typescript::TypeScriptAdapter;
 use crate::scoring::adapters::{Language, LanguageAdapter};
 use crate::scoring::calibration::{
-    collect_candidates_with, header_is_cpp, language_for_filename_ctx, language_name,
+    collect_candidates_with, language_for_filename_ctx, language_name,
 };
 use anyhow::Result;
 use argot_lang::text::read_text_lossy;
@@ -30,6 +30,9 @@ use serde::Serialize;
 use serde_json::Value;
 use std::collections::BTreeMap;
 use std::path::Path;
+
+/// Is the voice learned from the code that actually changes?
+pub mod train_serve;
 
 // --- suitability thresholds ---
 //
@@ -288,7 +291,7 @@ fn scan_corpus(repo_dir: &Path) -> CorpusReport {
     let mut gitignored_dirs: Vec<String> = Vec::new();
     // Route `.h` to C or C++ by the repo's translation-unit majority, matching
     // how calibrate/check file them, so the composition and verdict agree.
-    let header_cpp = header_is_cpp(repo_dir);
+    let header_cpp = argot_engine::corpus::repo_langs(repo_dir);
     let mut total_files = 0usize;
     let mut unsupported_files = 0usize;
     let mut languages: BTreeMap<String, LanguageCorpus> = BTreeMap::new();
@@ -658,12 +661,32 @@ pub fn format_shares(corpus: &CorpusReport) -> String {
 
 /// Inspect `repo_dir`: corpus composition, calibration health when
 /// `.argot/scorer-config.json` exists, and the suitability verdict.
+/// Directories teaching a voice the repository is not judged against, as
+/// yellow reasons. Silent on a repo with no history to compare, and on the
+/// stable-but-large core that is normal — see [`train_serve`].
+fn train_serve_reasons(repo_dir: &Path) -> Vec<Reason> {
+    let corpus_rel: Vec<String> = argot_engine::corpus::collect_source_files(repo_dir)
+        .iter()
+        .map(|p| argot_engine::corpus::rel_to_repo(p, repo_dir))
+        .collect();
+    let mix = train_serve::directory_mix(repo_dir, &corpus_rel);
+    train_serve::mismatched(&mix)
+        .into_iter()
+        .map(|d| Reason {
+            level: ReasonLevel::Yellow,
+            signal: "voice_not_where_the_work_is".to_string(),
+            message: train_serve::describe(d),
+        })
+        .collect()
+}
+
 pub fn inspect_repo(repo_dir: &Path) -> Result<InspectReport> {
     if !repo_dir.is_dir() {
         anyhow::bail!("not a directory: {}", repo_dir.display());
     }
     let corpus = scan_corpus(repo_dir);
     let (_, mut reasons) = compute_verdict(&corpus);
+    reasons.extend(train_serve_reasons(repo_dir));
 
     let config_path = repo_dir.join(".argot").join("scorer-config.json");
     let calibration = match load_calibration(&config_path, &corpus) {

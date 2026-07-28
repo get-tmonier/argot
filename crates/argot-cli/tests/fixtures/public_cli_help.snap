@@ -283,6 +283,7 @@ Show the current repository's argot state
 Usage: argot status [OPTIONS]
 
 Options:
+      --repo <REPO>      Path to the repository to report on [default: .]
       --format <FORMAT>  Output format: human (terminal) or json (stable machine-readable) [default: human] [possible values: human, json]
   -h, --help             Print help
 

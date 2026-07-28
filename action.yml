@@ -284,9 +284,11 @@ runs:
           reason=seed
         elif [ "$EVENT" = 'pull_request' ] || [ "$EVENT" = 'pull_request_target' ]; then
           # Ask argot the same question its local auto-refresh asks, from the
-          # base — which is the tree the check scores against.
+          # base — which is the tree the check scores against. Do not silence
+          # this: a swallowed error here reads as "refit", which is exactly the
+          # cost this step exists to avoid, and it would do so silently.
           git -C "$ARGOT_PATH" checkout -q --detach "$BASE_SHA"
-          status=$(argot status --repo "$ARGOT_PATH" --format json 2>/dev/null || echo '{}')
+          status=$(argot status --repo "$ARGOT_PATH" --format json) || status='{}'
           git -C "$ARGOT_PATH" checkout -q --detach "$ORIG_SHA"
           behind=$(jq -r '.health.commits_behind // empty' <<<"$status")
           if [ "$(jq -r '.calibrated // false' <<<"$status")" = true ] \
@@ -297,6 +299,9 @@ runs:
             reason=config-changed
           fi
         fi
+        # Say it out loud too: the decision drives the whole cost of the run,
+        # and a step that only writes to $GITHUB_OUTPUT leaves nothing to debug.
+        echo "argot: fit=$fit reason=$reason behind=${behind:-n/a}"
         {
           echo "fit=$fit"
           echo "reason=$reason"

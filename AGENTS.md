@@ -77,7 +77,7 @@ the original), **misplaced code**, and a **layering violation** (264/272, 97.1%,
 on authored fixtures across 25 corpora / 12 languages). It also flags **tests
 weakened, disabled, or deleted alongside a code change** — a test gutted,
 skipped, or its assertions loosened while the production code it exercises also
-changes — 155/164 (94.5%) authored gaming fixtures across 23 corpora / 12
+changes — 154/164 (93.9%) authored gaming fixtures across 23 corpora / 12
 languages, with 45/3,602 (1.25%) accepted-history test-touching commits flagged
 at gating severity and zero fires on 106 legitimate-refactor controls. These are
 detector-specific measures, not a product-wide accuracy claim. Trust those hits.
@@ -147,9 +147,9 @@ isn't allowed outside the query builder"), you can write the rule yourself:
 
 1. Create `.argot/rules/<name>/rule.toml` (`schema = 1`, `name` matching the directory,
    `languages` scoped to where the convention applies) and `check.rhai` (a `ts_query(...)` loop
-   calling `report`/`report_span` — host API v2: `file`, `hunks`, `ts_query`,
-   `import_attested`/`callee_attested`, `changeset_paths`, and — with `api = 2` in
-   `[engine]` — `read_repo_file`/`repo_paths` for rules that must read another file).
+   calling `report`/`report_span`: `file`, `hunks`, `ts_query`,
+   `import_attested`/`callee_attested`, `changeset_paths`, and
+   `read_repo_file`/`repo_paths` for rules that must read another file).
 2. Add `tests/<case>/{input.<ext>, expected.json}` fixtures — at least one that should fire and
    one that shouldn't.
 3. Loop `argot rules test <name>` until every case passes, then let a real `argot check` confirm

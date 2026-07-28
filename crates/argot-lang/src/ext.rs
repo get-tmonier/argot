@@ -33,15 +33,43 @@ pub fn ext_to_lang(ext: &str) -> Option<&'static str> {
     EXT_TO_LANG.iter().find(|(e, _)| *e == ext).map(|(_, l)| *l)
 }
 
-/// [`ext_to_lang`], resolving the `.h` C/C++ ambiguity with the repo-level
-/// `header_is_cpp` decision (translation-unit majority) so check routes a
-/// header to the same model calibrate built it into. All other extensions are
+/// What a repository writes, for the extensions whose name does not say which
+/// language they are. Computed once per repo (see `argot_engine::corpus`), so
+/// every stage routes a file to the same model calibrate built it into.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct RepoLangs {
+    /// `.h` is C or C++ by translation-unit majority.
+    pub header_is_cpp: bool,
+    /// The repository has at least one Object Pascal compilation unit, so its
+    /// `.inc` files are Pascal includes.
+    pub has_pascal_units: bool,
+    /// The repository has at least one C or C++ translation unit, so its `.inc`
+    /// files are C includes when it has no Pascal.
+    pub has_c_units: bool,
+}
+
+/// [`ext_to_lang`], resolving the extensions the name alone cannot settle
+/// against what the repository actually writes. Every other extension is
 /// unchanged.
-pub fn ext_to_lang_ctx(ext: &str, header_is_cpp: bool) -> Option<&'static str> {
-    if header_is_cpp && ext == ".h" {
-        return Some("cpp");
+///
+/// `.h` is C or C++ by repo majority. `.inc` is an *include* — Object Pascal's,
+/// but equally C's, and the name cannot tell them apart. Routing it to Pascal
+/// unconditionally put 28 RocksDB files and 6 curl files, ~11 600 lines of C,
+/// through the Pascal grammar: 95 % and 100 % of their lines unreadable, and
+/// worse than unreadable, C learned as Pascal vocabulary. Those same files read
+/// at 10,6 % loss as C. So an `.inc` belongs to Pascal in a repository that has
+/// Pascal units, to C/C++ in one that has neither, and to nothing at all in a
+/// repository that writes neither language — better unscored than misread.
+pub fn ext_to_lang_ctx(ext: &str, langs: RepoLangs) -> Option<&'static str> {
+    match ext {
+        ".h" if langs.header_is_cpp => Some("cpp"),
+        ".inc" if !langs.has_pascal_units => match (langs.has_c_units, langs.header_is_cpp) {
+            (true, true) => Some("cpp"),
+            (true, false) => Some("c"),
+            (false, _) => None,
+        },
+        _ => ext_to_lang(ext),
     }
-    ext_to_lang(ext)
 }
 
 /// Python `Path(path).suffix.lower()`.
@@ -55,3 +83,6 @@ pub fn extension(path: &str) -> String {
         _ => String::new(),
     }
 }
+
+#[cfg(test)]
+mod tests;

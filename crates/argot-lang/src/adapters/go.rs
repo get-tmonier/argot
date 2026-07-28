@@ -318,17 +318,25 @@ impl GoAdapter {
 
     /// 1-indexed line numbers that carry prose — line (`//`) and block
     /// (`/* … */`) comments.
-    pub fn prose_line_ranges(&self, source: &str) -> HashSet<usize> {
+    fn prose_mask(&self, source: &str) -> crate::ts_parse::ProseMask {
         let tree = parse(source);
-        let mut rows: HashSet<usize> = HashSet::new();
+        let mut mask = crate::ts_parse::ProseMask::default();
         for node in descendants(tree.root_node()) {
             if node.kind() == "comment" {
-                for r in (node.start_position().row + 1)..=(node.end_position().row + 1) {
-                    rows.insert(r);
-                }
+                mask.add(source, node);
             }
         }
-        rows
+        mask
+    }
+
+    pub fn prose_line_ranges(&self, source: &str) -> HashSet<usize> {
+        self.prose_mask(source).rows
+    }
+
+    /// Prose sharing a line with code: blanked in place, so the code survives
+    /// and the words do not reach the scorers.
+    pub fn prose_spans(&self, source: &str) -> Vec<(usize, usize, usize)> {
+        self.prose_mask(source).spans
     }
 
     /// True if the file is overwhelmingly top-level data literals (slice / map /
@@ -377,6 +385,7 @@ impl GoAdapter {
                         symbol: node_text(name, source).to_string(),
                         start_line: node.start_position().row + 1,
                         end_line: node.end_position().row + 1,
+                        nested: false,
                     });
                 }
             }

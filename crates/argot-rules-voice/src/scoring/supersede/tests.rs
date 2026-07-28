@@ -213,6 +213,45 @@ fn attach_drops_completed_migrations_and_lists_leftovers() {
 }
 
 #[test]
+fn attach_drops_a_migration_that_never_propagated() {
+    // MSEide/MSEgui's shape, scaled down: three commits renamed the unit across
+    // eleven files in 2017 and nine years later 272 of 508 still import the old
+    // name. Coverage 11/283 = 3.9% — a rename that never took, not a migration
+    // the repo is running, and it fired on six of seven changesets.
+    let adapter = adapter_for("python").unwrap();
+    let pair = |files: usize| {
+        vec![(
+            SupersessionKind::Import,
+            MinedPair {
+                old: "oldlib".into(),
+                new: "newlib".into(),
+                commits: 3,
+                files,
+                first: "2017-07-13".into(),
+                last: "2017-07-14".into(),
+                example_commit: "7932ad6".into(),
+            },
+        )]
+    };
+    let corpus = |leftovers: usize| -> Vec<(String, String)> {
+        (0..leftovers)
+            .map(|i| (format!("src/legacy{i}.py"), "import oldlib\n".to_string()))
+            .chain(std::iter::once((
+                "src/new.py".into(),
+                "import newlib\n".into(),
+            )))
+            .collect()
+    };
+    // 2 converted against 40 left behind — 4.8% coverage, dropped.
+    assert!(attach_leftovers(pair(2), &corpus(40), adapter.as_ref(), Language::Python).is_empty());
+    // 8 converted against 1 left behind — ripgrep's regex → regex_automata
+    // ratio (88.9%), kept, with the straggler listed.
+    let live = attach_leftovers(pair(8), &corpus(1), adapter.as_ref(), Language::Python);
+    assert_eq!(live.len(), 1, "a live migration must survive the gate");
+    assert_eq!(live[0].leftover_count, 1);
+}
+
+#[test]
 fn attach_drops_ubiquitous_callee_old_sides() {
     let adapter = adapter_for("python").unwrap();
     let pairs = vec![(

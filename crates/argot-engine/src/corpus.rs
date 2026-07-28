@@ -313,15 +313,27 @@ pub fn is_excluded_path(path: &Path, source_dir: &Path) -> bool {
     }
 }
 
-/// Which language this repo's ambiguous `.h` headers belong to. `.h` is used by
-/// both C and C++; a header-only C++ library keeps its logic in `.h` with the
-/// translation units in `.cc`/`.cpp`, so filing every `.h` under C (the naive
-/// default) starves the C++ model and mis-scores the bulk of the code. Decide
-/// per repo by translation-unit majority — `.cpp`/`.cc`/`.cxx` (C++) vs `.c`
-/// (C). Computed identically wherever the pipeline classifies a `.h` (extract,
+/// What this repo writes, for the extensions the name alone cannot settle.
+///
+/// `.h` is used by both C and C++; a header-only C++ library keeps its logic in
+/// `.h` with the translation units in `.cc`/`.cpp`, so filing every `.h` under C
+/// (the naive default) starves the C++ model and mis-scores the bulk of the
+/// code. `.inc` is an include, which Object Pascal and C both write. Both are
+/// decided per repo by counting the files that are *not* ambiguous — `.cpp`/
+/// `.cc`/`.cxx` against `.c` for the header majority, and the presence of Pascal
+/// compilation units (`.pas`/`.pp`/`.dpr`/`.lpr`) against C translation units
+/// for the include. One walk answers both.
+///
+/// Computed identically wherever the pipeline classifies a file (extract,
 /// calibrate, check) so the stages stay in lock-step.
-pub fn header_is_cpp(source_dir: &Path) -> bool {
-    fn walk(dir: &Path, root: &Path, c: &mut usize, cpp: &mut usize) {
+pub fn repo_langs(source_dir: &Path) -> argot_lang::ext::RepoLangs {
+    #[derive(Default)]
+    struct Counts {
+        c: usize,
+        cpp: usize,
+        pascal: usize,
+    }
+    fn walk(dir: &Path, root: &Path, n: &mut Counts) {
         let Ok(entries) = std::fs::read_dir(dir) else {
             return;
         };
@@ -335,7 +347,7 @@ pub fn header_is_cpp(source_dir: &Path) -> bool {
                     if matches!(name.as_str(), ".git" | "node_modules" | "target" | "vendor") {
                         continue;
                     }
-                    walk(&path, root, c, cpp);
+                    walk(&path, root, n);
                 }
                 Ok(t) if t.is_file() => {
                     if is_excluded_path(&path, root) {
@@ -343,21 +355,37 @@ pub fn header_is_cpp(source_dir: &Path) -> bool {
                     }
                     let name = basename(&path);
                     if name.ends_with(".c") {
-                        *c += 1;
+                        n.c += 1;
                     } else if name.ends_with(".cpp")
                         || name.ends_with(".cc")
                         || name.ends_with(".cxx")
                     {
-                        *cpp += 1;
+                        n.cpp += 1;
+                    } else if name.ends_with(".pas")
+                        || name.ends_with(".pp")
+                        || name.ends_with(".dpr")
+                        || name.ends_with(".lpr")
+                    {
+                        n.pascal += 1;
                     }
                 }
                 _ => {}
             }
         }
     }
-    let (mut c, mut cpp) = (0usize, 0usize);
-    walk(source_dir, source_dir, &mut c, &mut cpp);
-    cpp > c
+    let mut n = Counts::default();
+    walk(source_dir, source_dir, &mut n);
+    argot_lang::ext::RepoLangs {
+        header_is_cpp: n.cpp > n.c,
+        has_pascal_units: n.pascal > 0,
+        has_c_units: n.c + n.cpp > 0,
+    }
+}
+
+/// Which language this repo's ambiguous `.h` headers belong to — see
+/// [`repo_langs`], which answers this and the `.inc` question in one walk.
+pub fn header_is_cpp(source_dir: &Path) -> bool {
+    repo_langs(source_dir).header_is_cpp
 }
 
 #[cfg(test)]

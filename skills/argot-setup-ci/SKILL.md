@@ -6,11 +6,18 @@ description: Wire argot into a repository's GitHub Actions as a non-blocking con
 # argot-setup-ci
 
 Add argot to a repository's CI as a **non-blocking** pattern check on every
-pull request. You do **not** need to set argot up locally first — the Action
-installs argot and fits the model in CI. Never make it block the merge unless
-the user explicitly asks for a gate. This is user-wired automation: the Action
-runs only at the GitHub event in the workflow the repository commits; it does
-not install or claim an agent end-of-turn or acceptance lifecycle.
+pull request. Never make it block the merge unless the user explicitly asks for
+a gate. This is user-wired automation: the Action runs only at the GitHub event
+in the workflow the repository commits; it does not install or claim an agent
+end-of-turn or acceptance lifecycle.
+
+The Action installs argot and fits in CI, so this works on its own. But CI and
+local setup are one decision, not two: a committed `argot.toml` — the excludes
+that keep vendored, generated and demo trees out of the voice — makes the CI
+voice sharper, and argot is only as good as that scoping. **If the repository
+has no `argot.toml` yet, offer the full [argot-setup](../argot-setup/SKILL.md)
+flow first**, which covers CI as one of its phases. Come here when the user
+wants CI specifically, or already has a configured repo.
 
 ## Steps
 
@@ -67,14 +74,22 @@ not install or claim an agent end-of-turn or acceptance lifecycle.
    every pull request pays the fit instead — which is how a new tool gets
    uninstalled. A pull request only refits when no model exists yet (the first
    run, or the slot expired after seven idle days) or when the base's
-   `argot.toml` changed. Tell the user the first run is the slow one.
+   `argot.toml` changed.
 
-6. Tell the user what they'll get on each configured PR workflow: a
+6. **Say that the cache does not exist until this workflow is merged.** The
+   producer run is a `push` to the default branch, so until the pull request
+   adding the workflow is *merged*, there is no cache to read and **every run is
+   a cold fit** — minutes, not seconds. Tell the user this before they judge the
+   tool: the workflow's own PR, and any PR opened before it lands, are the slow
+   ones by design. After the merge the next default-branch push fills the slot
+   and pull requests drop to seconds.
+
+7. Tell the user what they'll get on each configured PR workflow: a
    **non-blocking** job summary, optional sticky PR comment, and inline
    code-scanning annotations. Findings do not fail the Action by default;
    operational workflow failures can still fail it.
 
-7. **Offer a live README badge.** If the user wants one, add `contents: write`
+8. **Offer a live README badge.** If the user wants one, add `contents: write`
    to `permissions` and `publish-badge: true` under the action's `with:`. On
    each push to the default branch the Action publishes the in-voice score to a
    `badges` branch; give the user the snippet to paste in their README:
@@ -86,7 +101,7 @@ not install or claim an agent end-of-turn or acceptance lifecycle.
    It renders `argot | N% in-voice`, green when in voice. (For a static badge
    with no shields.io round-trip: `argot voice-diff <range> --format svg`.)
 
-8. If the user prefers a hand-rolled workflow over the Action (or already has
+9. If the user prefers a hand-rolled workflow over the Action (or already has
    one), the building blocks are: install argot, `argot model fetch` (cache
    `~/.cache/argot/models` to keep the download out of every run; also cache
    `~/.cache/argot/embeddings` with a loose restore-key so unchanged functions

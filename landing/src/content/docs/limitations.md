@@ -42,3 +42,12 @@ binary. With `ARGOT_OFFLINE=1` and no cached/local model, `redundant` and
 Architecture and integrity checks likewise depend on their shipped feature and
 fit artifacts. Confirm the live rule registry and fit health with `argot rules`
 and `argot inspect` before relying on a specific detector.
+
+`misplaced` also abstains where it cannot answer honestly: on a body that calls
+nothing (a property setter is written out of the names it assigns, so it reads
+as whatever unit owns them, not as code in the wrong place), and on any function
+recovered from inside a region the parser could not read. The second is not
+rare on every grammar — on one real 924k-line Object Pascal tree a single
+unparsed construct put 23% of the repository's functions out of reach for both
+`misplaced` and `redundant`. Neither rule reports a guess in that state, so
+"nothing found" there means "not judged", not "judged clean".

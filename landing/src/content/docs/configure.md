@@ -541,7 +541,8 @@ to recalibrate:
   run-level PR annotations),
 - **editing `[exclude]`/`[detect]` is itself a refresh trigger**: the next
   check notices the config fingerprint changed and refits in the background,
-- **`argot status`** is the one-stop health view: fitted SHA, commits behind,
+- **`argot status`** (`--repo <path>` for a repository you are not sitting in)
+  is the one-stop health view: fitted SHA, commits behind,
   config in sync or not, and unexcluded noisy directories,
 - a failing background refit stops retrying silently and tells you to run
   `argot fit` yourself.
@@ -589,11 +590,11 @@ version control.
 |---|---|---|---|
 | `argot.toml` *(repo root)* | `init` / `argot mute` / by hand | Config — `[exclude]`, `[detect]`, `[rules]`, `[update]`, and `[[mute]]`. | **Yes** — commit it. |
 | `argot.local.toml` *(repo root)* | you | Personal overrides, merged on top. | No — gitignored. |
-| `.argot/scorer-config.json` | `fit` / `init` | The fitted voice model: calibrated threshold(s) + scorer config. | No — rebuildable. |
+| `.argot/scorer-config.json` | `fit` / `init` | The fitted voice model: calibrated threshold(s) + scorer config. Also records, per language, how the threshold scales with hunk size (`size_slope`, `size_reference_lines`) — a hunk's score is a max over its tokens, so a large one scores higher for free, and the bar rises to match above the repository's own p90. Fitted from your candidates; nothing to set. | No — rebuildable. |
 | `.argot/semantic-index.json` | `fit` / `init` | The per-repo code-embedding index for the reinvention/placement checks. Records the model that built it — an index from a different model/version is rejected with a "run `argot fit` to rebuild" message rather than scoring wrong. | No — rebuildable. |
 | `.argot/layering.json` | `fit` / `init` | The module-dependency graph the `layering` rule checks added imports against. | No — rebuildable. |
 | `.argot/integrity.json` | `fit` / `init` | Per-repo learned gates for the test-integrity rules (`test-deleted` / `test-disabled` / `test-weakened`), from a mini-replay of the repo's accepted history. | No — rebuildable. |
-| `.argot/manifest.json` | `fit` / `init` | Versioned, hashed record of what was learned (model hash, fit commit, corpus size); read by `inspect --model`. | No — rebuildable. |
+| `.argot/manifest.json` | `fit` / `init` | Versioned, hashed record of what was learned (model hash, fit commit, corpus size); read by `inspect --model`. Names any language too thin to learn a voice from (`unlearnable_languages`) — those files are **not checked**, and the skip is recorded rather than silent. | No — rebuildable. |
 | `.argot/health.json` | `fit` / `init` | The fit's self-record — fitted SHA, config fingerprint, drift candidates; read by `check` and `status` for the freshness notes ([Health & freshness](/docs/health-and-freshness/)). | No — rebuildable. |
 | `.argot/repo-corpus.txt` | `fit` / `init` | The source files counted into the repo distribution. | No — rebuildable. |
 | `.argot/generic-baseline.json` | `fit` / `init` | The bundled generic-baseline reference. | No — rebuildable. |

@@ -325,3 +325,16 @@ targets:
     holdout_window: 300
     prs:
       - { pr: 0, sha: 305387a0712b08afd508277f8df9f6925c966171 }
+  # MSEide/MSEgui itself — the toolkit ideU is built on, and the largest Pascal
+  # corpus here: 924 048 lines over 9 835 commits, 2006→2026, with two shipping
+  # platform backends (X11, Win32) and a shared .inc contract between them. The
+  # curation matters: 40,8% of its Pascal is vendored ZeosLib/FCL copies or
+  # machine-emitted `_mfm`/`_bmp` byte arrays, excluded via the catalog's
+  # argot.toml. GPL-2.0/LGPL-2.1 — referenced by URL and SHA only; the clone
+  # lives in the gitignored benchmarks/data/, never in this repository.
+  - name: mseide-msegui
+    url: https://github.com/mse-org/mseide-msegui
+    language: pascal
+    holdout_window: 300
+    prs:
+      - { pr: 0, sha: 4233521f2e5e627cbbc765000e5fc986f1d423af }

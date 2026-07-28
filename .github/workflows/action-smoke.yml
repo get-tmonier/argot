@@ -38,7 +38,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        scenario: [clean, finding]
+        # `clean` stays pinned to an old release: that scenario's job is the
+        # installer contract. The others run `latest`, because pinning every
+        # scenario meant the smoke never exercised a shipped binary — which is
+        # how a SARIF document missing a schema-required property reached users.
+        scenario: [clean, finding, sarif]
     steps:
       - uses: actions/checkout@v5
         with:
@@ -48,18 +52,22 @@ jobs:
         shell: bash
         run: |
           fixture="${RUNNER_TEMP}/argot-action-${{ matrix.scenario }}"
-          .github/fixtures/action-smoke/create-repo.sh "$fixture" "${{ matrix.scenario }}"
+          kind="${{ matrix.scenario }}"
+          # `sarif` is the `finding` fixture seen through the default format.
+          [ "$kind" = sarif ] && kind=finding
+          .github/fixtures/action-smoke/create-repo.sh "$fixture" "$kind"
           echo "path=$fixture" >> "$GITHUB_OUTPUT"
       - name: Run local Action
         id: action
         uses: ./
         with:
           path: ${{ steps.fixture.outputs.path }}
-          argot-version: 0.2.82
+          argot-version: ${{ matrix.scenario == 'clean' && '0.2.82' || 'latest' }}
           ref: HEAD~1..HEAD
           # `github` produces workflow commands for a finding, while JSON keeps
           # the clean case a stable machine-readable result.
-          format: ${{ matrix.scenario == 'finding' && 'github' || 'json' }}
+          # `sarif` takes the Action's own default, which is the whole point.
+          format: ${{ matrix.scenario == 'finding' && 'github' || matrix.scenario == 'sarif' && 'sarif' || 'json' }}
           output-file: ${{ runner.temp }}/argot-${{ matrix.scenario }}.out
           cache: false
           semantic: false
@@ -73,16 +81,34 @@ jobs:
           SCENARIO: ${{ matrix.scenario }}
         run: |
           set -euo pipefail
-          argot --version | grep -Fx 'argot 0.2.82'
+          if [ "$SCENARIO" = clean ]; then argot --version | grep -Fx 'argot 0.2.82'; fi
           # A finding is reported through the Action output, but the Action
           # itself succeeds unless the caller explicitly opts into gating.
           test "$ACTION_OUTCOME" = success
           case "$SCENARIO" in
             clean) test "$ACTION_EXIT_CODE" = 0 ;;
-            finding) test "$ACTION_EXIT_CODE" = 1 ;;
+            finding|sarif) test "$ACTION_EXIT_CODE" = 1 ;;
           esac
           # `voice-diff` is deliberately best-effort when semantic indexing is
           # disabled, so a missing optional card must not fail this smoke test.
+      # What github/codeql-action/upload-sarif validates before it accepts a
+      # document. The Rust suite asserts this contract on the renderer; here it
+      # is asserted on the artefact the Action actually hands to GitHub.
+      - name: Assert the SARIF carries every schema-required property
+        if: ${{ matrix.scenario == 'sarif' }}
+        shell: bash
+        env:
+          RESULTS: ${{ runner.temp }}/argot-sarif.out
+        run: |
+          set -euo pipefail
+          jq -e '.version == "2.1.0"' "$RESULTS" > /dev/null
+          jq -e '.runs | length > 0' "$RESULTS" > /dev/null
+          jq -e 'all(.runs[]; .tool.driver.name != null)' "$RESULTS" > /dev/null
+          jq -e '[.runs[].tool.driver.rules // [] | .[] | select(.id == null)] | length == 0' "$RESULTS" > /dev/null
+          jq -e '[.runs[].invocations // [] | .[] | select(.executionSuccessful == null)] | length == 0' "$RESULTS" > /dev/null
+          jq -e '[.runs[].results // [] | .[] | select(.message.text == null)] | length == 0' "$RESULTS" > /dev/null
+          echo "SARIF: every schema-required property present"
+
       - name: Publish finding annotations
         if: ${{ matrix.scenario == 'finding' }}
         shell: bash

@@ -377,3 +377,20 @@ for path in repo_paths("*/impl.pas") {
     )
     .expect("a rule of this shape must compile in every profile");
 }
+
+#[test]
+fn the_operation_budget_scales_with_the_file() {
+    // A constant cap is a cap on the input, not on the rule: at a flat
+    // 1 000 000 a 9 439-line unit leaves ~106 operations per line, and
+    // MSEide/MSEgui's `c-abi-managed-type` ran out on `msedb.pas` — a sane
+    // rule defeated by a large file.
+    let small = operation_budget(100);
+    let large = operation_budget(9_439);
+    assert!(large > small, "{large} vs {small}");
+    assert!(
+        large >= 10 * BASE_OPERATIONS,
+        "a 9 439-line file must get real room, not ~106 ops a line: {large}"
+    );
+    // …but not unbounded: a generated monster cannot buy arbitrary time.
+    assert_eq!(operation_budget(usize::MAX), MAX_OPERATIONS_CEILING);
+}

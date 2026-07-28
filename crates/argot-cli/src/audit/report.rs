@@ -118,6 +118,75 @@ pub struct AuditReport {
     pub hunks_scanned: u64,
     pub groups: Vec<GroupReport>,
     pub findings: Vec<Finding>,
+    /// Rules firing on more of this repository's own accepted history than a
+    /// healthy repository's do — calibration evidence, computed here because
+    /// audit is the only surface that has both numerator and denominator.
+    /// Empty is the normal case and renders as nothing.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub over_firing: Vec<OverFiringRule>,
+}
+
+/// A rule that fires too often on accepted history to be read as a signal.
+#[derive(Debug, Clone, Serialize)]
+pub struct OverFiringRule {
+    pub rule: String,
+    pub rule_label: String,
+    pub findings: usize,
+    /// Share of scanned hunks this rule flagged, as a percentage.
+    pub rate_pct: f64,
+}
+
+/// Above this share of scanned hunks, a rule is over-firing *for this
+/// repository* — its findings have stopped being a signal and started being
+/// the background.
+///
+/// From the benchmark's own temporal-holdout replays, per-rule over-fire on
+/// accepted history across the 18 corpora with ≥300 eligible hunks:
+///
+/// | rule | median | p75 | p90 | max |
+/// |---|--:|--:|--:|--:|
+/// | `unfamiliar-callee` | 0,43 % | 0,63 % | 4,50 % | 5,62 % |
+/// | `foreign-import` | 0,31 % | 0,53 % | 1,06 % | 1,18 % |
+/// | `rare-tokens` | 0,28 % | 0,66 % | 1,18 % | 1,69 % |
+///
+/// A healthy repository sits at 0,3–0,7 % per rule, so 2 % is roughly three
+/// times the p75 of every rule and above the p90 of two of the three. It is
+/// also the **same ≤2 % bar the RUBRIC already publishes** for over-fire —
+/// reusing the project's existing gate beats inventing a second number.
+pub const OVER_FIRE_PCT: f64 = 2.0;
+
+/// Rules whose share of scanned hunks exceeds [`OVER_FIRE_PCT`], worst first.
+///
+/// Reported, never acted on: the fix is a judgment call between scoping the
+/// rule to the tree that trips it, softening it to `warn`, and accepting it —
+/// and argot does not get to make that call for a repository.
+pub fn over_firing_rules(findings: &[Finding], hunks_scanned: u64) -> Vec<OverFiringRule> {
+    if hunks_scanned == 0 {
+        return Vec::new();
+    }
+    let mut counts: std::collections::BTreeMap<(&str, &str), usize> = Default::default();
+    for f in findings {
+        *counts
+            .entry((f.rule.as_str(), f.rule_label.as_str()))
+            .or_default() += 1;
+    }
+    let mut out: Vec<OverFiringRule> = counts
+        .into_iter()
+        .map(|((rule, label), findings)| OverFiringRule {
+            rule: rule.to_string(),
+            rule_label: label.to_string(),
+            findings,
+            rate_pct: 100.0 * findings as f64 / hunks_scanned as f64,
+        })
+        .filter(|r| r.rate_pct > OVER_FIRE_PCT)
+        .collect();
+    out.sort_by(|a, b| {
+        b.rate_pct
+            .partial_cmp(&a.rate_pct)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| a.rule.cmp(&b.rule))
+    });
+    out
 }
 
 pub const SCHEMA_VERSION: u32 = 1;
@@ -258,6 +327,7 @@ mod tests {
                 unknown: 0,
             },
             hunks_scanned: 900,
+            over_firing: Vec::new(),
             groups: vec![GroupReport {
                 group: "voice",
                 status: GroupStatus::Scored,
@@ -299,6 +369,7 @@ mod tests {
                 unknown: 0,
             },
             hunks_scanned: hunks,
+            over_firing: Vec::new(),
             groups: vec![],
             findings,
         }

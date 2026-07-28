@@ -475,7 +475,7 @@ pub fn build_scorer(
             probe_hunks
         };
 
-        let mut probe_cr = CallReceiverScorer::new(
+        let probe_cr = CallReceiverScorer::new(
             corpus,
             language,
             knobs.alpha,
@@ -508,11 +508,14 @@ pub fn build_scorer(
             );
             hunks_scored += 1;
         }
-        let fire_rate = probe_cr.rare_branch_hunks_fired as f64 / hunks_scored.max(1) as f64;
+        let rare_hunks_fired = probe_cr
+            .rare_branch_hunks_fired
+            .load(std::sync::atomic::Ordering::Relaxed);
+        let fire_rate = rare_hunks_fired as f64 / hunks_scored.max(1) as f64;
         let keep_rule = fire_rate < knobs.asym_fire_rate_threshold;
         eprintln!(
             "[auto-asym] cluster_rare probe: rare_hunks_fired={}/{} fire_rate={:.3} threshold={:.3} → {}",
-            probe_cr.rare_branch_hunks_fired,
+            rare_hunks_fired,
             hunks_scored,
             fire_rate,
             knobs.asym_fire_rate_threshold,

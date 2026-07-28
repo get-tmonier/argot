@@ -9,5 +9,4 @@ include = ["*/mseguiintf.inc"]
 exclude = ["*/*/mseguiintf.inc"]
 
 [engine]
-api = 2
 script = "check.rhai"

@@ -265,13 +265,13 @@ impl PythonAdapter {
 
     /// 1-indexed line numbers that carry prose: docstrings, multiline
     /// strings (minus interpolation rows), and comments.
-    pub fn prose_line_ranges(&self, source: &str) -> HashSet<usize> {
+    fn prose_mask(&self, source: &str) -> crate::ts_parse::ProseMask {
         let tree = parse(source);
         let root = tree.root_node();
         if root.has_error() {
-            return HashSet::new();
+            return crate::ts_parse::ProseMask::default();
         }
-        let mut rows: HashSet<usize> = HashSet::new();
+        let mut mask = crate::ts_parse::ProseMask::default();
         for node in descendants(root) {
             match node.kind() {
                 "string" => {
@@ -282,19 +282,29 @@ impl PythonAdapter {
                         continue;
                     }
                     let interp = interpolation_rows(node);
-                    for r in (start_row + 1)..=(end_row + 1) {
-                        if !interp.contains(&r) {
-                            rows.insert(r);
-                        }
-                    }
+                    let mut inner = crate::ts_parse::ProseMask::default();
+                    inner.add(source, node);
+                    inner.rows.retain(|r| !interp.contains(r));
+                    mask.rows.extend(inner.rows);
+                    mask.spans.extend(inner.spans);
                 }
                 "comment" => {
-                    rows.insert(node.start_position().row + 1);
+                    mask.add(source, node);
                 }
                 _ => {}
             }
         }
-        rows
+        mask
+    }
+
+    pub fn prose_line_ranges(&self, source: &str) -> HashSet<usize> {
+        self.prose_mask(source).rows
+    }
+
+    /// Prose sharing a line with code: blanked in place, so the code survives
+    /// and the words do not reach the scorers.
+    pub fn prose_spans(&self, source: &str) -> Vec<(usize, usize, usize)> {
+        self.prose_mask(source).spans
     }
 
     /// True if the file is overwhelmingly static data literals (threshold 0.65).
@@ -350,6 +360,10 @@ impl PythonAdapter {
                         symbol: node_text(name, source).to_string(),
                         start_line: node.start_position().row + 1,
                         end_line: node.end_position().row + 1,
+                        nested: crate::ts_parse::has_ancestor_of_kind(
+                            node,
+                            &["function_definition"],
+                        ),
                     });
                 }
             }
