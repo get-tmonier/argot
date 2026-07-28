@@ -46,5 +46,23 @@ argot mute --path 'src/legacy/**' --rule redundant --reason "…"      # a stand
 A hash mute covers **that hit alone** — the same finding in a sibling file has its own hash. Reach
 for `--path` when the decision covers a tree, or you will be committing one mute per file.
 
+## Adopting on a codebase that already has findings
+
+Fitting a repository with history means `check` will surface findings that predate your decision to
+use Argot. Choose a starting line deliberately:
+
+```bash
+argot check --ignore-existing     # working tree only
+```
+
+This writes an inline ignore comment above every finding that exists today, so only new code is
+judged from here. It is the right move for a mature codebase adopting Argot without a cleanup
+project first. The alternative is to fix or mute what is there now, which suits a smaller or
+younger repository.
+
+Those ignores are a **snapshot, not a verdict**. Re-score them periodically — Argot can report which
+suppressions no longer fire — or the baseline quietly becomes permanent and hides regressions in
+the code it covered.
+
 See [Configure](/docs/configure/) for severities, machine-format fields, inline suppressions, and
 locked rules.
