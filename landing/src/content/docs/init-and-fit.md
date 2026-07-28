@@ -54,7 +54,7 @@ uses an accepted-history anchor and avoids dirty or unmerged source changes; it 
 A repository with history will have findings the day you fit it. Decide which
 starting line you want before wiring argot into anything:
 
-- **Baseline** — `argot check --ignore-existing` writes an inline ignore above every finding that
+- **Baseline** — `argot check --add-ignores` writes an inline ignore above every finding that
   exists today, so only new code is judged from here. Right for a mature codebase adopting argot
   without a cleanup project first. Those ignores are a snapshot: re-score them periodically, or the
   baseline quietly becomes permanent.

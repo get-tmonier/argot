@@ -68,7 +68,7 @@ justify in one sentence. Any phase can be skipped if I say so.
 
 5. ADOPTION
    Ask me directly: baseline or clean slate?
-     - baseline: `argot check --ignore-existing` writes an inline ignore above
+     - baseline: `argot check --add-ignores` writes an inline ignore above
        every finding that exists today, so only new code is judged from here
      - clean slate: we fix or mute the existing findings now
    If I baseline, remind me those ignores are a snapshot and should be

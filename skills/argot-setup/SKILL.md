@@ -130,7 +130,7 @@ matters. Prove the catch:
 On an existing codebase `argot check` will surface pre-existing findings. Ask
 outright, because the answer shapes everything after:
 
-- **Baseline** — `argot check --ignore-existing` writes an inline ignore above
+- **Baseline** — `argot check --add-ignores` writes an inline ignore above
   every current finding. From here only *new* code is judged. Right for a mature
   repo adopting argot without a cleanup project first.
 - **Clean slate** — fix or mute them now. Right for a smaller or younger repo.

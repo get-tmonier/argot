@@ -52,7 +52,7 @@ Fitting a repository with history means `check` will surface findings that preda
 use Argot. Choose a starting line deliberately:
 
 ```bash
-argot check --ignore-existing     # working tree only
+argot check --add-ignores     # working tree only
 ```
 
 This writes an inline ignore comment above every finding that exists today, so only new code is
