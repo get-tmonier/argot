@@ -80,6 +80,46 @@ per branch and the call reads as nonsense.
 Reverted. A change that adds a special case and moves no number is complexity
 bought with nothing.
 
+## The three constructs, named
+
+Clustering the **parser's own first error position** across all 3 231 Pascal
+corpus files (1 591 of which fail) gives named gaps with minimal reproductions:
+
+| construct | files | reproduction | parses |
+|---|--:|---|---|
+| Delphi property **redeclaration** | 113 | `property Name;` inside a class | ✗ |
+| `.dpr` project **uses … in 'path'** | part of 615 | `uses server in 'src\server.pas';` | ✗ |
+| **codepage-parameterised type** | — | `W = type AnsiString(1252);` | ✗ |
+| directive in value position | 39 | `V = {$I x.inc};` | ✗ (ours) |
+
+Each has a one-line repro, and each is a missing rule in `tree-sitter-pascal`.
+`property Name: string;` parses; dropping the type does not. `uses server;`
+parses; `uses server in 'src\server.pas'` does not.
+
+**700 of the 1 591 failures are a whole-file `ERROR` from row 0**, where the
+position says nothing — the parser gave up before establishing any structure.
+
+## Source-level repair was tried too, and is worse
+
+All three gaps *look* repairable byte-for-byte: blank the ` in '…'`, blank the
+`(1252)`, blank the redeclaration line. Measured:
+
+| corpus | before | with all three repairs |
+|---|--:|--:|
+| mormot2 | 29,16 % | 29,35 % |
+| castle-engine | 29,15 % | 29,47 % |
+| mseide-msegui | 16,14 % | **18,35 %** |
+| uos | 29,52 % | 29,52 % |
+
+**Worse everywhere.** The patterns are ambiguous with legitimate Pascal without a
+parser to disambiguate — `for c in 'abc' do` is valid, so blanking ` in '…'`
+destroys real code, and the property matcher over-fires the same way. Repairing
+text you cannot parse, using patterns that need parsing to apply safely, is
+circular.
+
+Two attempts, both measured, both reverted. That is the answer: **this does not
+belong at the source level.**
+
 ## Why it does not pay, and what would
 
 Each file fails on the **first** unsupported construct, and the `ERROR` node
@@ -96,12 +136,16 @@ What would actually pay, in rough order of cost:
    fall for everyone.
 2. **Evaluate an alternative Pascal grammar.** Whether a better-maintained one
    exists is unknown and worth an hour before anyone writes grammar rules.
-3. **Measure the tail first.** Bisect the first failing line across a few hundred
-   files and cluster the constructs. Two or three may cover most of the 29 %, and
-   nobody should start patching before knowing that.
+3. ~~**Measure the tail first.**~~ **Done — see above.** Three constructs are
+   named with reproductions; 700 files fail before the parser establishes any
+   structure at all and still need a cause.
 
-Step 3 is the honest next move, and it is cheap. Everything above is guesswork
-about the distribution until it is done.
+A caution for whoever picks this up: the prefix-bisect method used first was
+**wrong** for `.dpr` files. Appending `end.` to a prefix is invalid for a program
+(it needs `begin … end.`), so the bisect returned line 1 for 1 310 files and made
+a UTF-8 BOM look like the cause. It is not — BOM parses fine, and only 56 of the
+357 BOM-carrying files fail. Cluster on the parser's own first error node
+instead.
 
 ## The lesson worth keeping
 
