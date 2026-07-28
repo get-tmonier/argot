@@ -13,6 +13,23 @@ rule right and this repo the exception.* Every finding below carries a verdict �
 **wrong** (argot is mistaken). Every *wrong* is fixed in argot and pinned by a
 test; none is muted.
 
+## Bench, first — the changes that made this possible cost nothing
+
+Nine defects were fixed getting to the numbers below, several of them in code
+every language shares. `main` against the branch, same clones, same catalogs
+(`pascal-case-folding-bench.md`):
+
+| corpus | over-fire before | after | recall before | after |
+|---|--:|--:|--:|--:|
+| castle-engine | 0.99% | **0.85%** | 11/11 | **11/11** |
+| mormot2 | 0.73% | **0.73%** | 11/11 | **11/11** |
+| uos | **18.21%** | **2.28%** | — | — |
+| ideu | 1.32% | **0.89%** | — | — |
+
+**22/22 → 22/22 recall, every corpus equal or better on over-fire**, and the
+full 39-corpus run holds the headline at **639/746 = 85.7%** against its ≥85%
+gate. Nothing here was bought by trading recall away.
+
 ## Method
 
 Repository `mse-org/mseide-msegui` at `4233521f2`, fitted at
