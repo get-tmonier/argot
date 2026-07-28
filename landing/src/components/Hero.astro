@@ -12,13 +12,13 @@ const { content } = Astro.props;
 const { hero } = content;
 ---
 
-<section class="snap-section relative flex overflow-hidden md:min-h-svh md:items-center">
+<section class="snap-section relative flex min-h-svh items-center overflow-hidden">
   <div class="hero-grid" aria-hidden="true"></div>
   <div class="hero-aurora" aria-hidden="true"></div>
   <VoiceField />
 
-  <div class="reveal relative z-10 mx-auto w-full max-w-3xl px-5 pt-28 pb-16 text-center md:py-10">
-    <div class="mb-4 inline-flex items-center gap-2.5">
+  <div class="reveal relative z-10 mx-auto w-full max-w-3xl px-5 pt-24 pb-10 text-center md:py-10">
+    <div class="mb-3 inline-flex items-center gap-2.5 sm:mb-4">
       <Logo size={36} draw />
       <span
         class="rounded-full border border-line-2 bg-panel/70 px-3 py-1 text-[0.65rem] font-semibold tracking-wide uppercase shadow-[0_0_24px_-6px_var(--ember-bright)] backdrop-blur-sm sm:text-xs"
@@ -33,11 +33,11 @@ const { hero } = content;
     </h1>
 
     <p
-      class="mx-auto mt-5 max-w-lg text-base leading-relaxed text-balance text-ink-dim sm:text-lg"
+      class="mx-auto mt-4 max-w-lg text-base leading-relaxed text-balance text-ink-dim sm:mt-5 sm:text-lg"
       set:html={emphasize(hero.subtitle)}
     />
 
-    <div class="mt-7 flex flex-col items-center justify-center gap-3 sm:flex-row">
+    <div class="mt-6 flex flex-col items-center justify-center gap-2.5 sm:mt-7 sm:flex-row sm:gap-3">
       <a
         href="#audit"
         class="group inline-flex min-h-12 w-full max-w-xs items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-ember to-ember-deep px-5 py-3 text-sm font-semibold text-bg shadow-lg shadow-ember/20 transition-transform hover:-translate-y-0.5 sm:w-auto"
