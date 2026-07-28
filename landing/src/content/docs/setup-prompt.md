@@ -38,10 +38,20 @@ justify in one sentence. Any phase can be skipped if I say so.
 
 1. PROOF FIRST
    Run `argot audit --format json`, SAVE IT TO A FILE, and show me a readable
-   summary. It needs no configuration and changes nothing. If it says the
-   window touched no supported source, widen it with `--commits 200` or
-   `--since 6m`. Audit takes minutes on a large repo — phase 6 reads this same
-   file, so do not run it twice.
+   summary. It needs no configuration and changes nothing.
+   TELL ME THE COST BEFORE YOU START IT, or I will kill it thinking it hung.
+   Audit fits the whole corpus once, so a large repo costs minutes and
+   gigabytes, not seconds — 924k lines of Object Pascal took 2 min 38 s and
+   3.6 GB. A narrower `--commits` does NOT make it cheaper: the window only
+   moves the base commit, the fit still reads every file. The lever is
+   [exclude], which is phase 2 — so on a repo that size, offer to do the
+   obvious exclusions first and audit second.
+   Then CHECK IT PRODUCED SOMETHING: exit status 0 and a non-empty JSON file.
+   A run that dies leaves a 0-byte file, and an empty audit reads exactly like
+   a clean one.
+   If it says the window touched no supported source, widen it with
+   `--commits 200` or `--since 6m`. Phase 6 reads this same file, so do not
+   run it twice.
 
 2. SCOPE
    Decide what should NOT shape the voice. Two sources now, a third after the
