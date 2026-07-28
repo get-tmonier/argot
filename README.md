@@ -34,7 +34,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/rust-single%20static%20binary-DEA584?logo=rust&logoColor=white" alt="One statically-linked Rust binary" />
   <img src="https://img.shields.io/badge/100%25-local%20%C2%B7%20no%20cloud%20%C2%B7%20no%20account-2EA043" alt="100% local, no cloud, no account" />
-  <a href="https://argot.tmonier.com/docs/languages/"><img src="https://img.shields.io/badge/languages-12-E67E45" alt="12 languages" /></a>
+  <a href="https://argot.tmonier.com/docs/languages/"><img src="https://img.shields.io/badge/supported%20languages-12-E67E45" alt="12 supported languages" /></a>
   <a href="https://argot.tmonier.com/benchmarks"><img src="https://img.shields.io/badge/benchmarked%20on-36%20real%20repositories-8B5CF6" alt="Benchmarked on 36 real repositories" /></a>
 </p>
 
