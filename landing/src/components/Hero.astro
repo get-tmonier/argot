@@ -135,7 +135,9 @@ const rules = [
     {/* Speed, demonstrated rather than asserted. The bar fills in exactly the
         duration it names, so the claim times itself in front of the reader —
         "one more slow thing in my loop" is what stops adoption faster than any
-        accuracy number, and a sentence never answers it. */}
+        accuracy number, and a sentence never answers it. Measured 2026-07-29 on
+        a clean checkout: 148 ms for 2 changed files, 173 ms for 19, 764 ms for
+        194 — see docs/research/evidence/check-latency.md. */}
     <p class="speed mx-auto mt-2.5 text-xs text-muted">
       {hero.speed}
       <span class="speed-chip">

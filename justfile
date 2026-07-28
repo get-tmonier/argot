@@ -123,7 +123,29 @@ verify:
     cargo clippy --workspace --all-targets -- -D warnings
     cargo test --workspace
     @just verify-features
+    @just _disk-guard
     @echo "✓ all checks passed"
+
+# `target/*/incremental` is a pure rebuild cache — deleting it costs one slower
+# recompile and nothing else — and it is the fastest-growing thing here: it
+# reached 57 GB, more than the rest of debug/ put together.
+# Reclaim disk from the build tree (safe any time; removes no build input).
+clean-cache:
+    @echo "before: $(du -sh target 2>/dev/null | cut -f1) in target/, $(df -h . | tail -1 | awk '{print $4}') free"
+    rm -rf target/debug/incremental target/release/incremental target/tmp
+    @echo "after:  $(du -sh target 2>/dev/null | cut -f1) in target/, $(df -h . | tail -1 | awk '{print $4}') free"
+
+# Warn — never delete — when the build tree has grown past what a laptop wants
+# to carry. Cargo never garbage-collects target/, so it grows without bound;
+# this repo builds the workspace under four feature combinations plus the bench
+# harness, which is why it gets there fast. Advisory by design: a build tree
+# disappearing under a running agent is worse than a full disk.
+_disk-guard:
+    #!/usr/bin/env bash
+    gb=$(du -sg target 2>/dev/null | cut -f1)
+    if [ "${gb:-0}" -gt 60 ]; then
+      echo "⚠ target/ is ${gb} GB — run \`just clean-cache\` to reclaim the rebuild cache"
+    fi
 
 # The feature-gated slices, which `verify`'s featureless base loop does not
 # build. Release binaries ship every one of them, so a green base loop verifies
