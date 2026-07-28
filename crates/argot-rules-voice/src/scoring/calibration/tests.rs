@@ -91,3 +91,63 @@ fn resolve_slices_parses_path_specs_and_ignores_unknown() {
     assert_eq!(slices[0].name, "path:frontend/");
     assert_eq!(slices[0].paths, vec!["frontend/".to_string()]);
 }
+
+/// Build a `by_lang` map with the given per-language file counts.
+fn by_lang_of(
+    counts: &[(&'static str, Language, usize)],
+) -> BTreeMap<&'static str, (Language, Vec<PathBuf>)> {
+    counts
+        .iter()
+        .map(|(name, lang, n)| {
+            let files = (0..*n)
+                .map(|i| PathBuf::from(format!("{name}/f{i}")))
+                .collect();
+            (*name, (*lang, files))
+        })
+        .collect()
+}
+
+#[test]
+fn a_language_the_repo_barely_writes_gets_no_scorer() {
+    // rocksdb carries exactly one `.inc` (a CMake include the Pascal port's
+    // extension table claims), and every one of the 27 new `.inc` files in the
+    // replay window fired — 100%. There is no voice in one file to be foreign to.
+    let mut by_lang = by_lang_of(&[
+        ("cpp", Language::Cpp, 1200),
+        ("python", Language::Python, 40),
+        ("pascal", Language::Pascal, 1),
+    ]);
+    let dropped = drop_unlearnable_languages(&mut by_lang);
+    assert_eq!(dropped, vec![("pascal".to_string(), 1)]);
+    assert!(
+        !by_lang.contains_key("pascal"),
+        "no scorer, so check abstains"
+    );
+    assert!(by_lang.contains_key("cpp") && by_lang.contains_key("python"));
+}
+
+#[test]
+fn a_small_single_language_repo_keeps_its_voice() {
+    // The floor says "this language is incidental here", which only means
+    // something when another language clears it. In a repo that is simply
+    // small, the file count is its size — dropping it would leave nothing.
+    let mut by_lang = by_lang_of(&[("rust", Language::Rust, 4)]);
+    let dropped = drop_unlearnable_languages(&mut by_lang);
+    assert!(dropped.is_empty(), "a small repo is still judged");
+    assert!(by_lang.contains_key("rust"));
+}
+
+#[test]
+fn the_floor_is_inclusive_at_its_boundary() {
+    let mut by_lang = by_lang_of(&[
+        ("go", Language::Go, 500),
+        ("ruby", Language::Ruby, MIN_LANGUAGE_FILES),
+        ("java", Language::Java, MIN_LANGUAGE_FILES - 1),
+    ]);
+    let dropped = drop_unlearnable_languages(&mut by_lang);
+    assert_eq!(dropped, vec![("java".to_string(), MIN_LANGUAGE_FILES - 1)]);
+    assert!(
+        by_lang.contains_key("ruby"),
+        "exactly at the floor still counts"
+    );
+}

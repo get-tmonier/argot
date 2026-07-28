@@ -91,6 +91,18 @@ struct Manifest {
     fit_timestamp: String,
     corpus: CorpusSummary,
     languages: Vec<LangSummary>,
+    /// Languages present in the corpus but too thin to learn a voice from, and
+    /// therefore not checked at all. Recorded so the skip is inspectable rather
+    /// than silent — silence that means *not checked* must not read as silence
+    /// that means *nothing found*. See [`MIN_LANGUAGE_FILES`].
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    unlearnable_languages: Vec<UnlearnableLanguage>,
+}
+
+#[derive(Serialize, Default)]
+struct UnlearnableLanguage {
+    language: String,
+    files: usize,
 }
 
 #[derive(Serialize)]
@@ -612,6 +624,46 @@ struct ScorerConfig {
     corpus_files: Vec<String>,
 }
 
+/// A language needs this many files in the fit corpus before its scorer may
+/// gate. Below it there is no voice to learn: the vocabulary is so small that
+/// anything new is unseen by construction.
+///
+/// Measured over the 36 benchmark corpora: language cells with fewer than 50
+/// replayed hunks false-alarm at **21,9 % (41/187)** against **1,3 %
+/// (472/35 630)** for the rest — 17× worse. 35 of 97 cells hold ≤10 files and
+/// every one is incidental: one Ruby file in castle-engine, one Rust file in
+/// dagster, one `.inc` in rocksdb, two each of Go/Java/C#/PHP/C++ in bat (a
+/// Rust tool carrying syntax *samples*). None is a language its repo writes.
+/// The worst cells fire on everything — `rocksdb/pascal` 27/27, `curl/pascal`
+/// 2/2. Ten matches [`SLICE_AUTO_MIN_FILES`], the same "enough to be a thing"
+/// floor this file already applies to directories.
+const MIN_LANGUAGE_FILES: usize = 10;
+
+/// Drop languages the repo has barely written, returning `(language, files)`
+/// for each, sorted. They get no scorer, so `check` abstains on their files the
+/// same way it does for an unsupported extension — the caller reports them.
+///
+/// Only ever drops a language when another one clears the floor: a genuinely
+/// small single-language repo keeps its voice, since there the file count is
+/// the repo's size rather than evidence the language is incidental.
+fn drop_unlearnable_languages(
+    by_lang: &mut BTreeMap<&'static str, (Language, Vec<PathBuf>)>,
+) -> Vec<(String, usize)> {
+    if !by_lang
+        .values()
+        .any(|(_, files)| files.len() >= MIN_LANGUAGE_FILES)
+    {
+        return Vec::new();
+    }
+    let dropped: Vec<(String, usize)> = by_lang
+        .iter()
+        .filter(|(_, (_, files))| files.len() < MIN_LANGUAGE_FILES)
+        .map(|(name, (_, files))| (name.to_string(), files.len()))
+        .collect();
+    by_lang.retain(|_, (_, files)| files.len() >= MIN_LANGUAGE_FILES);
+    dropped
+}
+
 fn adapter_for(language: Language) -> Box<dyn LanguageAdapter> {
     match language {
         Language::Python => Box::new(PythonAdapter::new()),
@@ -1009,6 +1061,21 @@ pub fn run_calibrate(
     }
     if by_lang.is_empty() {
         bail!("no recognized language files in repo corpus");
+    }
+    let unlearnable = drop_unlearnable_languages(&mut by_lang);
+    for (language, files) in &unlearnable {
+        let plural = if *files == 1 { "" } else { "s" };
+        eprintln!(
+            "[argot] {language}: {files} file{plural} — too few to learn a voice \
+             (needs {MIN_LANGUAGE_FILES}). Files in this language are NOT checked."
+        );
+    }
+    if !unlearnable.is_empty() {
+        eprintln!(
+            "        With this little of a language, every construct reads as \
+             unfamiliar and the rule would fire on all of it. If an extension is \
+             routed to the wrong language here, exclude it in argot.toml."
+        );
     }
 
     // Resolve `--slice` specs to concrete path sets once (cross-language). Each
@@ -1514,6 +1581,13 @@ pub fn run_calibrate(
             lines: total_lines,
         },
         languages: lang_summaries,
+        unlearnable_languages: unlearnable
+            .iter()
+            .map(|(language, files)| UnlearnableLanguage {
+                language: language.clone(),
+                files: *files,
+            })
+            .collect(),
     };
     if let Some(parent) = output.parent() {
         let manifest_path = parent.join(MANIFEST_FILE);
