@@ -327,6 +327,7 @@ mod tests {
                 unknown: 0,
             },
             hunks_scanned: 200,
+            over_firing: Vec::new(),
             groups: vec![GroupReport {
                 group: "semantic",
                 status: GroupStatus::Skipped,
