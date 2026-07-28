@@ -36,10 +36,11 @@ that would be removed, if they want to know the exit before the entrance.
 ## 1 · Proof before configuration
 
 ```sh
-argot audit
+argot audit --format json > /tmp/argot-audit.json    # keep it: phase 6 reads it
 ```
 
-No configuration needed, exits 0, touches nothing. It fits the voice as it was
+No configuration needed, exits 0, touches nothing. Audit takes minutes on a
+large repository — save the JSON rather than paying for a second run. It fits the voice as it was
 ~50 commits ago in a temporary worktree and reports what would have met review
 since, attributed to the introducing commit. **Show the card.** This is the
 honest opener: here is what your own history says, before you change anything.
@@ -55,9 +56,7 @@ Three sources of evidence, merged into **one** proposal list:
 
 1. `argot init --suggest --format json` — directories that are mostly generated
    or data. Note the `included` count: real code a blanket rule would drop.
-2. The fit-time note *"N files argot:recommended would exclude are shaping the
-   voice"* — config and tooling files that slipped in. Add every path it names.
-3. **Read the tree yourself.** `--suggest` cannot see intent. Look for:
+2. **Read the tree yourself.** `--suggest` cannot see intent. Look for:
    - vendored / third-party code committed into the repo (`vendor/`, bundled SDKs)
    - demo, example, playground or sample trees
    - peripheral monorepo members: a landing site, a benchmark suite, dev tooling
@@ -111,6 +110,16 @@ argot inspect --format json
   recent changes. That is the classic mis-scope: a model learned from code
   nobody edits, judging the code everybody does. Its message names the
   directory and both shares — take it to phase 2.
+Also read what `argot init` **printed** — evidence phase 2 could not have had:
+
+- *"N files argot:recommended would exclude are shaping the voice (…)"* — config
+  and tooling files that slipped in. Add every path it names and refit.
+- *"`<language>`: N files — too few to learn a voice"* — those files are **not
+  checked at all**. Say so. If an extension is routed to the wrong language
+  here, exclude it.
+
+Scoping is two passes, not one; being sent back to phase 2 is the flow working.
+
 - Yellow notes on a small repo are expected. **Don't chase a spotless verdict**;
   the goal is a corpus that reflects how the team writes code.
 
@@ -119,11 +128,13 @@ argot inspect --format json
 A fit that flags nothing is indistinguishable from a healthy repo until it
 matters. Prove the catch:
 
-- In a **primary-source** file, add a throwaway import of a package the repo has
-  never used plus a line using it. `argot check`. Confirm it fires. Revert.
-- Cross-check with phase 1: if audit found nothing across hundreds of commits
-  **and** this smoke test does not fire, the voice is diluted — return to
-  phase 2. Either signal alone is weak; together they are conclusive.
+- **Choose the package deliberately, don't guess.** `argot conventions` (or
+  `.argot/repo-corpus.txt`) shows what this repo actually imports; pick
+  something plainly outside it. A badly chosen fixture proves nothing either way.
+- In a **primary-source** file — not a test, not an example — add that import
+  plus a line using it. `argot check`. Confirm it fires. Revert.
+- If it does **not** fire, do not conclude the tool is weak. Run the diagnosis
+  below first.
 
 ## 5 · Adoption — baseline, or clean slate?
 
@@ -141,7 +152,7 @@ Schedule that, or the baseline quietly becomes permanent.
 
 ## 6 · Tune from the repository's own history
 
-Return to the phase-1 audit. `argot audit --format json` reports `over_firing`:
+Re-read the audit JSON saved in phase 1. Its `over_firing` lists
 rules that trip **more than 2 % of scanned hunks**. A healthy repository sits at
 0.3–0.7 % per rule, so anything above that bar is describing the repository
 rather than flagging it.
@@ -271,12 +282,8 @@ Do not add `fail-on-hits: true` unless they explicitly want a merge gate.
 Offer, never impose:
 
 - **Local smoke check** — keep phase 4's fixture as a command they can re-run.
-- **A/B draft PR** — a throwaway branch with one in-voice change and one
-  deliberately foreign one, opened as a **draft** PR. The team sees the
-  annotations, the summary comment, and the badge on a real pull request before
-  trusting it on their own work. Delete the branch after.
-
-Most people want to watch it work once before believing it.
+Keep it local. Do not push branches or open pull requests on the user's repo to
+demonstrate the tool.
 
 ## 10 · Summarize
 
@@ -292,6 +299,32 @@ Optional: `argot describe-voice --out STYLE.md` writes a committed,
 human-readable description of what argot learned.
 
 ---
+
+## Diagnosis — read this before judging argot's quality
+
+If argot seems noisy, or seems to catch nothing, it is far more often **mis-scoped
+than wrong**. This matters because a mis-configured argot fails *silently*: no
+error, just false alarms the team learns to scroll past, or real problems never
+flagged. Neither is visible in the findings themselves — you have to ask.
+
+**Always run these before concluding anything about the tool:**
+
+```sh
+argot inspect --format json     # is the model sound?
+argot audit  --format json      # is a rule describing the repo rather than flagging it?
+```
+
+| what to read | what it means |
+|---|---|
+| `verdict: "not_recommended"` | don't trust a finding yet — fix scope first |
+| `reasons[].signal == "voice_not_where_the_work_is"` | **the most common cause of both noise and silence.** A directory shapes much of the voice but takes almost none of the recent changes: the model learned from code nobody edits and is judging the code everybody does. The message names the directory and both shares. Fix the scope — never tune rules around it |
+| `reasons[].signal == "polyglot_mix"` | several languages share the repo; expect weaker signal |
+| `over_firing[]` in the audit | rules tripping **>2 % of the repo's own accepted history**. A healthy repo sits at 0.3–0.7 % per rule. Above that the rule is describing this repository, not flagging it — scope or soften it (phase 6), don't read it as argot being inaccurate |
+| `unlearnable_languages` in `.argot/manifest.json` | those files are **not checked at all**. Silence there means *not looked at* |
+| *"N hunk(s) over … lines were not judged"* | a rewrite that large is not one pattern being introduced; those hunks were **skipped, not passed** |
+
+Relay every one of these to the user verbatim. A skipped check that reads as a
+passed check is the failure mode this whole flow exists to prevent.
 
 ## Suppressing a finding
 
