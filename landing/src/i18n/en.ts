@@ -22,12 +22,12 @@ const en: SiteContent = {
     proof:
       '[[97.3%]] of foreign patterns caught · [[0.25%]] of real edits flagged · measured on [[36 repositories]]',
     catches: [
-      'a dependency you’ve never used',
-      'a function you already wrote',
-      'code filed in the wrong place',
-      'an import that breaks your layers',
-      'a test quietly disabled',
-      'your own conventions',
+      'a dependency this repo has never used',
+      'a function this repo already has',
+      'code filed away from its peers here',
+      'an import that reverses this repo’s layering',
+      'a test disabled beside the code it covered',
+      'a convention only this repo has',
     ],
     ctaSecondary: 'Star on GitHub',
     install: 'npm i -g @tmonier/argot',

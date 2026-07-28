@@ -15,11 +15,15 @@ const { hero } = content;
 // cards use below, so the vocabulary reads as one thread through the page.
 // `foreign-import` carries the "foreign" (flag) tier; the rest carry amber.
 // A confidence tier, not a ranking.
-// Chips say what argot catches in plain language and link to the section that
-// shows it. The rule slugs (`foreign-import`, `misplaced`, `layering`…) are
-// argot's internal vocabulary — accurate, and meaningless to someone who has
-// never used it. The last one is the differentiator the hero never mentioned:
-// a repository can add its own rules.
+// Chips say what argot catches, and every one of them is phrased against
+// *this repo*. The rule slugs it used to show (`foreign-import`, `misplaced`…)
+// are argot's internal vocabulary — meaningless on first read. Plain language
+// alone was not enough either: "a function you already wrote", "a test quietly
+// disabled" describe things a linter plausibly does, which throws away the one
+// claim that matters. A rulebook cannot know that *this* repository has never
+// imported that package, where *this* repository files that kind of code, or
+// what *this* repository's layers are. The wording has to carry that, because
+// the title claims it and the chips are what people actually read.
 const rules = [
   { href: '#demo-tab-foreign-import', tier: 'flag' },
   { href: '#demo-tab-redundant', tier: 'amber' },

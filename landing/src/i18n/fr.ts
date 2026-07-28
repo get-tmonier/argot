@@ -22,12 +22,12 @@ const fr: SiteContent = {
     proof:
       '[[97,3 %]] des motifs étrangers détectés · [[0,25 %]] des vraies modifications signalées · mesuré sur [[36 dépôts]]',
     catches: [
-      'une dépendance jamais utilisée ici',
-      'une fonction que vous avez déjà écrite',
-      'du code rangé au mauvais endroit',
-      'un import qui casse vos couches',
-      'un test discrètement désactivé',
-      'vos propres conventions',
+      'une dépendance que ce dépôt n’a jamais utilisée',
+      'une fonction que ce dépôt possède déjà',
+      'du code rangé loin de ses pairs ici',
+      'un import qui inverse le layering de ce dépôt',
+      'un test désactivé à côté du code qu’il couvrait',
+      'une convention propre à ce dépôt',
     ],
     ctaSecondary: 'Star sur GitHub',
     install: 'npm i -g @tmonier/argot',
