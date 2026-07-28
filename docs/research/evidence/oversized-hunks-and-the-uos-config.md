@@ -1,7 +1,20 @@
 # A whole-file rewrite is not one pattern being introduced
 
-**Date:** 2026-07-28 · **Status:** diagnosis complete and fixed; final numbers
-pending the definitive honest run.
+**Date:** 2026-07-28 · **Status:** diagnosis stands; **the fix described here
+was replaced the same day.**
+
+> **↻ SUPERSEDED — the flat cap does not ship.** `MAX_SCORED_HUNK_LINES` was a
+> picked constant that had to be re-tuned (100 → 150) the first time it met a
+> fixture it had not been fitted against, and it *abstained* on large hunks
+> rather than judging them. It is replaced by a **size-aware threshold** whose
+> slope is fitted per language from each repository's own calibration sample —
+> see [`size-aware-threshold.md`](size-aware-threshold.md). That change is
+> strictly better on both axes: uos over-fire **0,00 %** against the cap's best
+> of ~2,4 %, and no recall cost where the cap cost a catch.
+>
+> Everything below about *why* whole-file rewrites flood the false alarms — the
+> measurements, the uos config gap, the 29,3 % of false alarms from hunks over
+> 50 lines — remains correct and is what motivated the replacement.
 
 **Question:** uos was the only corpus above 2 % over-fire (3,09 % existing,
 22,73 % new-file) and the worst in the benchmark. The Pascal port recorded 18 %

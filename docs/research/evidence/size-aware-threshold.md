@@ -1,7 +1,8 @@
 # The score grows with hunk size, so the threshold has to
 
-**Date:** 2026-07-28 · **Status:** in progress — probes green on 10 corpora,
-full run pending.
+**Date:** 2026-07-28 · **Status:** **done and measured.** Ships in place of the
+flat hunk cap ([`oversized-hunks-and-the-uos-config.md`](oversized-hunks-and-the-uos-config.md),
+now superseded).
 
 **Question:** whole-file rewrites flooded the benchmark's false alarms — 29,3 %
 of every one came from hunks over 50 lines. A flat cap on hunk size fixed it,
@@ -102,8 +103,23 @@ Recall, against each corpus's known baseline:
 | hugo | 20/22 | 20/22 |
 | mormot2 | 11/11 | 11/11 |
 
-**Ten corpora across six languages, all unchanged.** False alarms on the corpus
-the whole thing is about:
+**Ten corpora across six languages, all unchanged.** The definitive 36-corpus run
+then gave the whole picture:
+
+| | baseline | size-aware |
+|---|--:|--:|
+| novel-pattern catch | 647/756 = 85,6 % | **645/756 = 85,32 %** (gate ≥85 ✓) |
+| aggregate over-fire | 0,598 % | **0,253 %** — 58 % fewer |
+| worst existing over-fire | 3,09 % | **1,75 %** |
+| worst new-file over-fire | 32,93 % | **0,00 %** |
+| corpora above 2 % over-fire | 1 | **none** |
+| corpora with *more* false alarms | — | **zero** |
+
+Two catches, junit5 and rubocop, one each — bought with 58 % fewer false alarms.
+Guards unmoved: `arch-verify` 264/272 = 97 % with 0/148 controls,
+`integrity-verify` 154/164 with 0/106.
+
+False alarms on the corpus the whole thing is about:
 
 | uos | |
 |---|--:|
