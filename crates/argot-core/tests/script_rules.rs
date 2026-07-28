@@ -223,16 +223,27 @@ fn inline_and_mute_suppression_cover_custom_rules() {
 }
 
 #[test]
-fn runaway_rule_is_disabled_and_the_check_survives() {
+fn a_rule_over_budget_costs_its_file_not_the_run() {
+    // A trip used to disable the rule for the whole run, so one 9 000-line file
+    // could silence it across every other file and report nothing — silence that
+    // meant *not checked*, indistinguishable from silence that meant *nothing
+    // found*. It now costs the file, names it, and carries on; only a rule that
+    // trips on MAX_TRIPS_BEFORE_DISABLE separate files is the rule that is wrong.
     let repo = prepare_repo("runaway");
     write_rule(&repo, "spinner", "", "loop { }");
     write_rule(&repo, "steady", "severity = \"error\"\n", ALWAYS_FIRE);
     let out = run_check(args(&repo));
     assert!(
-        out.stderr.contains("spinner") && out.stderr.contains("disabled"),
-        "runaway diagnosed: {}",
+        out.stderr.contains("spinner") && out.stderr.contains("skipped"),
+        "the skip is named, not silent: {}",
         out.stderr
     );
+    assert!(
+        out.stderr.contains("every other file was checked"),
+        "the report says what was still covered: {}",
+        out.stderr
+    );
+    // The run survives and every other rule still fires.
     assert!(out.stdout.contains("steady"), "{}", out.stdout);
     assert_eq!(out.exit_code, 1);
 }
