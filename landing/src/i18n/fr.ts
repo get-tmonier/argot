@@ -18,6 +18,7 @@ const fr: SiteContent = {
     titleGradient: 'construit à partir de l’historique de votre dépôt.',
     subtitle: 'Auditez les changements acceptés. Examinez les éléments, puis décidez.',
     ctaPrimary: 'Commencer par un audit',
+    ctaSetup: 'Configurez-le avec votre agent',
     ctaSecondary: 'Star sur GitHub',
     install: 'npm i -g @tmonier/argot',
     installNote:
@@ -76,7 +77,7 @@ const fr: SiteContent = {
       { name: 'le supprimer', example: 'test disparu, code conservé' },
     ],
     caption:
-      '[[94 %]] des éditions truquées détectées · 0 des 102 refactorings légitimes signalés · sort en warn — informe, ne bloque jamais.',
+      '[[93,9 %]] des éditions truquées détectées · 0 des 106 refactorings légitimes signalés · sort en warn — informe, ne bloque jamais.',
   },
   audit: {
     label: 'Une preuve reproductible',
@@ -148,9 +149,9 @@ const fr: SiteContent = {
     title: 'Des chiffres honnêtes, sans fuite par construction.',
     stats: [
       {
-        value: '98 %',
+        value: '97,6 %',
         title: 'motifs étrangers détectés',
-        desc: '595 sur 605 — en ne se déclenchant que sur [[0,29 % des vraies modifications]].',
+        desc: '622 sur 637 à travers 36 dépôts — en ne se déclenchant que sur [[0,60 % des vraies modifications]].',
       },
       {
         value: '89 %',
@@ -158,19 +159,19 @@ const fr: SiteContent = {
         desc: 'Des réécritures des [[propres fonctions]] du dépôt, retracées à l’originale.',
       },
       {
-        value: '96 %',
+        value: '97 %',
         title: 'mauvais placements détectés · médiane',
         desc: 'Là où le dépôt a une architecture séparable — il [[s’abstient]] là où il n’y en a pas.',
       },
       {
-        value: '96,8 %',
+        value: '97,1 %',
         title: 'violations d’architecture détectées',
-        desc: '244 inversions de layering sur 252, à [[zéro faux positif]] sur les contrôles (0 sur 140 · ≤2,7 % de sur-signalement sur l’historique rejoué).',
+        desc: '264 inversions de layering sur 272, à [[zéro faux positif]] sur les contrôles (0 sur 148 · ≤2,7 % de sur-signalement sur l’historique rejoué).',
       },
       {
-        value: '94 %',
+        value: '93,9 %',
         title: 'trucages de tests détectés',
-        desc: '144 sur 153 · 0 refactoring légitime signalé · [[1,12 %]] des commits acceptés touchant aux tests, à sévérité bloquante.',
+        desc: '154 sur 164 · 0 refactoring légitime signalé sur 106 · [[1,25 %]] des commits acceptés touchant aux tests, à sévérité bloquante.',
       },
     ],
     languages:

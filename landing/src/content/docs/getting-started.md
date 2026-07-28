@@ -72,8 +72,16 @@ on disk. The [Init and Fit guide](/docs/init-and-fit/) explains the artifacts an
 findings, 1 means review findings, and 2 is a setup or usage error. Read the [Check guide](/docs/check/)
 before configuring any local or CI response to those results.
 
+## Set it up properly, once
+
+Scoping decides everything downstream: argot is only as good as the judgment of which code is your
+voice. [Set up with your agent](/docs/setup-prompt/) is one copy-pasteable prompt that walks any
+coding agent through it — audit, scope, fit, verify, tune, and wire local and CI together. If your
+agent supports skills, `npx skills add get-tmonier/argot` gives you the same flow as `argot-setup`.
+
 ## Where to next
 
+- [Set up with your agent](/docs/setup-prompt/) — the guided one-sitting setup.
 - [Audit](/docs/audit/) — inspect recent accepted history first.
 - [Init and Fit](/docs/init-and-fit/) — configure and maintain a local voice.
 - [Check](/docs/check/) — choose a changeset and interpret its output.

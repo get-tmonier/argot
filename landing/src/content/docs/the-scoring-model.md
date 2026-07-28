@@ -157,7 +157,7 @@ curation, not gaming) and its per-repo gate is open. Findings are flagged under 
 **`test-disabled`**, and **`test-weakened`**, all pinned to the `suspicious` confidence tier; the
 first two default to severity `error`, `test-weakened` defaults to `warn`.
 
-The canonical result manifest records **155/164 (94.5%)** authored gaming
+The canonical result manifest records **154/164 (93.9%)** authored gaming
 fixtures caught across 23 corpora / 12 languages, **0/106** legitimate-refactor
 controls fired, and **45/3,602 (1.25%)** accepted-history test-touching commits
 flagged at gating severity. These are separate detector-specific measures, not a

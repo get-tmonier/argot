@@ -18,6 +18,7 @@ const en: SiteContent = {
     titleGradient: "built from your repository's history.",
     subtitle: 'Audit accepted changes. Review the evidence, then decide.',
     ctaPrimary: 'Start with an audit',
+    ctaSetup: 'Set it up with your agent',
     ctaSecondary: 'Star on GitHub',
     install: 'npm i -g @tmonier/argot',
     installNote:
@@ -78,7 +79,7 @@ const en: SiteContent = {
       { name: 'delete it', example: 'test gone, code stays' },
     ],
     caption:
-      '[[94%]] of authored gaming edits caught · 0 of 102 legitimate refactors flagged · ships as warn — informs, never blocks.',
+      '[[93.9%]] of authored gaming edits caught · 0 of 106 legitimate refactors flagged · ships as warn — informs, never blocks.',
   },
   audit: {
     label: 'Evidence you can reproduce',
@@ -149,9 +150,9 @@ const en: SiteContent = {
     title: 'Honest numbers, leak-free by construction.',
     stats: [
       {
-        value: '98%',
+        value: '97.6%',
         title: 'foreign patterns caught',
-        desc: '595 of 605 — while firing on just [[0.29% of real edits]].',
+        desc: '622 of 637 across 36 repositories — while firing on just [[0.60% of real edits]].',
       },
       {
         value: '89%',
@@ -159,19 +160,19 @@ const en: SiteContent = {
         desc: 'Rewrites of the repo’s [[own functions]], traced back to the original.',
       },
       {
-        value: '96%',
+        value: '97%',
         title: 'misplacements caught · median',
         desc: 'Where the repo has separable architecture — it [[abstains]] where there is none.',
       },
       {
-        value: '96.8%',
+        value: '97.1%',
         title: 'architecture violations caught',
-        desc: '244 of 252 layering reversals, at [[zero false positives]] on control edits (0 of 140 · ≤2.7% over-fire on replayed history).',
+        desc: '264 of 272 layering reversals, at [[zero false positives]] on control edits (0 of 148 · ≤2.7% over-fire on replayed history).',
       },
       {
-        value: '94%',
+        value: '93.9%',
         title: 'test-gaming edits caught',
-        desc: '144 of 153 · 0 legitimate refactors flagged · [[1.12%]] of accepted test-touching commits, at gating severity.',
+        desc: '154 of 164 · 0 of 106 legitimate refactors flagged · [[1.25%]] of accepted test-touching commits, at gating severity.',
       },
     ],
     languages:

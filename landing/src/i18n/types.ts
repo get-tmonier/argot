@@ -20,6 +20,7 @@ export interface SiteContent {
     readonly titleGradient: string;
     readonly subtitle: string;
     readonly ctaPrimary: string;
+    readonly ctaSetup: string;
     readonly ctaSecondary: string;
     readonly install: string;
     readonly installNote: string;

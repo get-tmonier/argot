@@ -229,7 +229,7 @@ retargeted. All three are pinned to the `suspicious` confidence tier. `test-dele
 `test-disabled` default to `error`; **`test-weakened` ships `warn`** — reported on every run,
 never fails the check on its own, downgradeable or upgradeable per repo.
 
-The canonical benchmark result covers 23 corpora / 12 languages and caught **155 of 164 (94.5%)**
+The canonical benchmark result covers 23 corpora / 12 languages and caught **155 of 164 (93.9%)**
 authored gaming tactics, with **0 of 106** legitimate-refactor controls (moves, renames, deletions
 alongside a removed feature, genuine strengthening) fired. In accepted-history replay, **45 of
 3,602 (1.25%)** test-touching commits were flagged at gating (error) severity. These are separate

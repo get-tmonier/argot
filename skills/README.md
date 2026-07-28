@@ -18,10 +18,10 @@ adds a workflow for a GitHub event.
 
 | Skill | Path | When it runs |
 |---|---|---|
-| [`argot-setup`](./argot-setup/SKILL.md) | local | Once per repo — fit the model, build the semantic index, and decide what shouldn't shape the repo's voice (writes `argot.toml`). |
+| [`argot-setup`](./argot-setup/SKILL.md) | local + CI | Once per repo, one sitting — audit the history, decide what shapes the voice, fit, verify the catch, tune the rules the repo's own history says are noisy, and wire where it runs (hook, pre-commit, MCP, CI). Every decision proposed with its measurement. |
 | [`argot-check`](./argot-check/SKILL.md) | local | Per change — score your working diff against every configured rule — the six learned detectors plus any custom rules — and act on what fires. |
 | [`argot-review-pr`](./argot-review-pr/SKILL.md) | local | On demand — review a specific PR (or range) against the repo's local model, no checkout. |
-| [`argot-setup-ci`](./argot-setup-ci/SKILL.md) | CI | Wire the GitHub Action — a non-blocking score on every PR (no local setup needed). |
+| [`argot-setup-ci`](./argot-setup-ci/SKILL.md) | CI | Wire the GitHub Action alone — a non-blocking score on every PR. `argot-setup` covers this as one of its phases; come here when CI is all that's wanted. |
 | [`argot-write-rule`](./argot-write-rule/SKILL.md) | local | On demand — codify a repo convention as a scripted custom rule, fixture-tested before it ever sees a real diff. |
 | [`argot-suggest-rules`](./argot-suggest-rules/SKILL.md) | local | On demand — turn a convention that `argot conventions` discovered into a fixture-tested custom rule. |
 

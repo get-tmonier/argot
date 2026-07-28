@@ -37,12 +37,19 @@ const { hero } = content;
       set:html={emphasize(hero.subtitle)}
     />
 
-    <div class="mt-7 flex justify-center">
+    <div class="mt-7 flex flex-col items-center justify-center gap-3 sm:flex-row">
       <a
         href="#audit"
         class="group inline-flex min-h-12 w-full max-w-xs items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-ember to-ember-deep px-5 py-3 text-sm font-semibold text-bg shadow-lg shadow-ember/20 transition-transform hover:-translate-y-0.5 sm:w-auto"
       >
         {hero.ctaPrimary}
+        <span class="transition-transform group-hover:translate-x-0.5">→</span>
+      </a>
+      <a
+        href="/docs/setup-prompt/"
+        class="group inline-flex min-h-12 w-full max-w-xs items-center justify-center gap-2 rounded-xl border border-line px-5 py-3 text-sm font-semibold text-ink transition-colors hover:border-ember/60 hover:text-ember sm:w-auto"
+      >
+        {hero.ctaSetup}
         <span class="transition-transform group-hover:translate-x-0.5">→</span>
       </a>
     </div>

@@ -66,6 +66,12 @@ Action splits the two:
 That is why the workflow above triggers on `push` to the default branch as well as on
 `pull_request`. Drop the `push` trigger and every pull request pays the fit instead.
 
+**The cache does not exist until this workflow is merged.** The producer is a `push` to the default
+branch, so while the pull request that *adds* the workflow is still open there is no slot to read:
+that run, and any pull request opened before it lands, pays a cold fit and takes minutes rather than
+seconds. This is the expected shape of the first day, not a sign the check is slow. Merge the
+workflow, let the next default-branch push fill the slot, and pull requests drop to seconds.
+
 A pull request refits in only two cases: no model exists yet — the first run on a repository, or the
 slot expired after seven idle days, and the summary says it seeded the cache — or the base's
 `argot.toml` changed since the model was fitted, which is a scope change rather than staleness.
