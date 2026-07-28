@@ -1,8 +1,8 @@
 # The check path is serial — diagnosis, and what parallelising it needs
 
-**Date:** 2026-07-28 · **Status:** diagnosed, not implemented. The measurement
-and the design are here; the change is a session's work and needs a full bench
-behind it.
+**Date:** 2026-07-28 · **Status:** **done.** Diagnosed, then implemented the
+same day. 47,0 s → 13,4 s on a 921-file changeset, output byte-identical,
+35 of 35 bench corpora unchanged.
 
 **Question:** the semantic pass is parallel. `check: score patches
 (statistical)` is not. How much does that cost, and what stands in the way?
@@ -68,7 +68,33 @@ appearance of a foreign module alerts and the rest dedup.
    merge *in original order* applying the dedup and the counters. Order-
    dependent behaviour stays in the serial phase, so output is unchanged.
 
-## Why it was not done here
+## Outcome
+
+Implemented. The estimate below was wrong in the safe direction: **no call site
+changed**, because `&mut self` → `&self` reborrows at the call. What the change
+actually needed was mostly *deletion* —
+
+- two `CallReceiverScorer` counters were **written and never read**, removed;
+- the per-file memo moved to a **thread-local** (each worker takes a contiguous
+  run of whole files, so it hits exactly as often as it did serially);
+- four shape primitives memoed their language in a `Cell` → `OnceLock`;
+- the two counters that *are* read → `AtomicUsize` / `Mutex`, contended only
+  under the bench;
+- `LanguageAdapter` and `ShapePrimitive` gained `: Sync`.
+
+| workload | before | after |
+|---|--:|--:|
+| whole tree, 921 files / 924 048 lines | 47,0 s @ 97 % CPU | **13,4 s @ 407 %** |
+| `argot audit --commits 400` | 4 min 26 s | **3 min 34 s** |
+| sieghard, 239 hunks | 9,3 s | 7,7 s |
+
+Byte-identical, three ways: every golden suite green; the full hit records for
+sdl2, sieghard and X11_clean compare equal field for field (scores, thresholds,
+hashes, evidence); and the full bench shows **35 of 35 pre-existing corpora with
+identical false-positive rows, none differing**, headline 647/756 = 85,6 %,
+0 errors.
+
+## The estimate that was wrong
 
 `score_hunk` has **26 call sites** across the CLI, the bench harness, the MCP
 path, `sequential_golden.rs` and `model_snapshot.rs`. It is the hottest
