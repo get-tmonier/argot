@@ -94,8 +94,8 @@ substitutes for the fixture gate: the harness is what catches over-fire
    - **`file.old_text` / `changeset_paths()`** give the pre-image text and the
      other paths in the same change, for coupled-file rules (*"this file
      changed but its sibling didn't"*).
-   - **`read_repo_file(path)` / `repo_paths(glob)`** (host API 2 — set
-     `api = 2` in `[engine]`) read the *rest of the repo*, not just the
+   - **`read_repo_file(path)` / `repo_paths(glob)`** read the *rest of the
+     repo*, not just the
      changed file: the contract a backend must answer, the schema a migration
      belongs to, the API description a route should appear in. Read-only,
      refused outside the repo root, and metered. Prefer them over inlining the

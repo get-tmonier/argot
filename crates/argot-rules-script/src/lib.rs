@@ -4,8 +4,8 @@
 //!
 //! ```text
 //! .argot/rules/no-raw-sql/
-//!   rule.toml      # the declarative frame: name, severity, languages, api
-//!   check.rhai     # the detection logic (sandboxed Rhai, host API v2)
+//!   rule.toml      # the declarative frame: name, severity, languages
+//!   check.rhai     # the detection logic (sandboxed Rhai)
 //! ```
 //!
 //! Discovery, manifest validation, sandbox limits, and the host API live

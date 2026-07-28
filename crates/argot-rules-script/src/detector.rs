@@ -145,7 +145,7 @@ impl Detector for ScriptDetector {
                     .filter_map(move |f| f.old.map(|old| ((source.clone(), f.path), old)))
             })
             .collect();
-        // Read-only repository access for host API v2, opened once per check:
+        // Read-only repository access, opened once per check:
         // the listing is git's index, not a walk.
         let repo_files: std::rc::Rc<dyn crate::repo::RepoFiles> = std::rc::Rc::new(
             crate::repo::RepoRoot::open(std::path::Path::new(&ctx.args.repo_path)),

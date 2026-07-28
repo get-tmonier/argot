@@ -1,6 +1,6 @@
 //! The Rhai host — sandboxed execution of one rule's script over one file.
 //!
-//! The contract with rule authors (host API v2):
+//! The contract with rule authors — one host API, no generations:
 //! - The script's top-level statements run once per in-scope changed file.
 //! - In scope: `file` (a map: `path`, `language` — `""` for a file argot
 //!   doesn't score, `ext`, `new_text`, `old_text` —
@@ -13,7 +13,7 @@
 //!   `import_attested(module)` / `callee_attested(name)` (the fitted voice
 //!   model's learned facts for this file's language),
 //!   `changeset_paths()` (every path in the changeset),
-//!   `read_repo_file(path)` / `repo_paths(glob)` (host API v2 — read-only
+//!   `read_repo_file(path)` / `repo_paths(glob)` (read-only
 //!   access to the rest of the repository, for rules about *two* files), and
 //!   `report(line, message)` / `report_span(start, end, message, opts)`
 //!   (`opts` map: optional `evidence` array, optional `symbol`).
@@ -269,7 +269,7 @@ pub fn run_on_file(
                 .collect()
         });
     }
-    // read_repo_file(path) / repo_paths(glob) — host API v2. Read-only, inside
+    // read_repo_file(path) / repo_paths(glob). Read-only, inside
     // the root only, and metered: a rule that reads the tree in a loop runs out
     // of budget and gets `()` rather than turning every check into a disk scan.
     {

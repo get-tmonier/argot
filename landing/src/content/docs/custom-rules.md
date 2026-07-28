@@ -40,8 +40,8 @@ the severity and the message belong to the repository that runs it.
 
 ```text
 .argot/rules/no-raw-sql/
-  rule.toml          # identity, severity, language scope, host-API generation
-  check.rhai         # the detection logic — sandboxed Rhai, host API v2
+  rule.toml          # identity, severity, language scope
+  check.rhai         # the detection logic — sandboxed Rhai
   tests/             # fixtures for `argot rules test` (see below)
     fires-on-execute/
       input.py
@@ -70,7 +70,6 @@ include = []               # optional — path globs; runs the rule on ANY match
 exclude = []               # optional — path globs subtracted from the scope (e.g. tests)
 
 [engine]
-api = 1                    # optional — host-API generation the script targets; defaults to 1
 script = "check.rhai"      # optional — script path, relative to the rule dir; defaults to check.rhai
 ```
 
@@ -84,10 +83,9 @@ script = "check.rhai"      # optional — script path, relative to the rule dir;
 | `rule.languages` | no | every language | Restrict to these **scored** languages — `python`, `typescript`, `javascript`, `go`, `rust`, `java`, `csharp`, `php`, `cpp`, `ruby`, `c`, `pascal` (see [Languages](/docs/languages/)). This gate is over *supported source files only*; it can't reach a `.env` — that's what `include` is for. |
 | `rule.include` | no | (none) | Repo-relative **path globs** (dialect: `*`/`**` cross `/`, `?`, `[abc]`). When set, the rule runs on any matching path — **including extensions argot doesn't score**. See *Which files a rule runs on*. |
 | `rule.exclude` | no | (none) | Path globs subtracted from the scope — even from the default language scope, so an `include`-less rule can still skip `**/*.test.ts`. |
-| `engine.api` | no | `1` | The host-API generation the script targets. A script asking for a newer generation than the binary provides is skipped, never half-run. `read_repo_file` / `repo_paths` need `api = 2`. |
 | `engine.script` | no | `check.rhai` | Script file, relative to the rule directory. |
 
-A manifest that fails to parse, names a schema or host-API generation this argot doesn't
+A manifest that fails to parse, names a schema this argot doesn't
 understand, or whose `name` doesn't match its directory is **skipped with a warning on
 stderr** — discovery degrades per rule, never for the whole run.
 
@@ -158,7 +156,7 @@ and the attested path live.
 `ts_query` and `hunks` see the changed file. A whole family of conventions is about *two*
 files, though — a contract and the implementations that must answer it, a migration and the
 schema it belongs to, a route and its entry in the API description. Those need
-`read_repo_file` and `repo_paths`, so declare `api = 2` in the manifest.
+`read_repo_file` and `repo_paths`.
 
 ```rhai
 // Every backend under kernel/<platform>/ must answer every member of the contract.
