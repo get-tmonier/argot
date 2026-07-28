@@ -1,0 +1,15 @@
+# What a uos maintainer excludes: the two GUI toolkits it vendors as git
+# submodules, and its demo programs. uos is a library — `src/` is 21 files /
+# 25 994 lines against `examples/` at 63 files / 46 344 lines, so left in, the
+# demos are **64 % of the Pascal argot learns from** and the library is judged
+# against the voice of its own examples. That is where the misses land: 141 of
+# the 145 false alarms in the replayed window are in `src/`.
+#
+# Same call dagster's catalog already makes for `examples/`, and redis
+# (`deps/`), rocksdb (`third-party/`) and castle-engine (vendored libs) make
+# for third-party trees.
+[exclude]
+paths = [
+  "use/",       # fpGUI + mseide-msegui, vendored as submodules (.gitmodules)
+  "examples/",  # demo programs — how to *call* uos, not how uos is written
+]
