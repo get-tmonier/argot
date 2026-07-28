@@ -321,7 +321,7 @@ argot audit  --format json      # is a rule describing the repo rather than flag
 | `reasons[].signal == "polyglot_mix"` | several languages share the repo; expect weaker signal |
 | `over_firing[]` in the audit | rules tripping **>2 % of the repo's own accepted history**. A healthy repo sits at 0.3–0.7 % per rule. Above that the rule is describing this repository, not flagging it — scope or soften it (phase 6), don't read it as argot being inaccurate |
 | `unlearnable_languages` in `.argot/manifest.json` | those files are **not checked at all**. Silence there means *not looked at* |
-| *"N hunk(s) over … lines were not judged"* | a rewrite that large is not one pattern being introduced; those hunks were **skipped, not passed** |
+| *"N large hunk(s) scored above the flat threshold but not above the one for their size"* | the score is a max over the hunk's tokens, so a big hunk scores higher for free; the bar rises with size past the repo's own p90. Those hunks were **judged against a higher bar, not skipped** — review them by hand if they are rewrites |
 
 Relay every one of these to the user verbatim. A skipped check that reads as a
 passed check is the failure mode this whole flow exists to prevent.

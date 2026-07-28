@@ -157,9 +157,12 @@ looking at findings. Run these:
     unlearnable_languages / "too few to learn a voice"
                         those files are NOT CHECKED. Silence there means not
                         looked at, not clean.
-    "N hunk(s) over ... lines were not judged"
-                        a rewrite that big is not one pattern being introduced.
-                        Those hunks were skipped, not passed.
+    "N large hunk(s) scored above the flat threshold but not above the one
+    for their size"     the score is a max over the hunk's tokens, so a big
+                        hunk scores higher for free; the bar rises with size
+                        past this repo's own p90. Those were judged against a
+                        higher bar, not skipped. Review them by hand if they
+                        are rewrites.
 
 Throughout: if argot reports it did NOT judge something — a language with too
 few files, an oversized hunk, a disabled rule — relay it to me. Silence that
