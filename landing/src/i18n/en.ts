@@ -150,9 +150,9 @@ const en: SiteContent = {
     title: 'Honest numbers, leak-free by construction.',
     stats: [
       {
-        value: '97.6%',
+        value: '97.3%',
         title: 'foreign patterns caught',
-        desc: '622 of 637 across 36 repositories — while firing on just [[0.60% of real edits]].',
+        desc: '620 of 637 across 36 repositories — while firing on just [[0.25% of real edits]].',
       },
       {
         value: '89%',

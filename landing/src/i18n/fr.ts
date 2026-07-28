@@ -149,9 +149,9 @@ const fr: SiteContent = {
     title: 'Des chiffres honnêtes, sans fuite par construction.',
     stats: [
       {
-        value: '97,6 %',
+        value: '97,3 %',
         title: 'motifs étrangers détectés',
-        desc: '622 sur 637 à travers 36 dépôts — en ne se déclenchant que sur [[0,60 % des vraies modifications]].',
+        desc: '620 sur 637 à travers 36 dépôts — en ne se déclenchant que sur [[0,25 % des vraies modifications]].',
       },
       {
         value: '89 %',

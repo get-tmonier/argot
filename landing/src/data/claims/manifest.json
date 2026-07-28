@@ -6,13 +6,13 @@
       "key": "foreign.visible_symbol",
       "status": "canonical",
       "source": "landing/src/data/foreign.json",
-      "revision": "1b0de32d; generated_at=2026-07-28",
+      "revision": "d1007f50; generated_at=2026-07-28",
       "observedAt": "2026-07-28",
       "scope": "36 corpora / 12 languages / visible foreign-import and foreign-api fixture symbols after excluded-host purge",
       "qualifier": "detector-specific fixture recall; not a product-wide accuracy claim",
-      "numerator": 622,
+      "numerator": 620,
       "denominator": 637,
-      "percentage": 97.64521193092621,
+      "percentage": 97.33124018838305,
       "supersedes": [
         "foreign.legacy"
       ]

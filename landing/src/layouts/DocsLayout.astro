@@ -236,6 +236,7 @@ const next = idx >= 0 && idx < flat.length - 1 ? flat[idx + 1] : null;
     border-radius: 5px;
   }
   .doc-prose pre {
+    position: relative;
     margin: 1.4rem 0;
     padding: 1.1rem 1.25rem;
     border: 1px solid var(--line);
@@ -488,4 +489,89 @@ const next = idx >= 0 && idx < flat.length - 1 ? flat[idx + 1] : null;
     sync();
     mq.addEventListener('change', sync);
   }
+</script>
+
+<style is:global>
+  /* Copy affordance on every fenced block — the agent prompts are meant to be
+     taken whole, and hand-selecting 100 lines is where people give up.
+     MUST be `is:global`: the button is created at runtime, so it never carries
+     Astro's build-time scope attribute and a scoped rule would not match it. */
+  .doc-prose pre > .doc-copy {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    z-index: 1;
+    display: grid;
+    place-items: center;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    color: var(--ink-dim);
+    background: color-mix(in srgb, var(--panel) 92%, #000);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    cursor: pointer;
+    opacity: 0;
+    transition:
+      opacity 0.15s ease,
+      color 0.15s ease,
+      border-color 0.15s ease;
+  }
+  .doc-prose pre:hover > .doc-copy,
+  .doc-prose pre > .doc-copy:focus-visible {
+    opacity: 1;
+  }
+  .doc-prose pre > .doc-copy:hover {
+    color: var(--ember);
+    border-color: color-mix(in srgb, var(--ember) 60%, transparent);
+  }
+  .doc-prose pre > .doc-copy[data-copied='true'] {
+    opacity: 1;
+    color: #57c07d;
+    border-color: color-mix(in srgb, #57c07d 60%, transparent);
+  }
+  .doc-prose pre > .doc-copy svg {
+    width: 0.95rem;
+    height: 0.95rem;
+  }
+  /* Touch devices have no hover: keep it reachable. */
+  @media (hover: none) {
+    .doc-prose pre > .doc-copy {
+      opacity: 1;
+    }
+  }
+</style>
+
+<script>
+  const CLIPBOARD =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+  const CHECK =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+
+  document.querySelectorAll<HTMLPreElement>('.doc-prose pre').forEach((pre) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'doc-copy';
+    btn.innerHTML = CLIPBOARD;
+    btn.title = 'Copy';
+    btn.setAttribute('aria-label', 'Copy code to clipboard');
+    btn.addEventListener('click', async () => {
+      const code = pre.querySelector('code');
+      const text = (code ?? pre).innerText ?? '';
+      try {
+        await navigator.clipboard.writeText(text);
+        btn.innerHTML = CHECK;
+        btn.title = 'Copied';
+        btn.dataset.copied = 'true';
+        setTimeout(() => {
+          btn.innerHTML = CLIPBOARD;
+          btn.title = 'Copy';
+          delete btn.dataset.copied;
+        }, 1600);
+      } catch {
+        /* clipboard unavailable (insecure context, denied permission) */
+      }
+    });
+    pre.appendChild(btn);
+  });
 </script>

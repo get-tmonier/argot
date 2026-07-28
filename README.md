@@ -99,9 +99,9 @@ Current public measurements are detector-specific, not a product-wide accuracy
 or combined-brief claim. The [approved claim manifest](landing/src/data/claims/manifest.json)
 records:
 
-- visible foreign-symbol fixtures: **595/605** across 22 corpora;
+- visible foreign-symbol fixtures: **620/637** across 36 corpora and 12 languages;
 - layering fixtures: **264/272** across 25 corpora and 12 languages;
-- test-integrity fixtures: **155/164** across 23 corpora and 12 languages.
+- test-integrity fixtures: **154/164** across 23 corpora and 12 languages.
 
 Each number has a distinct corpus, denominator, and qualifier. The combined
 briefing/noise result, semantic aggregate, and ordinary-repository timing are
@@ -148,3 +148,19 @@ Read the complete [privacy and security boundary](https://argot.tmonier.com/priv
 Contributions are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md), then
 see the [product strategy](docs/strategy/ARGOT_STRATEGY.md) for the maintained
 decision record and [research log](docs/research/README.md) for evidence.
+
+## Acknowledgements
+
+Every number argot publishes is measured against the real history of 36
+open-source projects, across the twelve supported languages — fastapi, rich,
+faker, saleor, wagtail, scrapy, hono, ink, faker-js, excalidraw, outline,
+express, commander, eslint, gh-cli, hugo, ripgrep, bat, guava, junit5,
+powershell, jellyfin, redis, curl, rocksdb, fmt, homebrew, rubocop, laravel,
+composer, castle-engine, mORMot2, uos, ideU, MSEide/MSEgui, and dagster.
+
+The benchmark would not exist without them, and we are grateful to their
+maintainers and contributors. Argot vendors and redistributes none of their
+code: the harness clones each repository at a pinned SHA, reads its history
+locally, and ships nothing from it. Each project remains under its own license,
+held by its own authors. Full list with links, and what argot does commit:
+[`benchmarks/README.md`](benchmarks/README.md#acknowledgements).

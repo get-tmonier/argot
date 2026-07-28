@@ -1,6 +1,6 @@
 {
- "generated_at": "2026-07-14",
- "commit": "7be8b1eb",
+ "generated_at": "2026-07-28",
+ "commit": "d1007f50",
  "corpora": [
   {
    "corpus": "bat",
@@ -30,6 +30,58 @@
    "secondary": {},
    "overfire_existing_pct": 0.3,
    "detection_existing_pct": 6.8,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "castle-engine",
+   "language": "pascal",
+   "classes": {
+    "foreign_import": {
+     "caught": 7,
+     "total": 7,
+     "pct": 100,
+     "masked_caught": 0,
+     "masked_total": 0,
+     "masked_pct": null,
+     "overall_pct": 100,
+     "reason": "foreign-import"
+    },
+    "foreign_api": {
+     "caught": 4,
+     "total": 4,
+     "pct": 100,
+     "masked_caught": 0,
+     "masked_total": 0,
+     "masked_pct": null,
+     "overall_pct": 100,
+     "reason": "unfamiliar-callee"
+    }
+   },
+   "secondary": {
+    "naming_shape_break": {
+     "caught": 0,
+     "total": 1,
+     "pct": 0,
+     "masked_caught": 0,
+     "masked_total": 1,
+     "masked_pct": 0,
+     "overall_pct": 0,
+     "reason": null
+    },
+    "semantic_convention": {
+     "caught": 0,
+     "total": 0,
+     "pct": null,
+     "masked_caught": 0,
+     "masked_total": 2,
+     "masked_pct": 0,
+     "overall_pct": 0,
+     "reason": null
+    }
+   },
+   "overfire_existing_pct": 0.0,
+   "detection_existing_pct": 0.3,
    "overfire_new_pct": 0.0,
    "under_sampled": false
   },
@@ -81,7 +133,7 @@
     }
    },
    "overfire_existing_pct": 0.0,
-   "detection_existing_pct": 4.87,
+   "detection_existing_pct": 5.09,
    "overfire_new_pct": 0.0,
    "under_sampled": false
   },
@@ -174,14 +226,14 @@
    },
    "secondary": {
     "semantic_convention": {
-     "caught": 3,
+     "caught": 4,
      "total": 7,
-     "pct": 43,
+     "pct": 57,
      "masked_caught": 1,
      "masked_total": 2,
      "masked_pct": 50,
-     "overall_pct": 44,
-     "reason": "foreign-import"
+     "overall_pct": 56,
+     "reason": "unfamiliar-callee"
     }
    },
    "overfire_existing_pct": 0.0,
@@ -278,8 +330,8 @@
      "reason": "unfamiliar-callee"
     }
    },
-   "overfire_existing_pct": 0.0,
-   "detection_existing_pct": 0.6,
+   "overfire_existing_pct": 0.09,
+   "detection_existing_pct": 1.04,
    "overfire_new_pct": 0.0,
    "under_sampled": false
   },
@@ -456,7 +508,7 @@
      "reason": "unfamiliar-callee"
     }
    },
-   "overfire_existing_pct": 1.46,
+   "overfire_existing_pct": 1.75,
    "detection_existing_pct": 0.87,
    "overfire_new_pct": 0.0,
    "under_sampled": false
@@ -488,7 +540,7 @@
    },
    "secondary": {},
    "overfire_existing_pct": 0.0,
-   "detection_existing_pct": 3.7,
+   "detection_existing_pct": 3.12,
    "overfire_new_pct": 0.0,
    "under_sampled": true
   },
@@ -519,14 +571,14 @@
    },
    "secondary": {
     "semantic_convention": {
-     "caught": 3,
+     "caught": 4,
      "total": 8,
-     "pct": 38,
+     "pct": 50,
      "masked_caught": 0,
      "masked_total": 1,
      "masked_pct": 0,
-     "overall_pct": 33,
-     "reason": "unfamiliar-callee"
+     "overall_pct": 44,
+     "reason": "foreign-import"
     },
     "naming_shape_break": {
      "caught": 0,
@@ -559,26 +611,26 @@
      "reason": "foreign-import"
     },
     "foreign_api": {
-     "caught": 7,
+     "caught": 5,
      "total": 7,
-     "pct": 100,
+     "pct": 71,
      "masked_caught": 1,
      "masked_total": 3,
      "masked_pct": 33,
-     "overall_pct": 80,
-     "reason": "rare-tokens"
+     "overall_pct": 60,
+     "reason": "foreign-import"
     }
    },
    "secondary": {
     "semantic_convention": {
-     "caught": 1,
+     "caught": 0,
      "total": 9,
-     "pct": 11,
+     "pct": 0,
      "masked_caught": 0,
      "masked_total": 1,
      "masked_pct": 0,
-     "overall_pct": 10,
-     "reason": "rare-tokens"
+     "overall_pct": 0,
+     "reason": null
     },
     "naming_shape_break": {
      "caught": 0,
@@ -591,8 +643,8 @@
      "reason": null
     }
    },
-   "overfire_existing_pct": 0.82,
-   "detection_existing_pct": 0.16,
+   "overfire_existing_pct": 0.17,
+   "detection_existing_pct": 0.17,
    "overfire_new_pct": 0.0,
    "under_sampled": false
   },
@@ -644,7 +696,7 @@
     }
    },
    "overfire_existing_pct": 0.0,
-   "detection_existing_pct": 0.22,
+   "detection_existing_pct": 0.0,
    "overfire_new_pct": 0.0,
    "under_sampled": false
   },
@@ -653,13 +705,13 @@
    "language": "TypeScript",
    "classes": {
     "foreign_import": {
-     "caught": 12,
+     "caught": 11,
      "total": 12,
-     "pct": 100,
+     "pct": 92,
      "masked_caught": 0,
      "masked_total": 2,
      "masked_pct": 0,
-     "overall_pct": 86,
+     "overall_pct": 79,
      "reason": "foreign-import"
     },
     "foreign_api": {
@@ -716,8 +768,21 @@
     }
    },
    "secondary": {},
-   "overfire_existing_pct": 1.17,
+   "overfire_existing_pct": 1.18,
    "detection_existing_pct": 0.39,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "ideu",
+   "language": "pascal",
+   "classes": {
+    "foreign_import": null,
+    "foreign_api": null
+   },
+   "secondary": {},
+   "overfire_existing_pct": 0.55,
+   "detection_existing_pct": 0.17,
    "overfire_new_pct": 0.0,
    "under_sampled": false
   },
@@ -799,13 +864,13 @@
    "language": "Java",
    "classes": {
     "foreign_import": {
-     "caught": 12,
+     "caught": 11,
      "total": 12,
-     "pct": 100,
+     "pct": 92,
      "masked_caught": 0,
      "masked_total": 2,
      "masked_pct": 0,
-     "overall_pct": 86,
+     "overall_pct": 79,
      "reason": "unfamiliar-callee"
     },
     "foreign_api": {
@@ -820,7 +885,7 @@
     }
    },
    "secondary": {},
-   "overfire_existing_pct": 0.0,
+   "overfire_existing_pct": 0.27,
    "detection_existing_pct": 0.53,
    "overfire_new_pct": 0.0,
    "under_sampled": false
@@ -878,6 +943,110 @@
    "under_sampled": false
   },
   {
+   "corpus": "mormot2",
+   "language": "pascal",
+   "classes": {
+    "foreign_import": {
+     "caught": 6,
+     "total": 6,
+     "pct": 100,
+     "masked_caught": 0,
+     "masked_total": 0,
+     "masked_pct": null,
+     "overall_pct": 100,
+     "reason": "foreign-import"
+    },
+    "foreign_api": {
+     "caught": 5,
+     "total": 5,
+     "pct": 100,
+     "masked_caught": 0,
+     "masked_total": 0,
+     "masked_pct": null,
+     "overall_pct": 100,
+     "reason": "unfamiliar-callee"
+    }
+   },
+   "secondary": {
+    "naming_shape_break": {
+     "caught": 0,
+     "total": 0,
+     "pct": null,
+     "masked_caught": 0,
+     "masked_total": 2,
+     "masked_pct": 0,
+     "overall_pct": 0,
+     "reason": null
+    },
+    "semantic_convention": {
+     "caught": 0,
+     "total": 0,
+     "pct": null,
+     "masked_caught": 0,
+     "masked_total": 2,
+     "masked_pct": 0,
+     "overall_pct": 0,
+     "reason": null
+    }
+   },
+   "overfire_existing_pct": 0.0,
+   "detection_existing_pct": 0.75,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "mseide-msegui",
+   "language": "pascal",
+   "classes": {
+    "foreign_import": {
+     "caught": 5,
+     "total": 5,
+     "pct": 100,
+     "masked_caught": 0,
+     "masked_total": 0,
+     "masked_pct": null,
+     "overall_pct": 100,
+     "reason": "foreign-import"
+    },
+    "foreign_api": {
+     "caught": 3,
+     "total": 5,
+     "pct": 60,
+     "masked_caught": 0,
+     "masked_total": 0,
+     "masked_pct": null,
+     "overall_pct": 60,
+     "reason": "rare-tokens"
+    }
+   },
+   "secondary": {
+    "naming_shape_break": {
+     "caught": 0,
+     "total": 2,
+     "pct": 0,
+     "masked_caught": 0,
+     "masked_total": 0,
+     "masked_pct": null,
+     "overall_pct": 0,
+     "reason": null
+    },
+    "semantic_convention": {
+     "caught": 0,
+     "total": 2,
+     "pct": 0,
+     "masked_caught": 0,
+     "masked_total": 0,
+     "masked_pct": null,
+     "overall_pct": 0,
+     "reason": null
+    }
+   },
+   "overfire_existing_pct": 0.61,
+   "detection_existing_pct": 0.79,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
    "corpus": "outline",
    "language": "TypeScript",
    "classes": {
@@ -915,7 +1084,7 @@
     }
    },
    "overfire_existing_pct": 0.11,
-   "detection_existing_pct": 0.43,
+   "detection_existing_pct": 0.32,
    "overfire_new_pct": 0.0,
    "under_sampled": false
   },
@@ -1008,14 +1177,14 @@
      "reason": "unfamiliar-callee"
     },
     "naming_shape_break": {
-     "caught": 1,
+     "caught": 0,
      "total": 2,
-     "pct": 50,
+     "pct": 0,
      "masked_caught": 0,
      "masked_total": 0,
      "masked_pct": null,
-     "overall_pct": 50,
-     "reason": "unfamiliar-callee"
+     "overall_pct": 0,
+     "reason": null
     }
    },
    "overfire_existing_pct": 0.18,
@@ -1092,13 +1261,13 @@
    },
    "secondary": {
     "semantic_convention": {
-     "caught": 1,
+     "caught": 2,
      "total": 8,
-     "pct": 12,
+     "pct": 25,
      "masked_caught": 0,
      "masked_total": 2,
      "masked_pct": 0,
-     "overall_pct": 10,
+     "overall_pct": 20,
      "reason": "unfamiliar-callee"
     },
     "naming_shape_break": {
@@ -1139,19 +1308,19 @@
      "masked_total": 3,
      "masked_pct": 0,
      "overall_pct": 80,
-     "reason": "unfamiliar-callee"
+     "reason": "foreign-import"
     }
    },
    "secondary": {
     "semantic_convention": {
-     "caught": 1,
+     "caught": 0,
      "total": 7,
-     "pct": 14,
+     "pct": 0,
      "masked_caught": 0,
      "masked_total": 2,
      "masked_pct": 0,
-     "overall_pct": 11,
-     "reason": "rare-tokens"
+     "overall_pct": 0,
+     "reason": null
     },
     "naming_shape_break": {
      "caught": 0,
@@ -1164,8 +1333,8 @@
      "reason": null
     }
    },
-   "overfire_existing_pct": 0.22,
-   "detection_existing_pct": 0.9,
+   "overfire_existing_pct": 0.18,
+   "detection_existing_pct": 1.0,
    "overfire_new_pct": 0.0,
    "under_sampled": false
   },
@@ -1184,13 +1353,13 @@
      "reason": "unfamiliar-callee"
     },
     "foreign_api": {
-     "caught": 6,
+     "caught": 5,
      "total": 6,
-     "pct": 100,
+     "pct": 83,
      "masked_caught": 0,
      "masked_total": 2,
      "masked_pct": 0,
-     "overall_pct": 75,
+     "overall_pct": 62,
      "reason": "unfamiliar-callee"
     }
    },
@@ -1270,6 +1439,19 @@
    "secondary": {},
    "overfire_existing_pct": 0.0,
    "detection_existing_pct": 0.68,
+   "overfire_new_pct": 0.0,
+   "under_sampled": false
+  },
+  {
+   "corpus": "uos",
+   "language": "pascal",
+   "classes": {
+    "foreign_import": null,
+    "foreign_api": null
+   },
+   "secondary": {},
+   "overfire_existing_pct": 0.0,
+   "detection_existing_pct": 0.29,
    "overfire_new_pct": 0.0,
    "under_sampled": false
   },

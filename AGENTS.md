@@ -77,7 +77,7 @@ the original), **misplaced code**, and a **layering violation** (264/272, 97.1%,
 on authored fixtures across 25 corpora / 12 languages). It also flags **tests
 weakened, disabled, or deleted alongside a code change** — a test gutted,
 skipped, or its assertions loosened while the production code it exercises also
-changes — 155/164 (94.5%) authored gaming fixtures across 23 corpora / 12
+changes — 154/164 (93.9%) authored gaming fixtures across 23 corpora / 12
 languages, with 45/3,602 (1.25%) accepted-history test-touching commits flagged
 at gating severity and zero fires on 106 legitimate-refactor controls. These are
 detector-specific measures, not a product-wide accuracy claim. Trust those hits.

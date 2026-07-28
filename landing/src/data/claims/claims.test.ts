@@ -9,7 +9,7 @@ const canonicalManifest = manifest as ClaimManifest;
 
 test('canonical claims expose their value and qualifier through stable keys', () => {
   expect(claimValue('foreign.visible_symbol')).toBe(
-    '622/637 (97.6%) — detector-specific fixture recall; not a product-wide accuracy claim',
+    '620/637 (97.3%) — detector-specific fixture recall; not a product-wide accuracy claim',
   );
   expect(claim('performance.audit_timing').status).toBe('unavailable');
 });
@@ -19,7 +19,7 @@ test('manifest keeps the selected lineages and rejects known stale denominators'
   expect(
     canonicalManifest.claims.find((record) => record.key === 'foreign.visible_symbol'),
   ).toMatchObject({
-    numerator: 622,
+    numerator: 620,
     denominator: 637,
   });
   expect(

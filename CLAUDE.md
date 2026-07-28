@@ -142,7 +142,7 @@ are suite curation, not gaming) and are pinned confidence `suspicious`. Same
 build-time-gate shape as `semantic`/`arch` — off in dev/CI base loops, ON in
 releases. Per-repo gates are learned at fit from a mini-replay of the repo's
 accepted history and stored in `.argot/integrity.json` (a rebuildable sibling
-of `scorer-config.json`). Validated at 94.5% catch (155/164 authored gaming
+of `scorer-config.json`). Validated at 93.9% catch (154/164 authored gaming
 fixtures, 23 corpora / 12 languages), 0/106 legitimate-refactor controls
 fired, and 1.25% of replayed accepted test-touching commits flagged at gating
 severity; evidence in `docs/research/evidence/test-integrity-capstone.md`.
