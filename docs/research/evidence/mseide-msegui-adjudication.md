@@ -248,20 +248,27 @@ idiom is fixed, and the one that remains is the progress bar, not a defect.
 
 | rule | n | true | arguable | wrong |
 |---|--:|--:|--:|--:|
-| backend-contract-coverage | 7 | 7 | 0 | 0 |
 | redundant | 9 | 9 | 0 | 0 |
-| rare-tokens | 5 | 2 | 3 | 0 |
-| unfamiliar-callee | 3 | 3 | 0 | 0 |
+| backend-contract-coverage | 7 | 7 | 0 | 0 |
+| rare-tokens | 6 | 3 | 3 | 0 |
 | foreign-import | 4 | 4 | 0 | 0 |
+| unfamiliar-callee | 3 | 3 | 0 | 0 |
 | contract-drift | 2 | 2 | 0 | 0 |
 | platform-backend-contract | 1 | 1 | 0 | 0 |
 | superseded | 0 | — | — | — |
 | layering | 0 | — | — | — |
 | misplaced | 0 | — | — | — |
 | integrity | 0 | — | — | — |
-| **total** | **32** | **28** | **4** | **0** |
+| **total** | **32** | **29** | **3** | **0** |
 
-**28 of 32 true, 4 arguable, 0 wrong** — 87.5% true, 100% not-wrong. Every one
+**29 of 32 true, 3 arguable, 0 wrong** — 91% true, 100% not-wrong.
+
+The three `rare-tokens` counted true are the two on `mxlib.pas` (a new raw Xlib
+binding surface entering the kernel, on both X11 branches) and
+`FieldTypeError` on `msebufdataset.pas` (a new unit whose CamelCase name the
+tree never uses). The three arguable are the other sieghard hits — new
+CamelCase identifiers in a lower-case codebase, consistent with the repo's own
+`STYLE.md` but style rather than defect. Every one
 of the seven defects that produced the original 45 false findings is fixed in
 argot and pinned by a test; none is muted, and the fork's `argot.toml` disables
 no rule.
@@ -359,11 +366,11 @@ target).
 
 | | findings | true | arguable | wrong |
 |---|--:|--:|--:|--:|
-| seven changesets | 32 | 28 | 4 | 0 |
+| seven changesets | 32 | 29 | 3 | 0 |
 | 400-commit sweep | 25 | 20 | 5 | 0 |
-| **total** | **57** | **48** | **9** | **0** |
+| **total** | **57** | **49** | **8** | **0** |
 
-**84% true, 16% arguable, 0 wrong.** Nine defects in argot were found and fixed
+**86% true, 14% arguable, 0 wrong.** Nine defects in argot were found and fixed
 getting here; not one finding is muted, and the fork's `argot.toml` disables no
 rule.
 

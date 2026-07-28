@@ -112,28 +112,6 @@ pub fn has_ancestor_of_kind(node: tree_sitter::Node<'_>, kinds: &[&str]) -> bool
     false
 }
 
-/// The 1-indexed source rows a prose node (a comment, a docstring, a multiline
-/// string) should have blanked.
-///
-/// Prose masking blanks whole *lines*, so a line carrying code as well as a
-/// comment must not count as prose — blanking it deletes the code. That is not
-/// hypothetical: `uses msedynload{,mseguiintf};` (Object Pascal commenting a
-/// unit out in place) had its whole `uses` clause blanked, after which the
-/// parser recovered the next type name as a module and the import stage scored
-/// a dependency that does not exist. The same shape under-reads every language
-/// — a trailing `// note` after `import "fmt"` took the import with it.
-///
-/// The test applies to **single-row** nodes only. A node spanning several rows
-/// owns all of them: dropping its opening row because an assignment precedes
-/// the `"""` would leave an unterminated delimiter, which is worse than the
-/// stray `msg = ` the mask keeps.
-pub fn prose_rows(source: &str, node: tree_sitter::Node<'_>) -> Vec<usize> {
-    match ProseMask::classify(source, node) {
-        Some(Prose::Rows(rows)) => rows,
-        _ => Vec::new(),
-    }
-}
-
 /// What blanking a prose node costs: whole rows, or just the node's own span.
 enum Prose {
     Rows(Vec<usize>),
@@ -142,6 +120,17 @@ enum Prose {
 
 /// Where a source's prose sits: rows to blank whole, plus `(row, col_start,
 /// col_end)` spans to blank in place on rows that also carry code.
+///
+/// Masking by the *line* alone deletes the code beside a comment. That is
+/// not hypothetical: `uses msedynload{,mseguiintf};` (Object Pascal, a unit
+/// commented out in place) lost its whole `uses` clause, after which the
+/// parser recovered the next type name as a module and the import stage
+/// scored a dependency that does not exist — and the same shape under-reads
+/// every language, a trailing `// note` after an import taking the import
+/// with it. Masking by the *span* alone is no better: a multi-row node's
+/// opening row would keep its delimiter after the rest is gone. So single-row
+/// prose sharing its line with code is blanked in place, everything else by
+/// the line.
 #[derive(Debug, Default, Clone)]
 pub struct ProseMask {
     pub rows: std::collections::HashSet<usize>,
@@ -149,24 +138,23 @@ pub struct ProseMask {
 }
 
 impl ProseMask {
-    fn classify(source: &str, node: tree_sitter::Node<'_>) -> Option<Prose> {
+    fn classify(source: &str, node: tree_sitter::Node<'_>) -> Prose {
         let (start, end) = (node.start_position(), node.end_position());
         if start.row == end.row {
             let line = source.split('\n').nth(start.row).unwrap_or("");
             let blank = |s: Option<&str>| s.is_none_or(|p| p.trim().is_empty());
             if !(blank(line.get(..start.column)) && blank(line.get(end.column..))) {
-                return Some(Prose::Span(start.row + 1, start.column, end.column));
+                return Prose::Span(start.row + 1, start.column, end.column);
             }
         }
-        Some(Prose::Rows((start.row + 1..=end.row + 1).collect()))
+        Prose::Rows((start.row + 1..=end.row + 1).collect())
     }
 
     /// Record one prose node.
     pub fn add(&mut self, source: &str, node: tree_sitter::Node<'_>) {
         match Self::classify(source, node) {
-            Some(Prose::Rows(rows)) => self.rows.extend(rows),
-            Some(Prose::Span(r, a, b)) => self.spans.push((r, a, b)),
-            None => {}
+            Prose::Rows(rows) => self.rows.extend(rows),
+            Prose::Span(r, a, b) => self.spans.push((r, a, b)),
         }
     }
 }
