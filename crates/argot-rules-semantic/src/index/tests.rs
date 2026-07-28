@@ -112,6 +112,7 @@ fn build_with_reuse_keeps_unchanged_vectors_and_embeds_the_rest() {
         end_line: 3,
         text: text.into(),
         embed_text: text.into(),
+        nested: false,
         callees: Vec::new(),
         subtokens: Vec::new(),
     };
@@ -305,4 +306,35 @@ fn subtoken_set_splits_camel_snake_and_acronyms() {
     assert!(set
         .iter()
         .all(|s| s.len() >= 3 && s == &s.to_ascii_lowercase()));
+}
+
+#[test]
+fn a_function_declared_inside_another_is_marked_nested() {
+    // Object Pascal declares a local procedure in its parent's `var` section,
+    // and `callable_bodies` returns a flat list — so `readbyte`, which lives
+    // inside `dbtrystringtoguid` and assigns its result variable, arrived
+    // looking exactly like a top-level function and was judged for placement.
+    let adapter = argot_lang::adapters::adapter_for("pascal").unwrap();
+    let src = "unit u;\ninterface\nimplementation\n\
+        function dbtrystringtoguid(const value: string; out guid: tguid): boolean;\n\
+        var\n po1: pchar;\n\n\
+        \x20function readbyte: byte;\n\
+        \x20begin\n\
+        \x20 result:= hexchars[po1^];\n\
+        \x20 inc(po1);\n\
+        \x20 if shortint(result) < 0 then dbtrystringtoguid:= false;\n\
+        \x20end;\n\n\
+        begin\n\
+         result:= true;\n\
+         readbyte;\n\
+         readbyte;\n\
+         inc(po1);\n\
+        end;\n\
+        end.\n";
+    let funcs = functions_in_file(adapter.as_ref(), "lib/common/db/msedb.pas", src);
+    let by = |n: &str| funcs.iter().find(|f| f.symbol == n).cloned();
+    let inner = by("readbyte").expect("the local procedure is extracted");
+    let outer = by("dbtrystringtoguid").expect("the enclosing function is extracted");
+    assert!(inner.nested, "{:?}", (inner.line, inner.end_line));
+    assert!(!outer.nested, "an enclosing function is not nested");
 }

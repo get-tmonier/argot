@@ -80,6 +80,10 @@ pub struct FunctionRef {
     /// the function's own name replaced by a neutral placeholder. Kept distinct
     /// from `text` so the normalisation never leaks into what a finding displays.
     pub embed_text: String,
+    /// Whether this function is declared inside another one. A nested helper's
+    /// home is its parent, not a directory — it cannot be filed anywhere else,
+    /// so the placement sense must not judge it.
+    pub nested: bool,
     /// Sorted, deduped callee names within this function.
     pub callees: Vec<String>,
     /// Sorted, deduped identifier subtokens within this function.
@@ -397,11 +401,26 @@ pub fn functions_in_file(
             end_line: e,
             text,
             embed_text,
+            nested: false,
             callees,
             subtokens,
         });
     }
+    mark_nested(&mut out);
     out
+}
+
+/// Flag every function whose span lies inside another's. `callable_bodies`
+/// returns a flat list, so an Object Pascal local procedure — declared in its
+/// parent's `var` section, and assigning the parent's result variable — arrives
+/// looking exactly like a top-level one.
+fn mark_nested(funcs: &mut [FunctionRef]) {
+    let spans: Vec<(usize, usize)> = funcs.iter().map(|f| (f.line, f.end_line)).collect();
+    for (i, f) in funcs.iter_mut().enumerate() {
+        f.nested = spans.iter().enumerate().any(|(j, (s, e))| {
+            j != i && *s <= f.line && f.end_line <= *e && (*s, *e) != (f.line, f.end_line)
+        });
+    }
 }
 
 /// The neutral token a function's own name is rewritten to before embedding.

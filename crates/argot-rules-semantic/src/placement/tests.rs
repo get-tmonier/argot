@@ -28,6 +28,7 @@ fn func(symbol: &str, path: &str) -> FunctionRef {
         embed_text: "def f():\n    a\n    b\n    c\n    d\n    e\n    g".into(),
         // Placement abstains on a body that calls nothing, so a judgeable
         // candidate has to reach for something.
+        nested: false,
         callees: vec!["fetch".into()],
         subtokens: Vec::new(),
     }

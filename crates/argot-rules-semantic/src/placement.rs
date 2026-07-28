@@ -226,6 +226,13 @@ impl<'a> PlacementScorer<'a> {
         if func.text.lines().count() < MIN_PLACEMENT_BODY_LINES {
             return None;
         }
+        // A nested helper's home is its parent, not a directory: MSEgui's
+        // `readbyte` is declared inside `dbtrystringtoguid` and assigns its
+        // result variable, so "this looks like kernel code filed under db" is
+        // not a statement anyone can act on.
+        if func.nested {
+            return None;
+        }
         // …and a body that calls nothing does not *do* anything a layer owns.
         // A property setter is written out of the names it assigns, so its
         // neighbours are whatever unit owns those names — four of them in one

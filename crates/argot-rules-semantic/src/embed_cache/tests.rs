@@ -115,6 +115,7 @@ fn cache_hit_is_bit_identical_to_fresh_embed() {
         end_line: 3,
         text: text.into(),
         embed_text: text.into(),
+        nested: false,
         callees: Vec::new(),
         subtokens: Vec::new(),
     };
