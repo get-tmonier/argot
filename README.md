@@ -38,6 +38,19 @@
   <a href="https://argot.tmonier.com/benchmarks"><img src="https://img.shields.io/badge/benchmarked%20on-36%20real%20repositories-8B5CF6" alt="Benchmarked on 36 real repositories" /></a>
 </p>
 
+<table align="center">
+  <tr>
+    <td align="center" valign="middle">
+      <a href="https://glama.ai/mcp/servers/get-tmonier/argot"><img src="https://glama.ai/mcp/servers/get-tmonier/argot/badges/card.svg" alt="argot MCP server on Glama" width="340" /></a>
+    </td>
+    <td align="center" valign="middle">
+      <a href="https://argot.tmonier.com/#film"><img src="landing/public/argot-film-poster.jpg" alt="Watch the argot launch film" width="180" /></a>
+      <br/>
+      <em>🎬 <a href="https://argot.tmonier.com/#film">Watch the 45-second launch film</a></em>
+    </td>
+  </tr>
+</table>
+
 ## Start with an audit
 
 `argot audit` needs no prior Argot fit or configuration. It fits a historical
