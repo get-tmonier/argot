@@ -177,6 +177,19 @@ fn parse_rarity_weighting(s: &str) -> Result<argot_core::scoring::call_receiver:
     })
 }
 
+/// Whether a corpus has recall fixtures — the presence of `manifest.yaml`, not
+/// of the directory.
+///
+/// A catalog directory can legitimately hold only an `argot.toml`: the
+/// configuration a maintainer of that repository would write is orthogonal to
+/// whether anyone authored break fixtures for it. uos is exactly that — a
+/// holdout-only corpus whose config keeps its 63 demo files out of the voice.
+/// Keying on the directory made adding that config demand fixtures that do not
+/// exist, and failed the whole run.
+fn has_fixture_catalog(catalogs_dir: &std::path::Path, corpus: &str) -> bool {
+    catalogs_dir.join(corpus).join("manifest.yaml").is_file()
+}
+
 fn main() -> ExitCode {
     match real_main() {
         Ok(code) => code,
@@ -395,7 +408,7 @@ fn real_main() -> Result<ExitCode> {
         }
         if cli.mode == "honest" {
             let results = pool::run_indexed(&selected, jobs, |target| {
-                if !opts.catalogs_dir.join(&target.name).is_dir() {
+                if !has_fixture_catalog(&opts.catalogs_dir, &target.name) {
                     eprintln!("[{}] no catalog — holdout-only corpus", target.name);
                     return None;
                 }
@@ -457,7 +470,7 @@ fn real_main() -> Result<ExitCode> {
     let selected: Vec<_> = selected
         .into_iter()
         .filter(|t| {
-            let has_catalog = opts.catalogs_dir.join(&t.name).is_dir();
+            let has_catalog = has_fixture_catalog(&opts.catalogs_dir, &t.name);
             if !has_catalog {
                 eprintln!(
                     "[{}] no catalog under {} — holdout-only corpus, skipping",
