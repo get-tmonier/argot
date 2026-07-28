@@ -22,6 +22,8 @@ export interface SiteContent {
     readonly ctaPrimary: string;
     readonly ctaSetup: string;
     readonly proof: string;
+    readonly speed: string;
+    readonly speedValue: string;
     readonly ctaSecondary: string;
     readonly install: string;
     readonly installNote: string;

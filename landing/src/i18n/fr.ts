@@ -21,7 +21,9 @@ const fr: SiteContent = {
     ctaPrimary: 'Commencer par un audit',
     ctaSetup: 'Configurez-le avec votre agent',
     proof:
-      '[[97,3 %]] des motifs étrangers détectés · [[0,25 %]] des vraies modifications signalées · [[0,2 s]] pour vérifier un diff',
+      '[[97,3 %]] des motifs étrangers détectés · [[0,25 %]] des vraies modifications signalées',
+    speed: 'vérifie un diff en',
+    speedValue: '200 ms',
     ctaSecondary: 'Star sur GitHub',
     install: 'npm i -g @tmonier/argot',
     installNote:

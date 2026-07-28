@@ -131,10 +131,76 @@ const rules = [
       class="mx-auto mt-7 max-w-md text-xs leading-relaxed text-balance text-muted sm:mt-8 sm:text-sm"
       set:html={emphasize(hero.proof)}
     />
+
+    {/* Speed, demonstrated rather than asserted. The bar fills in exactly the
+        duration it names, so the claim times itself in front of the reader —
+        "one more slow thing in my loop" is what stops adoption faster than any
+        accuracy number, and a sentence never answers it. */}
+    <p class="speed mx-auto mt-2.5 text-xs text-muted">
+      {hero.speed}
+      <span class="speed-chip">
+        <span class="speed-fill" aria-hidden="true"></span>
+        <span class="speed-value">{hero.speedValue}</span>
+      </span>
+    </p>
   </div>
 </section>
 
 <style>
+  .speed-chip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    margin-left: 0.4em;
+    padding: 0.1em 0.5em;
+    border: 1px solid var(--line-2);
+    border-radius: 6px;
+    overflow: hidden;
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-dim);
+  }
+  /* The fill runs for exactly the duration on the chip. */
+  .speed-fill {
+    position: absolute;
+    inset: 0;
+    transform-origin: left center;
+    scale: 0 1;
+    background: linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--ember) 30%, transparent),
+      color-mix(in srgb, var(--ember-bright) 42%, transparent)
+    );
+  }
+  .speed-value {
+    position: relative;
+  }
+  .reveal.is-visible .speed-fill {
+    animation: speed-run 200ms linear 1.15s both;
+  }
+  .speed-chip:hover .speed-fill {
+    animation: speed-run 200ms linear both;
+  }
+  @keyframes speed-run {
+    from {
+      scale: 0 1;
+    }
+    70% {
+      scale: 1 1;
+      opacity: 1;
+    }
+    to {
+      scale: 1 1;
+      opacity: 0;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .reveal.is-visible .speed-fill,
+    .speed-chip:hover .speed-fill {
+      animation: none;
+    }
+  }
+
   /* The eyebrow reads as three claims separated by dots; on a phone the middle
      one wraps it into a shouting three-line pill — keep the first and last
      claims only. */
