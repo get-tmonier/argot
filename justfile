@@ -122,7 +122,20 @@ verify:
     cargo fmt --check
     cargo clippy --workspace --all-targets -- -D warnings
     cargo test --workspace
+    @just verify-features
     @echo "✓ all checks passed"
+
+# The feature-gated slices, which `verify`'s featureless base loop does not
+# build. Release binaries ship every one of them, so a green base loop verifies
+# a configuration nobody runs: a test asserting behaviour that had changed sat
+# green locally through several pushes and only failed in CI. These three are
+# pure Rust and cost seconds; `semantic` needs the llama.cpp C++ build and stays
+# CI-only (see "Keep PR CI fast").
+verify-features:
+    for f in script arch integrity; do \
+        cargo clippy --workspace --all-targets --features "$f" -- -D warnings || exit 1; \
+        cargo test --workspace --features "$f" || exit 1; \
+    done
 
 verify-fix:
     cargo fmt

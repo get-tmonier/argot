@@ -21,7 +21,8 @@ This is a founder-level operating layer; it does not change the engineering conv
 Always use `just` — it's the canonical interface for all dev commands.
 
 ```
-just verify       # cargo fmt --check + clippy -D warnings + cargo test
+just verify       # fmt --check + clippy -D warnings + test, then verify-features
+just verify-features  # the same, per feature: script · arch · integrity
 just test         # cargo test --workspace
 just extract .    # run extract on this repo → .argot/dataset.jsonl
 just dogfood      # run full pipeline against argot itself (or any path) — fast monorepo check
@@ -30,6 +31,13 @@ just bench-quick  # ~1 min bench smoke (one fixture per category + 50 controls)
 just arch-verify  # ~25 s architecture-layer fixture-recall regression guard
 just integrity-verify  # gaming-fixture recall + control guard for the integrity rules
 ```
+
+`just verify` now runs `verify-features` too. The base loop builds with **no
+features**, but release binaries ship every slice — so a green base loop was
+verifying a configuration nobody runs. A test asserting behaviour that had
+changed sat green locally through several pushes and only failed in CI. The
+three pure-Rust features cost seconds; `semantic` stays CI-only because it needs
+the llama.cpp C++ build (see "Keep PR CI fast").
 
 `just dogfood` exercises extract → train → calibrate → check end-to-end and asserts both Python and TypeScript rows landed in `dataset.jsonl` plus a `scorer-config.json` was emitted. It's a **dev loop, not a CI gate** — informational signal that monorepo handling didn't silently break. Drift is the contributor's responsibility; nothing forces it to run.
 
