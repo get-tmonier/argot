@@ -17,19 +17,6 @@ const { hero } = content;
 // cards use below, so the vocabulary reads as one thread through the page.
 // `foreign-import` carries the "foreign" (flag) tier; the rest carry amber.
 // A confidence tier, not a ranking.
-// Chips say what argot catches, and every one of them is phrased against
-// *this repo*. The rule slugs it used to show (`foreign-import`, `misplaced`…)
-// are argot's internal vocabulary — meaningless on first read. Plain language
-// alone was not enough either: "a function you already wrote", "a test quietly
-// disabled" describe things a linter plausibly does, which throws away the one
-// claim that matters. A rulebook cannot know that *this* repository has never
-// imported that package, where *this* repository files that kind of code, or
-// what *this* repository's layers are. The wording has to carry that, because
-// the title claims it and the chips are what people actually read.
-// Three, not six. The row was the densest thing in the hero and the field
-// behind it now names a finding outright, so the chips only have to say that
-// there is more than one kind — and that the last kind is yours. The full list
-// is the Demo section's job, one scroll down.
 const rules = [
   { href: '#demo-tab-foreign-import', tier: 'flag' },
   { href: '#demo-tab-redundant', tier: 'amber' },
@@ -48,7 +35,21 @@ const rules = [
       <span
         class="rounded-full border border-line-2 bg-panel/70 px-3 py-1 text-[0.65rem] font-semibold tracking-wide uppercase shadow-[0_0_24px_-6px_var(--ember-bright)] backdrop-blur-sm sm:text-xs"
       >
-        <span class="voice-text-shimmer">{hero.eyebrow}</span>
+        <span class="voice-text-shimmer">
+          {
+            hero.eyebrow.split(' · ').map((part, i, all) => (
+              <span
+                class:list={[
+                  i > 0 && i < all.length - 1 && 'eyebrow-mid',
+                  i > 0 && i === all.length - 1 && 'eyebrow-end',
+                ]}
+              >
+                {i > 0 ? ' · ' : ''}
+                {part}
+              </span>
+            ))
+          }
+        </span>
       </span>
     </div>
 
@@ -134,6 +135,22 @@ const rules = [
 </section>
 
 <style>
+  /* The eyebrow reads as three claims separated by dots; on a phone the middle
+     one wraps it into a shouting three-line pill — keep the first and last
+     claims only. */
+  @media (max-width: 639px) {
+    .eyebrow-mid {
+      display: none;
+    }
+  }
+  /* The narrowest phones keep the first claim only — the others already live in
+     the subtitle right below. */
+  @media (max-width: 399px) {
+    .eyebrow-end {
+      display: none;
+    }
+  }
+
   /* --- the rules, previewed as chips: same slugs the Demo tabs and the
      Catches cards use, colour-coded by confidence tier, deep-linking down to
      their card. They pop in just after the rest of the hero settles. --- */
