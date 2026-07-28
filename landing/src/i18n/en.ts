@@ -20,8 +20,7 @@ const en: SiteContent = {
       'AI writes the code. argot harnesses it with the one thing that can’t hallucinate: [[your repo’s own history]]. Deterministic, measured, local.',
     ctaPrimary: 'Start with an audit',
     ctaSetup: 'Set it up with your agent',
-    proof:
-      '[[97.3%]] of foreign patterns caught · [[0.25%]] of real edits flagged',
+    proof: '[[97.3%]] of foreign patterns caught · [[0.25%]] of real edits flagged',
     speed: 'checks a diff in',
     speedValue: '200 ms',
     ctaSecondary: 'Star on GitHub',
