@@ -32,8 +32,8 @@ cp -r examples/rules/route-documented /path/to/repo/.argot/rules/
 cd /path/to/repo && argot rules test route-documented
 ```
 
-Their fixtures run in argot's own test suite, so they cannot rot: a host-API
-change that breaks one breaks the build. Copy, then make it yours — the paths,
+Their fixtures run in argot's own test suite, so they cannot rot: a change to
+the host API that breaks one breaks the build. Copy, then make it yours — the paths,
 the severity and the message belong to the repository that runs it.
 
 ## Layout

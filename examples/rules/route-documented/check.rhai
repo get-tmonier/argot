@@ -3,7 +3,7 @@
 // from openapi.yaml is a silent break: nothing fails, the client just never
 // learns the endpoint exists.
 //
-// This needs the other file, so the manifest declares `api = 2`. Reading it
+// This needs the other file. Reading it
 // beats hardcoding the known routes: a copied list is stale the first time
 // someone edits the spec, and the rule keeps passing while it is.
 

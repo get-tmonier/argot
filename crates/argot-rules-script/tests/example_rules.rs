@@ -1,7 +1,7 @@
 //! The shipped example rules (`examples/rules/`) must stay green.
 //!
-//! They are what a rule author copies and what the docs point at, so a host-API
-//! change that breaks one has to break the build too — an example that no
+//! They are what a rule author copies and what the docs point at, so a change
+//! to the host API that breaks one has to break the build too — an example that no
 //! longer works teaches the wrong thing to everyone who reads it.
 
 use argot_rules_script::harness::run_rule_tests;

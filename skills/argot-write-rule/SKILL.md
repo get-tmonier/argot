@@ -82,7 +82,7 @@ substitutes for the fixture gate: the harness is what catches over-fire
 
    The host API is more than `ts_query`, and some conventions only become
    detectable with the rest of it — reach for these before concluding a rule
-   isn't writable (full list: the [reference](https://argot.tmonier.com/docs/custom-rules/#host-api-v1)):
+   isn't writable (full list: the [reference](https://argot.tmonier.com/docs/custom-rules/#host-api)):
    - **`ts_query_old(q)`** queries the file's *pre-image* — the only way to
      write a rule about what a change **removed** (a route deleted without a
      deprecation cycle, a lint config entry dropped). No linter has a "before".
