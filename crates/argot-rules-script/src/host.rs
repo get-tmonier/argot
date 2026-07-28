@@ -34,8 +34,26 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use streaming_iterator::StreamingIterator;
 
-/// Hard operation cap per (rule, file) — far above any sane pattern rule.
-const MAX_OPERATIONS: u64 = 1_000_000;
+/// Operation budget per (rule, file): a flat allowance plus a per-line one.
+///
+/// A constant cap is a cap on the *input*, not on the rule. At 1 000 000 flat,
+/// a 9 439-line unit gives a rule ~106 operations per line, and a perfectly
+/// sane rule — one tree-sitter query per declaration plus a few string tests —
+/// runs out. That is what happened to MSEide/MSEgui's `c-abi-managed-type` on
+/// `lib/common/db/msedb.pas`. Scaling with the file keeps the guard's real job
+/// intact: a runaway loop blows any linear budget on its first file regardless
+/// of size, while a big file simply gets proportionally more room.
+const BASE_OPERATIONS: u64 = 1_000_000;
+const OPERATIONS_PER_LINE: u64 = 2_000;
+/// Ceiling, so a pathological generated file cannot buy unbounded time.
+const MAX_OPERATIONS_CEILING: u64 = 50_000_000;
+
+/// The operation budget for a file of `lines` lines.
+fn operation_budget(lines: usize) -> u64 {
+    BASE_OPERATIONS
+        .saturating_add(OPERATIONS_PER_LINE.saturating_mul(lines as u64))
+        .min(MAX_OPERATIONS_CEILING)
+}
 /// Call-depth cap (recursion guard).
 const MAX_CALL_LEVELS: usize = 32;
 /// Expression-nesting caps, at Rhai's release defaults. Pinned so a script
@@ -112,8 +130,14 @@ pub fn compile(script: &str) -> Result<AST, String> {
 /// The sandboxed engine: full Rhai core (arithmetic, strings, arrays, maps —
 /// no I/O exists in the core language), with output captured and hard limits.
 fn sandboxed_engine() -> Engine {
+    sandboxed_engine_with(BASE_OPERATIONS)
+}
+
+/// [`sandboxed_engine`] with an explicit operation budget (see
+/// [`operation_budget`]).
+fn sandboxed_engine_with(max_operations: u64) -> Engine {
     let mut engine = Engine::new();
-    engine.set_max_operations(MAX_OPERATIONS);
+    engine.set_max_operations(max_operations);
     engine.set_max_call_levels(MAX_CALL_LEVELS);
     // Pinned, not left to Rhai's defaults: those are lower under
     // `debug_assertions`, so an unpinned engine accepts a script in the shipped
@@ -139,7 +163,7 @@ pub fn run_on_file(
     facts: Option<Arc<dyn ModelFacts>>,
     repo: Option<Rc<dyn RepoFiles>>,
 ) -> Result<Vec<ScriptFinding>, String> {
-    let mut engine = sandboxed_engine();
+    let mut engine = sandboxed_engine_with(operation_budget(file.new_text.lines().count()));
 
     // Wall-clock budget, checked on the operation ticks.
     let deadline = Instant::now() + FILE_BUDGET;

@@ -1,0 +1,25 @@
+# What an MSEide/MSEgui maintainer excludes: forked third-party Pascal and
+# machine-emitted byte-array data. Left in, ZeosLib and the FCL copies teach
+# argot a voice this project does not write, and the `_mfm`/`_bmp` files are
+# compiled form/image data rather than authored code. 424 files / 377 359 lines
+# — 40,8 % of the tree's Pascal is not MSEgui's own.
+[exclude]
+paths = [
+  # vendored third-party Pascal, forked into this tree
+  "lib/common/mzeoslib/",            # ZeosLib DB layer — upstream project
+  "lib/common/fpccompatibility/",    # FCL + TDbf + Delphi-JPEG copies
+  "lib/common/db/memds.pp",          # FCL memds copy
+  "lib/common/db/msqldb.pas",        # FCL sqldb copy
+  "lib/common/db/mibconnection.pas", # FCL sqldb connector copy
+  "lib/common/db/mpqconnection.pas", # FCL sqldb connector copy
+  "lib/common/db/modbcconn.pas",     # FCL sqldb connector copy
+  "lib/common/db/mmysql*conn.pas",   # FCL sqldb connector copies
+  "lib/common/db/mmysqlconn.inc",    # FCL sqldb connector copy
+
+  # generated data, emitted by MSEide's own tools
+  "**/*_mfm.pas",                    # form data compiled to byte arrays
+  "**/*_bmp.pas",                    # images compiled to byte arrays
+
+  # scaffolding, not compilable Pascal
+  "apps/ide/templates/",             # ${%UNITNAME%} project templates
+]

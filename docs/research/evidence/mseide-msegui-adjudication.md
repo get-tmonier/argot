@@ -8,7 +8,15 @@ argot says worth a maintainer's minute — and where it is not, is that a defect
 in argot or an exception in the repo?
 
 The rule from the brief: *disabling a rule is legitimate only after proving the
-rule right and this repo the exception.* Every finding below carries a verdict —
+rule right and this repo the exception.*
+
+> **Source excerpts.** The Object Pascal quoted below is from
+> [`mse-org/mseide-msegui`](https://github.com/mse-org/mseide-msegui), © Martin
+> Schreiber and contributors, **GPL-2.0 / LGPL-2.1 / MSE licence**. It is
+> reproduced here only as short functional excerpts, for the analysis of
+> argot's behaviour on it. argot neither ships, embeds nor links any of it —
+> the benchmark clones live outside version control (`benchmarks/data/` is
+> gitignored) and `benchmarks/targets.yaml` records only a URL and a commit. Every finding below carries a verdict —
 **true** (a maintainer should look), **arguable** (defensible either way), or
 **wrong** (argot is mistaken). Every *wrong* is fixed in argot and pinned by a
 test; none is muted.
