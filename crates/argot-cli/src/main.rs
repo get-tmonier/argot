@@ -708,10 +708,10 @@ fn run_status(c: StatusCmd) -> ExitCode {
             None => {}
         }
         if drift.is_empty() {
-            println!("Hygiene:  no unexcluded generated/data-heavy directories");
+            println!("Hygiene:  no unexcluded generated/data-heavy/vendored directories");
         } else {
             println!(
-                "Hygiene:  {} director{} shaping the voice that look generated/data-heavy — `argot init --suggest`",
+                "Hygiene:  {} director{} shaping the voice that look generated, data-heavy, or vendored — `argot init --suggest`",
                 drift.len(),
                 if drift.len() != 1 { "ies" } else { "y" }
             );
@@ -1134,7 +1134,7 @@ fn drift_suggestions_note(repo: &Path) {
     let more = if candidates.len() > 3 { ", …" } else { "" };
     println!();
     println!(
-        "note: {} director{plural} look generated or data-heavy and are shaping the voice ({}{more}).",
+        "note: {} director{plural} look generated, data-heavy, or vendored and are shaping the voice ({}{more}).",
         candidates.len(),
         names.join(", ")
     );
@@ -1288,7 +1288,10 @@ fn render_suggestions_human(s: &IgnoreSuggestions) -> String {
     use std::fmt::Write as _;
     let mut out = String::new();
     if s.candidates.is_empty() {
-        let _ = writeln!(out, "No directories stood out as generated- or data-heavy.");
+        let _ = writeln!(
+            out,
+            "No directories stood out as generated, data-heavy, or vendored."
+        );
         let _ = writeln!(out);
         let _ = writeln!(
             out,
@@ -1296,16 +1299,17 @@ fn render_suggestions_human(s: &IgnoreSuggestions) -> String {
         );
         let _ = writeln!(
             out,
-            "auto-generated or data-dominant files on its own. If a vendored, legacy, or"
+            "auto-generated or data-dominant files on its own, and this repo's history shows"
         );
         let _ = writeln!(
             out,
-            "third-party directory shouldn't shape your repo's voice, add it to the"
+            "no large directory it stores without writing. If one should still be kept out"
         );
         let _ = writeln!(
             out,
-            "argot.toml [exclude].paths by hand — see the Configure guide."
+            "of the voice, add it to argot.toml [exclude].paths by hand — see the Configure"
         );
+        let _ = writeln!(out, "guide.");
         return out;
     }
     let _ = writeln!(

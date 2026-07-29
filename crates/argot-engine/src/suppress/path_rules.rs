@@ -40,6 +40,15 @@ pub const DEFAULT_RECOMMENDED_PATTERNS: &[&str] = &[
     "scripts/",
     "build/",
     "dist/",
+    // Somebody else's code, committed into this tree. These three names are a
+    // near-universal convention (Go's `vendor/` is defined by the toolchain),
+    // and until they were listed here nothing excluded them: the corpus walk
+    // read them and the voice learned from them. A vendored tree that does
+    // *not* carry one of these names is caught instead by its history — see
+    // the `not-authored-here` ground in `argot init --suggest`.
+    "vendor/",
+    "third_party/",
+    "third-party/",
     "__pycache__/",
     ".git/",
     ".history/",
