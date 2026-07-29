@@ -1,25 +1,33 @@
 # Pascal loses ~29 % of its lines to the parser — diagnosed, and fixed
 
-**Date:** 2026-07-28 → 2026-07-29 · **Status:** **fixed.** 29,16 / 29,09 / 29,52 /
-16,14 % → **9,70 / 9,45 / 1,00 / 7,41 %**. Two source-level repairs were tried
-before, measured, and reverted; the answer was one bug of ours and one grammar
-fork, and neither is a source-level repair.
+**Date:** 2026-07-28 → 2026-07-29 · **Status:** **fixed.** ~29 % → **8,5 %** and
+below. Two source-level repairs were tried before, measured, and reverted; the
+answer was one bug of ours and one grammar fork, and neither is a source-level
+repair.
 
 ## The number
 
 Share of lines inside a tree-sitter `ERROR` node — invisible to every rule:
 imports, callees, shape, placement. Measured on the **real fit corpus**
-(`collect_source_files`, so each repository's own `argot.toml` applies).
+(`collect_source_files`, so each repository's own `argot.toml` applies), each
+repository at its pinned `pr: 0` SHA.
 
 | corpus | before | conditional fix | + grammar fork |
 |---|--:|--:|--:|
-| mormot2 | 29,16 % | 19,14 % | **9,70 %** |
-| castle-engine | 29,09 % | 28,42 % | **9,45 %** |
-| uos | 29,52 % | 6,74 % | **1,00 %** |
+| mormot2 | 29,16 % | 19,14 % | **8,49 %** |
+| castle-engine | 29,09 % | 28,42 % | **8,93 %** |
 | mseide-msegui | 16,14 % | 11,87 % | **7,41 %** |
+| uos | 29,52 %\* | 6,74 %\* | **1,62 %** |
 
-Across every corpus the sweep now reads: pascal 7,00 % · typescript 3,19 % ·
-cpp 1,30 % · csharp 0,84 % · c 0,72 % · the other seven ~0 %.
+\* uos's earlier figures were taken on a stale checkout of 22 files; the pinned
+SHA has 99. Its before/after is therefore **not** like-for-like — the other three
+are, file counts matching exactly (525 · 2 179 · 505).
+
+Three Pascal corpora nobody had measured land at **ideu 4,01 %**,
+**strumpract 0,04 %**, **swp 0,05 %**.
+
+Across every corpus the all-language sweep now reads: pascal 7,00 % ·
+typescript 3,19 % · cpp 1,30 % · csharp 0,84 % · c 0,72 % · the other seven ~0 %.
 
 ## It was two problems wearing one number
 
@@ -95,8 +103,8 @@ into the middle of another unit, so it may open inside a class body and be
 nothing but method signatures, properties and `strict private` markers. Upstream's
 `root` admitted `_definitions` for include files, which covers what may stand at
 *unit* level and not at *class-member* level. Adding `declProp` and `declSection`
-took castle-engine's `.inc` from **72,6 % to 26,3 %** lost and the corpus from
-22,85 % to 9,45 %.
+took castle-engine's `.inc` from **72,6 % to 26,3 %** lost, and the corpus from
+22,85 % to 8,93 %.
 
 ## `.inc` was also being handed to the wrong language entirely
 
@@ -112,6 +120,23 @@ Fixed the way `.h` already was: `RepoLangs` carries what the repository actually
 writes, and an `.inc` is Pascal's where there are Pascal units, C/C++'s where
 there are only translation units, and nothing at all where there is neither —
 better unscored than misread. One repo walk answers both questions.
+
+## The bug the corpus found that the tests did not
+
+The first version of the branch-blanking replaced each *character* of a dropped
+branch with one space. A multi-byte character is several bytes and one space, so
+from the first accented letter onwards the masked text was **shorter than the
+source** and every offset after it addressed the wrong place — until
+`replace_range` landed mid-character and panicked, on mORMot, in a bench run.
+
+A unit test had asserted offsets survive a dropped branch carrying a multi-byte
+character, and passed: it checked a span *before* the branch. The guard now
+checks one *after* it. The masking is byte for byte, like the C path it should
+have copied in the first place — a continuation byte is never `\n`, so mapping
+bytes to spaces can neither split a character nor produce anything but ASCII.
+
+Fixing it also took mormot2 from 9,70 % to 8,49 % and castle from 9,45 % to
+8,93 %: corrupted offsets had been manufacturing error nodes of their own.
 
 ## Three ways to be wrong about where a parse fails
 
@@ -135,9 +160,9 @@ throwaway Rust test over the real fit corpus: ~8 s for all four corpora.
 
 ## What is left, and what it is not
 
-mormot2 9,70 % and mseide 7,41 % are now a genuine long tail — 41 and 55 files,
-no single construct above a few hundred lines. castle-engine's residual 9,45 % is
-still 80 % `.inc`, much of it **generated data** (`rotate_collider.glb.inc`,
+mormot2 8,49 % and mseide 7,41 % are now a genuine long tail — a few dozen files
+each, no single construct above a few hundred lines. castle-engine's residual
+8,93 % is still ~85 % `.inc`, much of it **generated data** (`rotate_collider.glb.inc`,
 11 915 lines of mesh converted to Pascal source; 409 of its 1 015 `.inc` open with
 Emacs' `buffer-read-only` marker). Excluding generated files would move the
 number without improving the product, so it was not done — that is the mute

@@ -39,16 +39,27 @@ that would be removed, if they want to know the exit before the entrance.
 argot audit --format json > /tmp/argot-audit.json    # keep it: phase 6 reads it
 ```
 
-No configuration needed, exits 0, touches nothing. Audit takes minutes on a
-large repository — save the JSON rather than paying for a second run. It fits the voice as it was
+No configuration needed, exits 0, touches nothing. It fits the voice as it was
 ~50 commits ago in a temporary worktree and reports what would have met review
 since, attributed to the introducing commit. **Show the card.** This is the
 honest opener: here is what your own history says, before you change anything.
 
+**Say what it will cost before you start it, or they will kill it.** Audit fits
+the whole corpus once, so a large repository costs minutes and gigabytes, not
+seconds — 924k lines of Object Pascal took 2 min 38 s and 3.6 GB. A narrower
+`--commits` does **not** make it cheaper: the window only moves the base
+commit, and the fit still reads every file. The lever is `[exclude]`, which is
+phase 2 — so on a repository this size, offer to do the obvious exclusions
+first and audit second.
+
+**Then check it produced something**: exit status 0 *and* a non-empty JSON
+file. A run that dies leaves a 0-byte file behind, and an empty audit reads
+exactly like a clean one.
+
 A quiet audit is a result too — their recent history is in voice. If the window
 touched no supported source, widen it: `--commits 200` or `--since 6m`.
 
-Keep the card. Phase 6 uses its numbers.
+Keep the card — phase 6 reads this same file, so do not pay for a second run.
 
 ## 2 · Scope — what should shape the voice
 

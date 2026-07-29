@@ -228,6 +228,36 @@ fn masking_a_dropped_branch_preserves_every_offset() {
 }
 
 #[test]
+fn a_multi_byte_character_in_a_dropped_branch_does_not_shift_what_follows() {
+    use crate::adapters::Language;
+    // Blanking a dropped branch character-by-character turns a multi-byte one
+    // into a single space, and from there on every offset in the file addresses
+    // the wrong place — mORMot's corpus reached `replace_range` with an index
+    // mid-character and panicked. The masking must be byte for byte.
+    let src = "unit u;\ninterface\nuses\n  {$ifdef A}kept{$else}accentué·½·{$endif};\n\
+        implementation\nprocedure After;\nbegin\n  Marker;\nend;\nend.";
+    let tree = crate::ts_parse::parse(src, Language::Pascal).unwrap();
+    let mut found = None;
+    fn walk<'a>(n: tree_sitter::Node<'a>, src: &str, out: &mut Option<(usize, usize)>) {
+        if n.kind() == "identifier" && &src[n.byte_range()] == "Marker" {
+            *out = Some((n.start_position().row, n.start_byte()));
+        }
+        let mut c = n.walk();
+        for ch in n.children(&mut c) {
+            walk(ch, src, out);
+        }
+    }
+    walk(tree.root_node(), src, &mut found);
+    let (row, byte) = found.expect("the code after the dropped branch is still parsed");
+    assert_eq!(row, 7, "a later row must not shift");
+    assert_eq!(
+        &src[byte..byte + 6],
+        "Marker",
+        "the byte offset still lands"
+    );
+}
+
+#[test]
 fn jsx_is_read_by_the_tsx_grammar() {
     use crate::adapters::Language;
     // TSX is a separate grammar, not a superset. Parsed with LANGUAGE_TYPESCRIPT
