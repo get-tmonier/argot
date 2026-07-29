@@ -138,6 +138,218 @@ fn is_supported_ext(path: &str) -> bool {
     }
 }
 
+/// How often the repository has edited one path, and the commit that first
+/// introduced it.
+///
+/// These two facts separate code a repository *writes* from code it merely
+/// *stores*. A vendored library, a forked upstream copy, a machine-translated
+/// binding or a generated tree arrives in one drop and is then left alone; the
+/// repository's own code is edited again, and again, and again. No content
+/// filter can tell the two apart — imported source is ordinary hand-written
+/// code carrying no marker — but their histories look nothing alike, in any
+/// language.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PathEdits {
+    /// Commits that changed this path, renames followed, so a file that moved
+    /// keeps the history it had under its old name.
+    pub edits: u32,
+    /// The commit that introduced the path, when the walk reached it. `None`
+    /// for a path that already existed at the oldest commit walked.
+    pub introduced_in: Option<String>,
+}
+
+/// Per-path edit history for every path tracked at HEAD that `keep` accepts,
+/// over the whole reachable non-merge history.
+///
+/// Empty when there is no usable history — no repository, an empty one, or an
+/// unresolvable HEAD. Callers must read that as "cannot tell", never as "never
+/// edited": a repository whose history argot cannot see must not have its whole
+/// tree read as imported.
+pub fn path_edit_history(
+    repo_path: &str,
+    keep: &dyn Fn(&str) -> bool,
+) -> std::collections::HashMap<String, PathEdits> {
+    use std::collections::HashMap;
+
+    let mut out: HashMap<String, PathEdits> = HashMap::new();
+    let Ok(repo) = open_repo(repo_path) else {
+        return out;
+    };
+    if repo.is_empty().unwrap_or(true) {
+        return out;
+    }
+    let head_tree = repo
+        .head()
+        .ok()
+        .and_then(|h| h.peel_to_commit().ok())
+        .and_then(|c| c.tree().ok());
+    let Some(head_tree) = head_tree else {
+        return out;
+    };
+
+    let _ = head_tree.walk(git2::TreeWalkMode::PreOrder, |dir, entry| {
+        if entry.kind() != Some(git2::ObjectType::Blob) {
+            return git2::TreeWalkResult::Ok;
+        }
+        if let Some(name) = entry.name() {
+            let path = format!("{dir}{name}");
+            if is_supported_ext(&path) && keep(&path) {
+                out.insert(path, PathEdits::default());
+            }
+        }
+        git2::TreeWalkResult::Ok
+    });
+    if out.is_empty() {
+        return out;
+    }
+
+    // Every path a file has ever had, mapped to the name it carries at HEAD.
+    // Walking newest-first, a rename teaches the walk that the older name is
+    // the same file, so its pre-rename edits land on the current path instead
+    // of being lost — without which a directory that was merely *moved* would
+    // read as one that was dropped in yesterday.
+    let mut alias: HashMap<String, String> = out.keys().map(|p| (p.clone(), p.clone())).collect();
+
+    let Ok(mut walk) = repo.revwalk() else {
+        return out;
+    };
+    if walk.set_sorting(Sort::TOPOLOGICAL).is_err() {
+        return out;
+    }
+    match resolve_start_oid(&repo) {
+        Ok(Some(start)) if walk.push(start).is_ok() => {}
+        _ => return out,
+    }
+    // Merge commits restate a branch's whole change and would count every file
+    // in it again. The root commit is kept: a repository that opened with a
+    // vendored tree already in it introduced those files *there*, and skipping
+    // it would leave them with no recorded origin at all.
+    let oids: Vec<Oid> = walk
+        .flatten()
+        .filter(|oid| repo.find_commit(*oid).is_ok_and(|c| c.parent_count() <= 1))
+        .collect();
+
+    // Diffing every commit is the expensive part and each one is independent,
+    // so fan the diffs out and keep only what the tally needs: one
+    // `(status, old path, new path)` per changed source file. Chunked rather
+    // than per-commit so each worker opens the repository once.
+    let chunks = chunk_bounds(oids.len());
+    let per_chunk: Vec<Vec<Vec<DeltaPaths>>> = crate::par::par_map_indexed(chunks.len(), |c| {
+        let (lo, hi) = chunks[c];
+        let Ok(repo) = open_repo(repo_path) else {
+            return (lo..hi).map(|_| Vec::new()).collect();
+        };
+        (lo..hi)
+            .map(|i| commit_delta_paths(&repo, oids[i]))
+            .collect()
+    });
+
+    // Replay newest-first, the order the aliases depend on.
+    for (oid, deltas) in oids.iter().zip(per_chunk.into_iter().flatten()) {
+        for delta in deltas {
+            let Some(current) = alias.get(&delta.new_path).cloned() else {
+                continue;
+            };
+            if let Some(entry) = out.get_mut(&current) {
+                entry.edits += 1;
+            }
+            match delta.status {
+                // The file was called something else before this commit: carry
+                // the alias back so older commits still reach the current path.
+                git2::Delta::Renamed => {
+                    if let Some(old) = delta.old_path {
+                        alias.remove(&delta.new_path);
+                        alias.insert(old, current);
+                    }
+                }
+                // Added, or copied from a file that still exists in its own
+                // right: this path's history starts here, and nothing older
+                // belongs to it.
+                git2::Delta::Added | git2::Delta::Copied => {
+                    if let Some(entry) = out.get_mut(&current) {
+                        entry.introduced_in = Some(oid.to_string());
+                    }
+                    alias.remove(&delta.new_path);
+                }
+                _ => {}
+            }
+        }
+    }
+    out
+}
+
+/// What one commit did to one source file, as [`path_edit_history`] needs it.
+struct DeltaPaths {
+    status: git2::Delta,
+    old_path: Option<String>,
+    new_path: String,
+}
+
+/// Contiguous `[lo, hi)` index ranges, one per worker, covering `0..n`.
+fn chunk_bounds(n: usize) -> Vec<(usize, usize)> {
+    let workers = std::thread::available_parallelism()
+        .map(std::num::NonZeroUsize::get)
+        .unwrap_or(1)
+        .min(crate::par::thread_cap().unwrap_or(usize::MAX))
+        .min(n.max(1));
+    let chunk = n.div_ceil(workers.max(1));
+    (0..workers)
+        .map(|w| (w * chunk, ((w + 1) * chunk).min(n)))
+        .filter(|(lo, hi)| lo < hi)
+        .collect()
+}
+
+/// The source-file deltas of one commit against its parent — or, for the root
+/// commit, against the empty tree, so the files a repository started with are
+/// recorded as introduced there.
+fn commit_delta_paths(repo: &Repository, oid: Oid) -> Vec<DeltaPaths> {
+    let Ok(commit) = repo.find_commit(oid) else {
+        return Vec::new();
+    };
+    let Ok(tree) = commit.tree() else {
+        return Vec::new();
+    };
+    let parent_tree = match commit.parent(0) {
+        Ok(parent) => match parent.tree() {
+            Ok(t) => Some(t),
+            Err(_) => return Vec::new(),
+        },
+        Err(_) => None,
+    };
+    let Ok(mut diff) = repo.diff_tree_to_tree(parent_tree.as_ref(), Some(&tree), None) else {
+        return Vec::new();
+    };
+    // Rename detection is the costly half and only ever changes a diff that
+    // has something to pair up: most commits only modify files in place.
+    let pairable = diff
+        .deltas()
+        .any(|d| matches!(d.status(), git2::Delta::Added | git2::Delta::Deleted));
+    if pairable
+        && diff
+            .find_similar(Some(&mut DiffFindOptions::new()))
+            .is_err()
+    {
+        return Vec::new();
+    }
+    diff.deltas()
+        .filter_map(|d| {
+            let new_path = d.new_file().path()?.to_str()?.to_string();
+            if !is_supported_ext(&new_path) {
+                return None;
+            }
+            Some(DeltaPaths {
+                status: d.status(),
+                old_path: d
+                    .old_file()
+                    .path()
+                    .and_then(|p| p.to_str())
+                    .map(String::from),
+                new_path,
+            })
+        })
+        .collect()
+}
+
 fn resolve_start_oid(repo: &Repository) -> Result<Option<Oid>> {
     match repo.head() {
         Ok(head) => {
@@ -648,5 +860,69 @@ mod tests {
         })
         .unwrap();
         assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn path_edit_history_separates_code_the_repo_edits_from_code_it_only_stores() {
+        let repo = TempRepo::new("edit_history_shape");
+        repo.write("src/app.py", "x = 1\n");
+        repo.write("vendored/one.py", "a = 1\n");
+        repo.write("vendored/two.py", "b = 2\n");
+        repo.commit_all("initial");
+        let introduced = repo.git(&["rev-parse", "HEAD"]);
+        for n in 2..=4 {
+            repo.write("src/app.py", &format!("x = {n}\n"));
+            repo.commit_all(&format!("edit {n}"));
+        }
+
+        let history = path_edit_history(repo.path(), &|_| true);
+
+        assert_eq!(history["src/app.py"].edits, 4, "one add plus three edits");
+        assert_eq!(history["vendored/one.py"].edits, 1, "added, never touched");
+        assert_eq!(history["vendored/two.py"].edits, 1);
+        assert_eq!(
+            history["vendored/one.py"].introduced_in.as_deref(),
+            Some(introduced.as_str()),
+            "the whole directory arrived in one commit"
+        );
+    }
+
+    #[test]
+    fn path_edit_history_follows_a_rename_so_moved_code_keeps_its_history() {
+        let repo = TempRepo::new("edit_history_rename");
+        repo.write("old/app.py", "def run():\n    return 1\n");
+        repo.commit_all("add");
+        repo.write("old/app.py", "def run():\n    return 2\n");
+        repo.commit_all("edit");
+        std::fs::create_dir_all(repo.dir.join("new")).unwrap();
+        repo.git(&["mv", "old/app.py", "new/app.py"]);
+        repo.commit_all("move");
+
+        let history = path_edit_history(repo.path(), &|_| true);
+
+        assert!(!history.contains_key("old/app.py"), "gone from HEAD");
+        assert_eq!(
+            history["new/app.py"].edits, 3,
+            "the move must not erase the two commits the file had before it"
+        );
+    }
+
+    #[test]
+    fn path_edit_history_honours_the_keep_filter_and_ignores_unsupported_files() {
+        let repo = TempRepo::new("edit_history_scope");
+        repo.write("src/app.py", "x = 1\n");
+        repo.write("tests/test_app.py", "y = 1\n");
+        repo.write("README.md", "hello\n");
+        repo.commit_all("initial");
+
+        let history = path_edit_history(repo.path(), &|p| !p.starts_with("tests/"));
+
+        assert_eq!(history.keys().collect::<Vec<_>>(), vec!["src/app.py"]);
+    }
+
+    #[test]
+    fn path_edit_history_is_empty_when_there_is_no_history_to_read() {
+        let repo = TempRepo::new("edit_history_empty");
+        assert!(path_edit_history(repo.path(), &|_| true).is_empty());
     }
 }

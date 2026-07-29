@@ -154,6 +154,151 @@ fn virtualenvs_are_pruned_by_marker() {
     let _ = fs::remove_dir_all(&dir);
 }
 
+/// A file long enough to clear [`MIN_IMPORTED_DIR_LINES`] when a directory
+/// holds a handful of them.
+fn long_py(i: usize) -> String {
+    (0..60).map(|n| py_fn(i * 100 + n)).collect()
+}
+
+fn git(dir: &std::path::Path, args: &[&str]) {
+    let out = std::process::Command::new("git")
+        .args(args)
+        .current_dir(dir)
+        .output()
+        .expect("run git");
+    assert!(
+        out.status.success(),
+        "git {args:?}: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
+
+fn git_repo(name: &str) -> PathBuf {
+    let dir = temp_repo(name);
+    git(&dir, &["init", "-q"]);
+    git(&dir, &["config", "user.email", "test@example.com"]);
+    git(&dir, &["config", "user.name", "Test"]);
+    dir
+}
+
+/// A repository that writes `src/` and merely stores `imported/`: the imported
+/// tree lands in one commit and is never touched again, while the repo's own
+/// files are edited over and over.
+fn repo_with_an_imported_tree(name: &str, edit_imported: bool) -> PathBuf {
+    let dir = git_repo(name);
+    fs::create_dir_all(dir.join("imported")).unwrap();
+    fs::create_dir_all(dir.join("src")).unwrap();
+    for i in 0..10 {
+        fs::write(dir.join(format!("imported/lib_{i}.py")), long_py(i)).unwrap();
+    }
+    for i in 0..4 {
+        fs::write(dir.join(format!("src/app_{i}.py")), py_fn(i)).unwrap();
+    }
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-q", "-m", "import"]);
+    for round in 1..=25 {
+        for i in 0..4 {
+            fs::write(dir.join(format!("src/app_{i}.py")), py_fn(i + round * 10)).unwrap();
+            if edit_imported {
+                fs::write(
+                    dir.join(format!("imported/lib_{i}.py")),
+                    format!("{}{}", long_py(i), py_fn(round)),
+                )
+                .unwrap();
+            }
+        }
+        git(&dir, &["add", "-A"]);
+        git(&dir, &["commit", "-q", "-m", &format!("work {round}")]);
+    }
+    dir
+}
+
+#[test]
+fn a_directory_the_repo_stores_but_never_writes_is_suggested() {
+    let dir = repo_with_an_imported_tree("imported", false);
+    let s = suggest_ignores(&dir);
+    let c = s
+        .candidates
+        .iter()
+        .find(|c| c.path == "imported")
+        .expect("the imported tree is a candidate");
+    assert_eq!(c.reason, "not-authored-here");
+    assert!(
+        c.edit_ratio.is_some_and(|r| r < IMPORTED_CHURN_RATIO),
+        "reported far colder than the repo's own code, got {:?}",
+        c.edit_ratio
+    );
+    assert!(
+        s.candidates.iter().all(|c| c.path != "src"),
+        "code the repo actually writes is never suggested"
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_directory_the_repo_keeps_editing_is_not_suggested() {
+    // Same shape, same bulk arrival — but the repo maintains it. Code that is
+    // edited here speaks in this repo's voice, whoever wrote it first.
+    let dir = repo_with_an_imported_tree("maintained", true);
+    let s = suggest_ignores(&dir);
+    assert!(
+        s.candidates.iter().all(|c| c.path != "imported"),
+        "a maintained directory is not imported: {:?}",
+        s.candidates.iter().map(|c| &c.path).collect::<Vec<_>>()
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_repo_too_young_to_compare_against_abstains() {
+    // Everything was added once and nothing edited yet, so every directory
+    // looks equally cold. Reporting the whole tree would be worse than
+    // reporting nothing.
+    let dir = git_repo("young");
+    fs::create_dir_all(dir.join("imported")).unwrap();
+    for i in 0..10 {
+        fs::write(dir.join(format!("imported/lib_{i}.py")), long_py(i)).unwrap();
+    }
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-q", "-m", "initial"]);
+    let s = suggest_ignores(&dir);
+    assert!(
+        s.candidates.iter().all(|c| c.reason != "not-authored-here"),
+        "no history to compare against → the signal stays silent"
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_small_untouched_directory_is_below_the_size_floor() {
+    // Cold and bulk-arrived, but a few hundred lines: not worth a permanent
+    // line in a committed config.
+    let dir = git_repo("smallimport");
+    fs::create_dir_all(dir.join("imported")).unwrap();
+    fs::create_dir_all(dir.join("src")).unwrap();
+    for i in 0..10 {
+        fs::write(dir.join(format!("imported/lib_{i}.py")), py_fn(i)).unwrap();
+    }
+    for i in 0..4 {
+        fs::write(dir.join(format!("src/app_{i}.py")), py_fn(i)).unwrap();
+    }
+    git(&dir, &["add", "-A"]);
+    git(&dir, &["commit", "-q", "-m", "import"]);
+    for round in 1..=25 {
+        for i in 0..4 {
+            fs::write(dir.join(format!("src/app_{i}.py")), py_fn(i + round * 10)).unwrap();
+        }
+        git(&dir, &["add", "-A"]);
+        git(&dir, &["commit", "-q", "-m", &format!("work {round}")]);
+    }
+    let s = suggest_ignores(&dir);
+    assert!(
+        s.candidates.iter().all(|c| c.path != "imported"),
+        "below the line floor → not suggested"
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
+
 #[test]
 fn already_ignored_directory_is_not_resuggested() {
     let dir = temp_repo("already");

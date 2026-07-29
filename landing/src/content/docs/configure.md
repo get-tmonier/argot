@@ -82,8 +82,14 @@ build output — is dropped from the training corpus automatically. Only
 *committed* code needs an `[exclude]` entry.
 
 Don't hand-guess the directories to exclude — [`argot init --suggest`](/docs/setup/)
-surfaces the generated/data-heavy ones with evidence, and an agent can name the
-vendored/legacy ones from your tree. See [Setup](/docs/setup/).
+surfaces them with evidence, on two grounds: directories whose files are
+generated or data-heavy, and directories your repository **stores but never
+writes**. The second is the one that hides in plain sight — a vendored library,
+a forked upstream copy, a machine-translated binding. That code carries no
+marker and reads like anything else, but its history gives it away: it arrived
+in one commit and the repo has barely touched it since, while the code around it
+is edited constantly. argot reports the ratio and lets you decide. See
+[Setup](/docs/setup/).
 
 ### `check-only` — checked, but never teaches
 
@@ -536,7 +542,8 @@ to recalibrate:
 
 - every `fit`/`init` re-scans the tree and persists its verdict to
   `.argot/health.json`; **`argot check` reads it and prints one-line notes**
-  when new generated/data-heavy directories are shaping the voice or when
+  when new generated, data-heavy, or vendored directories are shaping the
+  voice or when
   `argot.toml` changed since the fit (in `--format github`, these become
   run-level PR annotations),
 - **editing `[exclude]`/`[detect]` is itself a refresh trigger**: the next

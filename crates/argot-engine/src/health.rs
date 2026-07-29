@@ -1,7 +1,8 @@
 //! `.argot/health.json` — the fit's self-diagnosis, persisted.
 //!
-//! The calibration-drift scan (new generated/data-heavy directories shaping
-//! the voice) and the config fingerprint are computed **at fit time**, where
+//! The calibration-drift scan (new generated, data-heavy, or vendored
+//! directories shaping the voice) and the config fingerprint are computed
+//! **at fit time**, where
 //! the tree walk is already paid for — and written here so every later
 //! command can surface them for free:
 //!
@@ -31,9 +32,9 @@ pub struct FitHealth {
     /// user's configuration.
     #[serde(default)]
     pub config_fingerprint: String,
-    /// Directories that looked generated/data-heavy and were NOT excluded —
-    /// the calibration-drift candidates (`argot init --suggest` shows the
-    /// evidence). Empty on a well-configured repo.
+    /// Directories that looked generated, data-heavy, or vendored and were NOT
+    /// excluded — the calibration-drift candidates (`argot init --suggest`
+    /// shows the evidence). Empty on a well-configured repo.
     #[serde(default)]
     pub drift_candidates: Vec<String>,
 }

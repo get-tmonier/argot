@@ -36,9 +36,10 @@ checkouts, which is why configuration scaffolding belongs only to `init`.
 ## Build a trustworthy voice
 
 Run `argot init` first on a fresh clone so its shared `argot.toml` exists. Then run
-`argot init --suggest`, review the proposed generated or data-heavy directories, edit
-`argot.toml [exclude].paths` only when you agree, and run `argot init` again. Exclusions shape the
-voice; they are not a way to silence ordinary findings.
+`argot init --suggest`, review the proposed directories — the generated and data-heavy ones, and
+the ones your repository stores but never writes (vendored libraries, forked upstream copies), each
+reported with the evidence behind it — edit `argot.toml [exclude].paths` only when you agree, and
+run `argot init` again. Exclusions shape the voice; they are not a way to silence ordinary findings.
 
 Manual `init` and `fit` learn the files on disk. Prefer a clean checkout of the default branch:
 both commands warn if uncommitted source files or unmerged source commits would be learned. A

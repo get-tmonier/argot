@@ -204,6 +204,29 @@ fn const_table_is_data_dominant() {
 }
 
 #[test]
+fn record_wrapped_const_table_is_data_dominant() {
+    // A form/resource compiler emits its payload as a record constant whose
+    // fields hold the arrays, not as a bare array. It is the same static data
+    // and must be read as such.
+    let a = PascalAdapter::new();
+    let src = "unit f_mfm;\ninterface\nimplementation\nconst\n objdata: record size: integer; data: array[0..11] of byte end =\n  (size: 12; data: (\n   1,2,3,\n   4,5,6,\n   7,8,9,\n   10,11,12)\n );\nend.\n";
+    assert!(
+        !a.data_literal_lines(src).is_empty(),
+        "record-constant rows detected"
+    );
+    assert!(a.is_data_dominant(src, 0.5));
+}
+
+#[test]
+fn record_constant_of_code_references_is_not_data() {
+    // Same container shape, but the fields point at procedures: a dispatch
+    // table is code, and excluding it would drop real voice.
+    let a = PascalAdapter::new();
+    let src = "unit r;\ninterface\nimplementation\nconst\n handlers: record a: pointer; b: pointer end =\n  (a: @DoFirst; b: @DoSecond);\nend.\n";
+    assert!(!a.is_data_dominant(src, 0.5));
+}
+
+#[test]
 fn auto_generated_header_is_detected() {
     let a = PascalAdapter::new();
     let src = "{ This file is auto-generated. Do not edit. }\nunit Gen;\ninterface\nimplementation\nend.\n";

@@ -65,10 +65,20 @@ Keep the card — phase 6 reads this same file, so do not pay for a second run.
 
 Three sources of evidence, merged into **one** proposal list:
 
-1. `argot init --suggest --format json` — directories that are mostly generated
-   or data. Note the `included` count: real code a blanket rule would drop.
-2. **Read the tree yourself.** `--suggest` cannot see intent. Look for:
-   - vendored / third-party code committed into the repo (`vendor/`, bundled SDKs)
+1. `argot init --suggest --format json` — two kinds of directory, each with the
+   evidence behind it in `reason`:
+   - `auto-generated` / `data-dominant` / `generated + data` — mostly machine
+     output. Note the `included` count: real code a blanket rule would drop.
+   - `not-authored-here` — the repo **stores** it but does not **write** it: a
+     vendored library, a forked upstream copy, a machine-translated binding.
+     `edit_ratio` is how cold it is against the repo's own average (`0.04` =
+     touched a twenty-fifth as often) and `source_lines` how much voice the
+     entry would remove. These are usually the biggest wins on the list, and
+     no amount of reading finds them faster than the ratio does.
+2. **Read the tree yourself.** `--suggest` reads history and file contents, not
+   intent — and it deliberately stays silent on a directory the repo *does*
+   maintain, however foreign its origin. Look for:
+   - vendored code the repo keeps patching (upstream forks it has adopted)
    - demo, example, playground or sample trees
    - peripheral monorepo members: a landing site, a benchmark suite, dev tooling
    - generated clients (protobuf/gRPC, OpenAPI/GraphQL, `*_pb2.py`, `gen/`)

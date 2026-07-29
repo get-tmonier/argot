@@ -50,8 +50,12 @@ const UNIT_FILE_SUFFIXES: &[&str] = &[".pas", ".pp", ".dpr", ".lpr"];
 /// How many head lines of a file are scanned for the module declaration.
 const MODULE_DECL_SCAN_LINES: usize = 60;
 
-/// RHS container kinds that count as static data-literal containers.
-const DATA_LITERAL_TYPES: &[&str] = &["arrInitializer"];
+/// Container kinds a data table is declared as. Object Pascal writes a lookup
+/// table either as a bare array — `(1, 2, 3, …)` — or as a record whose fields
+/// hold the arrays: `record size: integer; data: array[0..n] of byte end =
+/// (size: 1973; data: (1, 2, 3, …))`. Both are static data; only the second
+/// carries field names.
+const DATA_LITERAL_TYPES: &[&str] = &["arrInitializer", "recInitializer"];
 
 /// Named value node kinds that count as literal data inside a container.
 const VALUE_LITERAL_TYPES: &[&str] = &[
@@ -62,6 +66,7 @@ const VALUE_LITERAL_TYPES: &[&str] = &[
     "kFalse",
     "kNil",
     "arrInitializer",
+    "recInitializer",
 ];
 
 /// ≥80% of a container's immediate named values must be literal data.
@@ -562,13 +567,20 @@ fn decl_value_node(decl: Node) -> Option<Node> {
 /// True if ≥80% of the container's immediate named values are literal data.
 /// Empty containers and unknown kinds return true (conservative — allow).
 fn is_value_literal_dominant(node: Node) -> bool {
-    if node.kind() != "arrInitializer" {
-        return true;
-    }
-    let values: Vec<Node> = children(node)
-        .into_iter()
-        .filter(|c| c.is_named())
-        .collect();
+    let values: Vec<Node> = match node.kind() {
+        "arrInitializer" => children(node)
+            .into_iter()
+            .filter(|c| c.is_named())
+            .collect(),
+        // A record initializer's children are its fields; what decides whether
+        // the table is data is what each field is *set to*, not the field name.
+        "recInitializer" => children(node)
+            .into_iter()
+            .filter(|c| c.kind() == "recInitializerField")
+            .filter_map(|f| f.child_by_field_name("value"))
+            .collect(),
+        _ => return true,
+    };
     if values.is_empty() {
         return true;
     }

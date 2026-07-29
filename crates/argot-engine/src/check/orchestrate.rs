@@ -509,7 +509,7 @@ pub fn run_check(args: CheckArgs, detectors: Vec<RegisteredDetector<'_>>) -> Che
                 ""
             };
             stderr.push_str(&format!(
-                "[argot] {} director{} look generated or data-heavy and are shaping the voice                  ({}{more}) — review `argot init --suggest`
+                "[argot] {} director{} look generated, data-heavy, or vendored and are shaping the voice     ({}{more}) — review `argot init --suggest`
 ",
                 health.drift_candidates.len(),
                 if health.drift_candidates.len() != 1 {
