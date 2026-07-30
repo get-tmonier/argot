@@ -84,22 +84,40 @@ fn ts_language(lang: Language) -> tree_sitter::Language {
     }
 }
 
+/// Pre-order walk emitting one token per leaf, in document order.
+///
+/// Iterative on purpose. Tree depth is a property of the input, not of anything
+/// we control, and a generated file reaches depths a recursive walk cannot
+/// survive: tree-sitter's own `parser.c` is ~10 MB of nested initialisers and
+/// overflowed the main thread's stack here, aborting `argot extract` outright.
+/// An explicit stack costs nothing and removes the whole failure mode.
 fn collect_tokens(node: Node, source: &[u8], out: &mut Vec<Token>) {
-    if node.child_count() == 0 {
-        let range = node.byte_range();
-        if !range.is_empty() {
-            let text = String::from_utf8_lossy(&source[range]).into_owned();
-            out.push(Token {
-                text,
-                node_type: node.kind().to_string(),
-                start_line: node.start_position().row,
-                end_line: node.end_position().row,
-            });
+    let mut stack = vec![node];
+    // Reused across nodes so a wide tree does not allocate per visit.
+    let mut children = Vec::new();
+
+    while let Some(node) = stack.pop() {
+        if node.child_count() == 0 {
+            let range = node.byte_range();
+            if !range.is_empty() {
+                let text = String::from_utf8_lossy(&source[range]).into_owned();
+                out.push(Token {
+                    text,
+                    node_type: node.kind().to_string(),
+                    start_line: node.start_position().row,
+                    end_line: node.end_position().row,
+                });
+            }
+            continue;
         }
-    }
-    let mut cursor = node.walk();
-    for child in node.children(&mut cursor) {
-        collect_tokens(child, source, out);
+
+        let mut cursor = node.walk();
+        children.clear();
+        children.extend(node.children(&mut cursor));
+        // Reversed, so the leftmost child pops first and document order holds.
+        while let Some(child) = children.pop() {
+            stack.push(child);
+        }
     }
 }
 

@@ -368,3 +368,38 @@ fn a_c_header_in_a_cpp_repo_falls_back_to_the_c_grammar() {
     let tree = parse(src, Language::Cpp).expect("parse succeeds");
     assert!(!tree.root_node().has_error(), "C++ source must stay C++");
 }
+
+#[test]
+fn a_final_record_field_may_omit_its_semicolon() {
+    // Object Pascal lets the *last* field of a record/class/object list drop its
+    // terminating `;` before `end`. Requiring it desynchronised the parser for
+    // the rest of the unit, and mseide-msegui's
+    // lib/common/kernel/linux/mseguiintf.pas lost all 7 450 of its lines to one
+    // error node because of it — 6,59 % of that repository, three files whole.
+    let src = "unit u;\ninterface\ntype\n \
+        MwmHints = record\n  flags: culong;\n  status: culong\n end;\n\
+        implementation\nend.\n";
+    let tree = parse(src, Language::Pascal).expect("parse succeeds");
+    assert!(
+        !tree.root_node().has_error(),
+        "a record whose last field has no trailing `;` must parse:\n{}",
+        tree.root_node().to_sexp()
+    );
+}
+
+#[test]
+fn a_block_may_end_on_a_labelled_empty_statement() {
+    // A label may mark the *empty* statement before `end` — the shape every
+    // `goto`-based cleanup in mseide-msegui uses to jump to the end of a
+    // routine (lib/common/kernel/linux/mseguiintf.pas:2673). Requiring a
+    // statement after the label cost the remaining 4 700 lines of that unit.
+    let src = "unit u;\ninterface\nimplementation\n\
+        function f: integer;\nlabel\n endlab;\nbegin\n goto endlab;\nendlab:\nend;\n\
+        end.\n";
+    let tree = parse(src, Language::Pascal).expect("parse succeeds");
+    assert!(
+        !tree.root_node().has_error(),
+        "a label on the empty statement before `end` must parse:\n{}",
+        tree.root_node().to_sexp()
+    );
+}

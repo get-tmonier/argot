@@ -28,6 +28,8 @@ real corpus file, and upstream's own 88-case test corpus still passes unchanged.
 | declaration **hint closing a class** | `T = class … end deprecated;` |
 | Delphi **parameter attribute** | `procedure D(…; [ref] const Source: TVarData);` |
 | project file naming a unit's **path** | `uses server in 'src\server.pas';` |
+| **last field of a list** with no terminating `;` | `status: culong` immediately before `end;` |
+| **labelled empty statement** closing a block | `endlab:` immediately before `end;` |
 | `.inc` **include fragments** — see below | a bare list of methods, properties and `strict private` markers |
 
 ### The include fragment
@@ -63,6 +65,32 @@ middle column is argot's directive fix alone, the last adds this grammar.
 Three more Pascal corpora nobody had measured: ideu 4,01 %, strumpract 0,04 %,
 swp 0,05 %.
 
+### The two rules added 2026-07-30
+
+Two constructs still cost mseide-msegui almost everything the earlier work had
+saved, because each one desynchronises the parser for the *rest of the unit*:
+a record whose last field omits its `;`, and a `goto` label sitting on the empty
+statement before `end`. Both are ordinary Object Pascal and both are on nearly
+every page of that codebase.
+
+Measured over its 493-file fit corpus, 548 418 lines, through argot's real
+pipeline (directive handling included), counting each file's widest `ERROR` span:
+
+| | lines inside an `ERROR` | share |
+|---|--:|--:|
+| v0.2.118 as released | 36 136 | **6,59 %** |
+| + these two rules | 260 | **0,05 %** |
+
+The three worst files were lost whole and now parse clean:
+`lib/common/db/msebufdataset.pas` (10 979 lines), `lib/common/report/msereport.pas`
+(8 738), `lib/common/kernel/linux/mseguiintf.pas` (7 452 — 1 921 `ERROR` nodes,
+21 of its 102 routines recoverable; now 0 and all of them).
+
+Guarded by `a_final_record_field_may_omit_its_semicolon` and
+`a_block_may_end_on_a_labelled_empty_statement` in
+`crates/argot-lang/src/ts_parse/tests.rs`; both fail against the released
+grammar. Upstream's 88-case corpus still passes unchanged.
+
 ## Regenerating
 
 `src/parser.c` is generated and committed, so the build needs only a C compiler —
@@ -76,7 +104,9 @@ npm install tree-sitter-cli@0.25
 ./node_modules/.bin/tree-sitter test       # upstream's corpus: 88 pass, 0 fail
 ```
 
-Then re-run argot's own guard: `cargo test -p argot-lang --lib pascal`.
+Then re-run argot's own guard: `cargo test -p argot-lang --lib`. (Not
+`--lib pascal`: the parse-level guards live under `ts_parse::tests`, which that
+filter does not match.)
 
 Upstream ships a `parser.c` built by an older CLI (ABI 14, 2 715 states) than its
 own `grammar.js` implies; regenerating alone changes neither the accepted

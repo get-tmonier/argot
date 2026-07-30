@@ -2525,6 +2525,10 @@
             {
               "type": "SYMBOL",
               "name": "_statement"
+            },
+            {
+              "type": "SYMBOL",
+              "name": "label"
             }
           ]
         }
@@ -6908,8 +6912,16 @@
           }
         },
         {
-          "type": "STRING",
-          "value": ";"
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "STRING",
+              "value": ";"
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
         },
         {
           "type": "REPEAT",
@@ -9975,6 +9987,9 @@
     ],
     [
       "declTypes"
+    ],
+    [
+      "declClass"
     ]
   ],
   "precedences": [],
