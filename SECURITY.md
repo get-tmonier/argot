@@ -4,9 +4,10 @@ argot is a local-first developer tool: a single statically-linked Rust binary
 that learns a repository's "voice" from its git history and flags foreign code.
 The analysis path runs entirely on your machine: `extract`, `fit`, and `check`
 do not upload repository content and have no server, daemon, or telemetry.
-Some separately enumerable operations can make outbound requests (the semantic
-model download, update/version check, installation, and CI's configured GitHub
-operations); `ARGOT_OFFLINE=1` forbids the binary's model and update requests.
+Some separately enumerable operations can make outbound requests (update/version
+check, installation, and CI's configured GitHub operations); `ARGOT_OFFLINE=1`
+forbids the binary's update requests. No analysis argot performs needs a
+network: every model it uses is compiled into the binary.
 Its attack surface is small by design — but we
 take it seriously, and this document tells you how to report a problem and what
 we treat as in scope.
@@ -71,7 +72,7 @@ public disclosure.
   or scripted rule), sandbox escapes in the scripted-rules (Rhai) host, and any
   path that executes attacker-controlled data.
 - The install and self-update flow (`argot update`, the cargo-dist installers).
-- The semantic-model fetch (integrity of the downloaded GGUF).
+- The embedded model weights and their load path (`argot-rules-semantic`): a malformed tensor or tokenizer reachable from a tampered binary.
 - The GitHub Action (`action.yml`) and the release/CI pipeline
   (`.github/workflows/`): credential handling, artifact integrity, injection.
 
@@ -94,13 +95,12 @@ public disclosure.
   use; the passive version check, explicit `argot update`, installation, and
   CI's configured GitHub operations are separate outbound paths. The binary
   sends no code, findings, or telemetry on those paths. `ARGOT_OFFLINE=1`
-  forbids its model and update requests.
-- **Model integrity.** The semantic model is pinned by SHA-256; a download that
-  doesn't match is rejected, and CI verifies the pinned asset before every
-  release. The `ARGOT_MODEL_URL` override changes *where* the model is fetched
-  from, never *what* — the SHA-256 check still applies, so a mirror cannot serve
-  a substituted model. (Setting it to an untrusted host can still reveal that
-  you are fetching the model; point it only at hosts you trust.)
+  forbids its update requests.
+- **Model integrity.** The embedding model is compiled into the binary, so there
+  is no download to intercept, no mirror to substitute and no cache to poison:
+  the weights' integrity is the release artifact's integrity, which is attested
+  and checksummed by the release pipeline. Their provenance is recorded in the
+  file's own safetensors metadata and in `NOTICE`.
 - **No `unsafe`.** argot's own crates contain no `unsafe` code; this is enforced
   at compile time (`unsafe_code = "deny"`, workspace-wide).
 - **Sandboxed scripted rules.** Community Rhai rules run with no I/O, captured

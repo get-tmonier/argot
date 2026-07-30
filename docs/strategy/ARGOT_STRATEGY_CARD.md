@@ -50,7 +50,7 @@ plugin installs) + opt-in local metrics + qualitative research. Do not add defau
 
 Signal quality is existential; no default-gating detector above the noise threshold. Seconds, not
 flow interruption. Brief, do not scold. Individual local check free. No default telemetry; only egress
-is a suppressible update check + one-time model download. Config portable and user-owned. Embeddable
+is a suppressible update check. Config portable and user-owned. Embeddable
 (CLI/JSON/SARIF/hooks). No **generative** LLM in the authoritative core (a local deterministic encoder
 powers `redundant`/`misplaced` and is permitted).
 

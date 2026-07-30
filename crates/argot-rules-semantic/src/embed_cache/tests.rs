@@ -89,7 +89,10 @@ fn gc_evicts_oldest_segments_first() {
 /// artifact, warm cache) must reuse everything.
 #[test]
 fn cache_hit_is_bit_identical_to_fresh_embed() {
-    let Some(emb) = crate::embedder::Embedder::ready().ok().flatten() else {
+    let Some(emb) = crate::static_embedder::StaticEmbedder::ready()
+        .ok()
+        .flatten()
+    else {
         eprintln!("skipping: no local model");
         return;
     };

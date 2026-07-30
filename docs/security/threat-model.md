@@ -14,8 +14,9 @@ A single statically-linked Rust binary that:
 3. flags diffs that are foreign to that model (`argot check`).
 
 It has no server, no daemon, and no telemetry. Analysis runs in-process in one
-CLI invocation. A detached update check and a first-use semantic-model download
-are separately enumerable outbound paths; neither uploads repository content.
+CLI invocation. A detached update check is the only outbound path argot takes on its own; it
+uploads no repository content. The embedding model is compiled into the binary,
+so analysis makes no request at all.
 
 ## Assets
 
@@ -38,7 +39,7 @@ are separately enumerable outbound paths; neither uploads repository content.
 | `dataset.jsonl`, `scorer-config.json`, semantic index | **Untrusted** (rebuildable artifacts) | Deserialized with serde; a malformed or stale artifact is rejected loudly (the semantic index is bound to the model identity). |
 | `argot.toml` / `.argotignore` / suppressions | **Untrusted** | Parsed with `toml` / `serde_yaml` (pure-Rust); parse errors are reported, not executed. |
 | Scripted rules (`.argot/rules/*/check.rhai`) | **Untrusted, executable** | Run in a Rhai sandbox: no I/O, captured print, 1M-op + depth/size caps, 100 ms per-file wall clock. A runaway or misbehaving rule is disabled for the run. |
-| Semantic model (GGUF) | **Untrusted transport, pinned content** | Downloaded over TLS (rustls), then SHA-256-verified against a pinned hash; a mismatch aborts. |
+| Embedded model weights | **Trusted with the binary** | Compiled in via `include_bytes!`; no transport to attack. Their integrity is the release artifact's, which is attested and checksummed by the release pipeline. A malformed tensor or tokenizer fails the load loudly rather than producing a wrong vector space. |
 | Self-update payload | **Untrusted transport, pinned source** | Version from the published `version.json`, installer from the release web-download URL (never the GitHub API); TLS-enforced. |
 
 Everything to the left of these boundaries is assumed hostile: a repository
@@ -57,16 +58,15 @@ argot is pointed at may have been crafted to make it crash, hang, or misreport.
   crash degrades the check rather than blocking the merge. Fuzz targets exercise
   the untrusted-byte parsers (`fuzz/`).
 - **Data exfiltration.** `extract → fit → check` do not upload repository
-  content. The semantic-model fetch, passive version check, explicit update,
-  installation, and CI's configured GitHub API/release operations are distinct
-  network paths; the binary's model and update requests send no code or
-  findings. `ARGOT_OFFLINE=1` disables those binary requests.
-- **Model / update tampering (supply chain, runtime).** SHA-256 pinning of the
-  model (verified in CI before every release *and* at download time); TLS on all
-  fetches; the self-update path avoids the mutable GitHub API. `ARGOT_MODEL_URL`
-  can redirect the *source* of the model but not its *content* (the SHA-256
-  check still applies) — a mirror cannot substitute a model, though it can learn
-  that a fetch happened, so point it only at hosts you trust.
+  content. The passive version check, explicit update, installation, and CI's
+  configured GitHub API/release operations are distinct network paths; the
+  binary's update request sends no code or findings.
+  `ARGOT_OFFLINE=1` disables it.
+- **Update tampering (supply chain, runtime).** Version from the published
+  `version.json`, installer from the release web-download URL rather than the
+  mutable GitHub API, TLS on all fetches. The embedding model is no longer a
+  transport-level asset: it ships inside the binary, so there is no fetch to
+  intercept and no mirror to substitute.
 - **Release supply chain.** Dependencies are version-pinned with documented
   rationale; `git2` links a vendored libgit2 with network transports stripped
   (no OpenSSL/libssh2). `cargo-deny` gates advisories, licenses, and sources in

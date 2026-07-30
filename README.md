@@ -68,9 +68,10 @@ Windows: `powershell -c "irm https://github.com/get-tmonier/argot/releases/lates
 The npm package is also available as `npm install -g @tmonier/argot`.
 
 Audit needs usable Git history and supported source. It has no fixed runtime
-promise. Semantic analysis may download a local code-embedding model once; see
-[Getting started](https://argot.tmonier.com/docs/getting-started/) for install,
-offline, and fit details.
+promise. It runs fully offline — the code-embedding model behind the semantic
+findings ships inside the binary. See
+[Getting started](https://argot.tmonier.com/docs/getting-started/) for install
+and fit details.
 
 If the audit gives you a useful lead, fit the current repository and score the
 changes you intend to review:
@@ -141,6 +142,9 @@ or combined-brief claim. The [approved claim manifest](landing/src/data/claims/m
 records:
 
 - visible foreign-symbol fixtures: **620/637 — 97.3%** across 36 corpora and 12 languages;
+- reinvention fixtures: **545/584 — 93.3%** across 31 corpora and 11 languages;
+- placement transplants: **12,899/13,456 — 95.9%** across the 22 evaluable corpora and 11 languages
+  (the other nine abstain because their layouts have no separable architecture);
 - layering fixtures: **264/272 — 97.1%** across 25 corpora and 12 languages;
 - test-integrity fixtures: **154/164 — 93.9%** across 23 corpora and 12 languages.
 
@@ -150,8 +154,8 @@ edits — and **0.00%** of the hunks in newly added files, where a repository ha
 the least to say about what belongs.
 
 Each number has a distinct corpus, denominator, and qualifier. The combined
-briefing/noise result, semantic aggregate, and ordinary-repository timing are
-not yet measured public claims. See the
+briefing/noise result and ordinary-repository timing are not yet measured public
+claims. See the
 [benchmark methodology and sources](https://argot.tmonier.com/benchmarks).
 
 Argot ships adapters for 12 languages. The five tested release targets are macOS
@@ -180,11 +184,12 @@ companion to the [auditable Markdown receipt](docs/demo/proof/audit.md).
 
 Argot analyzes source, history, and findings locally. The individual local core
 is free, MIT-licensed open source, and requires no account or cloud service.
-Argot has no default telemetry and does not upload source code. It can still
-use network paths for a one-time local model download, update/version checks,
-release downloads, or an explicitly configured review/update/CI integration.
-Set `ARGOT_OFFLINE=1` to prevent network use; semantic checks without a cached
-model are then skipped with a diagnostic while other checks continue.
+Argot has no default telemetry and does not upload source code. No analysis it
+performs needs a network at all — the code-embedding model behind the semantic
+findings is compiled into the binary. It can still use network paths for
+update/version checks, release downloads, or an explicitly configured
+review/update/CI integration. Set `ARGOT_OFFLINE=1` to prevent network use;
+nothing analytical is lost.
 
 Read the complete [privacy and security boundary](https://argot.tmonier.com/privacy/),
 [security policy](SECURITY.md), and [MIT license](LICENSE).
@@ -210,3 +215,11 @@ code: the harness clones each repository at a pinned SHA, reads its history
 locally, and ships nothing from it. Each project remains under its own license,
 held by its own authors. Full list with links, and what argot does commit:
 [`benchmarks/README.md`](benchmarks/README.md#acknowledgements).
+
+argot does redistribute one thing. The model behind `redundant` and `misplaced`
+is a 15.6M-parameter static table distilled from
+[jina-embeddings-v2-base-code](https://huggingface.co/jinaai/jina-embeddings-v2-base-code)
+(Jina AI, Apache-2.0) using the
+[model2vec](https://github.com/MinishLab/model2vec) technique (MinishLab, MIT).
+Its weights are compiled into the binary and redistributed under Apache-2.0;
+full terms in [`NOTICE`](NOTICE). argot is not affiliated with either project.

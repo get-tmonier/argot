@@ -5,8 +5,8 @@
 //! - every registered repo's `.argot/` directory and `argot.local.toml`
 //!   (machine-local state; the registry in `~/.argot/settings.json` knows
 //!   every repo argot ever ran in),
-//! - the user cache (`~/.cache/argot` / `%LOCALAPPDATA%\argot`): the embedding
-//!   model, the machine-wide embedding cache, update-check state,
+//! - the user cache (`~/.cache/argot` / `%LOCALAPPDATA%\argot`): the
+//!   machine-wide embedding cache, update-check state,
 //! - the global registry (`~/.argot/settings.json`),
 //! - the shell installer's receipt dir (`~/.config/argot`),
 //! - the binary itself — deleted for shell/raw installs; npm installs get the
@@ -180,10 +180,7 @@ pub fn build_plan() -> UninstallPlan {
     let mut user_level = Vec::new();
     if let Ok(cache) = argot_core::cache::cache_dir() {
         if cache.is_dir() {
-            user_level.push((
-                "cache (embedding model, embedding cache, update state)".to_string(),
-                cache,
-            ));
+            user_level.push(("cache (embedding cache, update state)".to_string(), cache));
         }
     }
     let settings = crate::settings_path();
@@ -211,7 +208,7 @@ pub fn build_plan() -> UninstallPlan {
     }
 }
 
-/// Recursive size, best-effort — the plan should say what 100 MB is leaving.
+/// Recursive size, best-effort — the plan should say how much is leaving.
 fn size_of(path: &Path) -> u64 {
     if path.is_file() {
         return std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);

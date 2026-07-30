@@ -435,7 +435,7 @@ mod tests {
                 group: "semantic",
                 status: GroupStatus::Skipped,
                 findings: 0,
-                skip_reason: Some("embedding model not available (offline?)".into()),
+                skip_reason: Some("no semantic index was built at fit".into()),
             },
         ];
         AuditReport {
@@ -513,7 +513,7 @@ mod tests {
         let after = &card[worst_idx..];
         assert!(after.contains("foreign-import"), "{after}");
         assert!(after.contains("Co-Authored-By: Claude"), "{after}");
-        assert!(card.contains("skipped: embedding model not available"));
+        assert!(card.contains("skipped: no semantic index was built at fit"));
         assert!(card.contains("would have\n  prompted review before merge"));
         assert!(card.contains("argot init"));
         assert!(card.contains("pre-commit: automatic at commit time once configured"));

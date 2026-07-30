@@ -145,8 +145,8 @@ pub trait Detector {
     fn timing_label(&self) -> &'static str;
 
     /// Whether the pass runs at all. Default: at least one rule in the group
-    /// is not `off` — skipping an off group avoids its whole cost (index
-    /// load, model download). The base detector always runs: it owns the scan
+    /// is not `off` — skipping an off group avoids its whole cost (index and
+    /// embedder load). The base detector always runs: it owns the scan
     /// statistics, and off-rule findings are dropped by the engine afterward.
     fn enabled(&self, settings: &RuleSettings) -> bool {
         settings.group_enabled(self.group())

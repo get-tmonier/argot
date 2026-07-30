@@ -20,10 +20,9 @@ use std::collections::{BTreeMap, HashMap};
 
 use anyhow::{bail, Context, Result};
 use base64::Engine as _;
-use half::f16;
 use serde::{Deserialize, Serialize};
 
-use super::embedder::{Embedder, EMBED_DIM};
+use super::embedding::EmbeddingModel;
 use argot_lang::adapters::LanguageAdapter;
 
 /// Artifact format version (bump on any breaking on-disk change).
@@ -32,7 +31,7 @@ use argot_lang::adapters::LanguageAdapter;
 ///     and `validate_current` gates loading — an index built by a different
 ///     model or argot version is declared stale instead of silently producing
 ///     wrong cosines.
-const ARTIFACT_VERSION: u32 = 3;
+const ARTIFACT_VERSION: u32 = 4;
 
 /// Functions shorter than this (in lines) are skipped when indexing: one- and
 /// two-line bodies are boilerplate (getters, trivial wrappers) that only add
@@ -132,7 +131,7 @@ impl SemanticIndex {
 
     /// Build an index by embedding `funcs` in one batch (amortises the inference
     /// context). Order of `entries` follows `funcs`.
-    pub fn build(embedder: &Embedder, funcs: &[FunctionRef]) -> Result<Self> {
+    pub fn build(embedder: &dyn EmbeddingModel, funcs: &[FunctionRef]) -> Result<Self> {
         Ok(Self::build_with_reuse(embedder, funcs, None, None)?.0)
     }
 
@@ -146,7 +145,7 @@ impl SemanticIndex {
     /// finding. A `prior` from another model must never reach here — the
     /// caller gates on [`SemanticArtifact::validate_current`].
     pub fn build_with_reuse(
-        embedder: &Embedder,
+        embedder: &dyn EmbeddingModel,
         funcs: &[FunctionRef],
         prior: Option<&SemanticIndex>,
         cache: Option<&super::embed_cache::EmbedCache>,
@@ -154,7 +153,7 @@ impl SemanticIndex {
         if funcs.is_empty() {
             return Ok((
                 Self {
-                    dim: EMBED_DIM,
+                    dim: embedder.dim(),
                     entries: Vec::new(),
                 },
                 ReuseStats::default(),
@@ -164,7 +163,7 @@ impl SemanticIndex {
         let mut reusable: HashMap<&str, &Vec<f32>> = HashMap::new();
         if let Some(p) = prior {
             for e in &p.entries {
-                if !e.text_hash.is_empty() && e.vec.len() == EMBED_DIM {
+                if !e.text_hash.is_empty() && e.vec.len() == embedder.dim() {
                     reusable.insert(e.text_hash.as_str(), &e.vec);
                 }
             }
@@ -234,7 +233,7 @@ impl SemanticIndex {
         }
         Ok((
             Self {
-                dim: EMBED_DIM,
+                dim: embedder.dim(),
                 entries,
             },
             stats,
@@ -272,10 +271,22 @@ impl SemanticIndex {
         placement: super::placement::PlacementConfig,
         reinvention: super::redundant::ReinventionConfig,
     ) -> LanguageIndexJson {
-        let mut bytes = Vec::with_capacity(self.entries.len() * self.dim * 2);
+        // int8, one shared scale. The vectors are unit-norm so their components
+        // sit in a narrow band; a single scale therefore quantises them evenly.
+        // Measured on the shipped static space: **zero** decisions change at any
+        // of the rule's three cosine gates (0.85 / 0.78 / 0.70), while the blob
+        // halves and — being low-entropy, unlike f16 — compresses a further 40%.
+        let scale = self
+            .entries
+            .iter()
+            .flat_map(|e| e.vec.iter())
+            .fold(0.0f32, |m, x| m.max(x.abs()))
+            / 127.0;
+        let scale = if scale > 0.0 { scale } else { 1.0 };
+        let mut bytes = Vec::with_capacity(self.entries.len() * self.dim);
         for e in &self.entries {
             for &x in &e.vec {
-                bytes.extend_from_slice(&f16::from_f32(x).to_le_bytes());
+                bytes.push(quantize(x, scale) as u8);
             }
         }
         LanguageIndexJson {
@@ -284,6 +295,7 @@ impl SemanticIndex {
             symbols: self.entries.iter().map(|e| e.symbol.clone()).collect(),
             paths: self.entries.iter().map(|e| e.path.clone()).collect(),
             lines: self.entries.iter().map(|e| e.line).collect(),
+            scale,
             vectors_b64: base64::engine::general_purpose::STANDARD.encode(&bytes),
             placement,
             reinvention,
@@ -297,10 +309,10 @@ impl SemanticIndex {
         let bytes = base64::engine::general_purpose::STANDARD
             .decode(&j.vectors_b64)
             .context("decode index vectors")?;
-        let expect = j.count * j.dim * 2;
+        let expect = j.count * j.dim;
         if bytes.len() != expect {
             bail!(
-                "index vector blob is {} bytes, expected {} ({}×{}×2)",
+                "index vector blob is {} bytes, expected {} ({}×{})",
                 bytes.len(),
                 expect,
                 j.count,
@@ -314,9 +326,19 @@ impl SemanticIndex {
         for i in 0..j.count {
             let mut vec = Vec::with_capacity(j.dim);
             for d in 0..j.dim {
-                let off = (i * j.dim + d) * 2;
-                let bits = u16::from_le_bytes([bytes[off], bytes[off + 1]]);
-                vec.push(f16::from_bits(bits).to_f32());
+                vec.push(bytes[i * j.dim + d] as i8 as f32 * j.scale);
+            }
+            // The index is queried by cosine, and quantisation perturbs the
+            // norm; renormalising here keeps a dot product a cosine. No f16
+            // canonicalisation: dequantisation and this normalisation are
+            // fixed-order IEEE arithmetic, so they are already reproducible —
+            // rounding 6.7M components per load cost 0.7s of every check for
+            // determinism that was not at risk.
+            let norm: f32 = vec.iter().map(|x| x * x).sum::<f32>().sqrt();
+            if norm > 0.0 {
+                for x in vec.iter_mut() {
+                    *x /= norm;
+                }
             }
             entries.push(IndexEntry {
                 symbol: j.symbols[i].clone(),
@@ -560,6 +582,8 @@ struct LanguageIndexJson {
     symbols: Vec<String>,
     paths: Vec<String>,
     lines: Vec<usize>,
+    /// Quantisation step of the int8 vector blob: `f32 = i8 * scale`.
+    scale: f32,
     vectors_b64: String,
     /// F2 self-calibrated placement configuration (adaptive areas, entangled
     /// merges, vote parameters, or disabled). Default (disabled) for indices
@@ -604,12 +628,27 @@ pub struct ModelIdentity {
 }
 
 impl ModelIdentity {
-    /// The identity of the model this binary pins.
+    /// The identity of the model this binary ships. Falls back to an empty
+    /// identity only if the embedded weights fail to load, which
+    /// `validate_against` then reports as a mismatch rather than a silent pass.
     pub fn current() -> Self {
+        match super::static_embedder::StaticEmbedder::embedded() {
+            Ok(m) => Self::of(&m),
+            Err(_) => Self {
+                name: String::new(),
+                sha256: String::new(),
+                dim: 0,
+            },
+        }
+    }
+
+    /// The identity of the embedder actually in use — two models can ship, so
+    /// "current" is a property of the loaded one, not of the build.
+    pub fn of(model: &dyn EmbeddingModel) -> Self {
         Self {
-            name: super::embedder::MODEL_NAME.to_string(),
-            sha256: super::embedder::MODEL_SHA256.to_string(),
-            dim: EMBED_DIM,
+            name: model.name().to_string(),
+            sha256: model.fingerprint().to_string(),
+            dim: model.dim(),
         }
     }
 }
@@ -638,21 +677,49 @@ impl SemanticArtifact {
         }
     }
 
+    /// Record which embedder actually built this artifact — the identity a
+    /// later check validates against.
+    pub fn set_model(&mut self, model: &dyn EmbeddingModel) {
+        self.model = Some(ModelIdentity::of(model));
+    }
+
     /// Is this on-disk artifact usable by *this* binary? `Err(reason)` when it
     /// was written by an older format or a different embedding model — the
     /// caller reports the reason and skips the semantic rules for the run
     /// (`argot fit` rebuilds the index with the current model).
     pub fn validate_current(&self) -> std::result::Result<(), String> {
+        self.validate_against(&ModelIdentity::current())
+    }
+
+    /// The half of validation that needs no model: on-disk format only.
+    /// Checked before the embedder is loaded so a check with nothing to score
+    /// never pays a model load.
+    pub fn validate_format(&self) -> std::result::Result<(), String> {
         if self.version != ARTIFACT_VERSION {
             return Err(format!(
                 "was written by another argot version (format v{}, this binary expects v{ARTIFACT_VERSION})",
                 self.version
             ));
         }
-        let current = ModelIdentity::current();
+        Ok(())
+    }
+
+    /// Validate against the embedder actually loaded — the identity that will
+    /// query this index, which is not necessarily the one the build pins.
+    pub fn validate_for(&self, model: &dyn EmbeddingModel) -> std::result::Result<(), String> {
+        self.validate_against(&ModelIdentity::of(model))
+    }
+
+    fn validate_against(&self, current: &ModelIdentity) -> std::result::Result<(), String> {
+        if self.version != ARTIFACT_VERSION {
+            return Err(format!(
+                "was written by another argot version (format v{}, this binary expects v{ARTIFACT_VERSION})",
+                self.version
+            ));
+        }
         match &self.model {
             None => return Err("predates model-identity tracking".to_string()),
-            Some(m) if *m != current => {
+            Some(m) if m != current => {
                 return Err(format!(
                     "was built with a different embedding model ({} dim {})",
                     m.name, m.dim
@@ -661,10 +728,10 @@ impl SemanticArtifact {
             Some(_) => {}
         }
         for (lang, j) in &self.languages {
-            if j.dim != EMBED_DIM {
+            if j.dim != current.dim {
                 return Err(format!(
-                    "{lang} index is {}-dimensional, this model embeds {EMBED_DIM}",
-                    j.dim
+                    "{lang} index is {}-dimensional, this model embeds {}",
+                    j.dim, current.dim
                 ));
             }
         }
@@ -711,3 +778,10 @@ impl SemanticArtifact {
 
 #[cfg(test)]
 mod tests;
+
+/// Quantise one component to int8 with a shared scale, saturating rather than
+/// wrapping — a wrapped component would flip a vector's direction.
+fn quantize(x: f32, scale: f32) -> i8 {
+    let q = (x / scale).round();
+    q.clamp(-127.0, 127.0) as i8
+}

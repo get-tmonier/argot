@@ -113,10 +113,8 @@ argot init
 ```
 
 Fits the voice, writes `argot.toml` if absent, and builds the semantic index.
-First run downloads the ~100 MB jina-code embedding model to
-`~/.cache/argot/models/` — say so up front so the wait is expected. Offline?
-`ARGOT_SEMANTIC_MODEL` points at a local gguf, `ARGOT_OFFLINE=1` skips it, and a
-failed download is always verbalized, never silent.
+The embedding model ships inside the binary, so nothing is downloaded and this
+works on a machine with no network.
 
 Then read the health **programmatically**:
 
@@ -207,20 +205,16 @@ vocabulary* (a library only tests use stops reading as foreign) but never their
 *style*. Needs a refit. Do **not** reach for `foreign-import = { exclude = [...] }`
 here — that discards the real signal of a test grabbing a brand-new dependency.
 
-## 7 · Conventions — a shortlist, not a dump
+## 7 · Do not turn setup into a custom-rule workshop
 
-```sh
-argot conventions --format json
-```
+`argot conventions` is useful in phase 4 to choose a deliberately foreign
+import, but **do not mine conventions or write custom rules during the core
+setup**. The user is still deciding what belongs in the voice, whether to
+baseline, and where Argot runs. A rule written before those decisions settle is
+usually a frozen accident, and a catalog of every observed pattern is noise.
 
-Lists what the repo already does: naming, syntax idioms, familiar imports,
-typical calls per area. **Do not relay it wholesale.** Present at most a handful,
-ranked by one criterion: *would a rule for this have caught something in the
-audit window?* A convention that is strongly attested, mechanically checkable,
-and has real violations in recent history is worth a rule. Everything else is
-noise at setup time.
-
-Hand any they pick to **argot-write-rule**.
+The one opt-in exploration belongs after the setup summary (phase 11). It is
+not part of a successful fit and it must never be implied by installing Argot.
 
 ## 8 · Where it runs — decide local and CI together
 
@@ -268,7 +262,7 @@ name: argot
 on:
   pull_request:
   push:
-    branches: [main]   # the run that fits the model every PR then reads
+    branches: [main]   # the run that refreshes the fitted artifacts PRs reuse
 
 permissions:
   contents: read
@@ -289,9 +283,9 @@ Two things must be said, or the tool gets judged on its worst run:
 
 1. **Keep both triggers.** Fitting is nearly the whole cost; the check is
    seconds. The `push` run on the default branch is the *producer* — it fits and
-   publishes the model into a cache slot, after merge, on nobody's critical
-   path. Each `pull_request` is a *consumer* and pays nothing. Drop the `push`
-   trigger and every PR pays the fit.
+   publishes the resulting `.argot/` artifacts into a cache slot, after merge,
+   on nobody's critical path. Each `pull_request` is a *consumer* and pays
+   nothing. Drop the `push` trigger and every PR pays the fit.
 2. **The cache only exists once this workflow is on the default branch.** Until
    it is merged, every PR run is a cold fit and looks slow. Tell them before
    they conclude argot is slow — the first run is the slow one, by design.
@@ -318,6 +312,71 @@ demonstrate the tool.
 
 Optional: `argot describe-voice --out STYLE.md` writes a committed,
 human-readable description of what argot learned.
+
+## 11 · Optional: find the conventions only Argot should enforce
+
+**Ask only after phase 10, and make "no" entirely normal:**
+
+> "Would you like an opt-in, read-only exploration for one or two team
+> conventions that are genuinely worth an Argot custom rule? It examines the
+> fitted history and repository structure; it will propose nothing generic and
+> will not create a rule without another explicit approval."
+
+If the user declines, stop. Do not mention the option again in this setup.
+
+If they accept, do a **complete but selective** exploration:
+
+1. Start from `argot conventions --format json`, the audit saved in phase 1,
+   `argot rules`, the existing `argot.toml`, and `.argot/rules/`. Read the
+   canonical source files behind the strongest placement candidates and use
+   `git log` / `git blame` only to establish that the pattern is a durable team
+   decision, not a one-off refactor. Also look for change-coupled contracts:
+   API descriptions and routes, shared interfaces and implementations,
+   migrations and schemas, and code whose removal has a release or
+   compatibility protocol.
+2. Reject aggressively. Do **not** propose formatting, naming, import order,
+   deprecated APIs, generic security checks, or a one-file syntax shape that
+   OXLint/ESLint/a normal linter can own just as well. Do not duplicate a
+   built-in Argot rule. A mined migration becomes `[[migration]]`, not a custom
+   rule. Reject any idea that needs type inference or cross-file binding
+   resolution Argot does not have, any weakly confined placement, and any rule
+   whose canonical remedy cannot be named in one sentence.
+3. Keep only candidates with a strong **Argot-only information advantage**:
+   - the pre-image (`ts_query_old` / `file.old_text`) makes the policy about
+     something removed, not merely code that exists now;
+   - `changeset_paths()` makes the policy about a missing companion change;
+   - `read_repo_file()` / `repo_paths()` make it about a committed contract and
+     its siblings, not a copied list that will go stale;
+   - `import_attested()` / `callee_attested()` make the repository's fitted
+     history the allowlist, rather than a hard-coded dependency list; or
+   - a highly concentrated placement convention from `argot conventions`
+     makes the team's actual architecture the policy (feature F belongs in L,
+     so F outside L is the violation).
+4. Return **zero to three** candidates, never a dump. For each, show: the
+   actual convention and why it matters; the supporting counts and locations
+   (`concentration`, `home_files`, `out_files`, audit/history evidence); one
+   canonical good example and one plausible bad change; the precise host API
+   that gives Argot an advantage over a conventional linter; the syntactic
+   shape that can be detected; its proposed scope; and why the existing leaks
+   are legitimate exceptions, existing debt, or a reason to reject it. Zero
+   candidates is a successful result.
+5. Ask separately which, if any, the user wants codified. **Exploration does
+   not authorize writing `.argot/rules/`.** For a mined placement candidate use
+   `argot-suggest-rules`; for an explicitly stated convention use
+   `argot-write-rule`.
+6. For every approved rule, create fixtures before the script: at minimum a
+   firing case and a silent canonical case; add `old.<ext>` and fixture sibling
+   files when it relies on a pre-image or repository reads. Loop
+   `argot rules test <name>` until green, then prove the rule on a throwaway
+   real diff and revert that diff. Learned-attestation calls return `false` in
+   the fixture harness, so test their unattested branch in fixtures and their
+   attested branch only in the live check. Start at `warn`; offer `error` or a
+   lock only after real PRs establish there are no legitimate exceptions.
+
+The short version to repeat to the user: **custom rules are repository policy
+code, not a place to recreate a linter's rule list.** Their value is the
+team-specific context Argot alone already carries; their safety comes from
+evidence, a narrow scope, a silent fixture, and a live-diff proof.
 
 ---
 

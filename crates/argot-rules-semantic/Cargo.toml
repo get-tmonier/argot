@@ -8,7 +8,7 @@ repository.workspace = true
 # Internal crate: shipped only inside the `argot` binary, never published to
 # crates.io (path deps forbid it). Marked non-publishable so it cannot leak.
 publish = false
-description = "The semantic rule group: per-repo code embeddings powering the reinvention (F1) and placement (F2) findings, plus F4 nearest-code evidence. No cargo features — the whole crate IS the feature, gated one layer up by argot-core's optional dependency."
+description = "The semantic rule group: per-repo code embeddings powering the reinvention (F1) and placement (F2) findings, plus F4 nearest-code evidence. Pure Rust — the distilled embedder's weights ship inside the binary. No cargo features: the whole crate IS the feature, gated one layer up by argot-core's optional dependency."
 
 [dependencies]
 argot-engine = { path = "../argot-engine" }
@@ -18,19 +18,10 @@ serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 git2.workspace = true
-
-# --- semantic layer: llama.cpp in-process code embeddings ---
-# No accel backend here; macOS adds Metal via the target table below.
-llama-cpp-2 = { workspace = true }
-ureq = { workspace = true }
 half = { workspace = true }
 base64 = { workspace = true }
-
-# Metal acceleration on macOS only. Cargo unifies this with the base entry
-# above, so a macOS build links llama.cpp with Metal while Linux/Windows fall
-# back to CPU (the release matrix wires other backends).
-[target.'cfg(target_os = "macos")'.dependencies]
-llama-cpp-2 = { workspace = true, features = ["metal"] }
+safetensors = "0.8.0"
+tokenizers.workspace = true
 
 [dev-dependencies]
 serde.workspace = true

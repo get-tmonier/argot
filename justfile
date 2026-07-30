@@ -50,8 +50,8 @@ bench-quick:
 # over every corpus with fixtures. Builds the semantic binary (feature is off in
 # dev/CI, on only for shipped builds), then runs the unified driver. Pass corpora
 # to scope (`just bench-semantic rich hono`); needs numpy + PyYAML
-# (benchmarks/requirements.txt) and the jina GGUF (auto-downloaded, or
-# ARGOT_SEMANTIC_MODEL=<path>). Robust: each fit is timeout+retry-guarded so one
+# (benchmarks/requirements.txt) — the embedder is compiled into the binary, so
+# there is no model to fetch. Robust: each fit is timeout+retry-guarded so one
 # huge corpus (e.g. dagster, 14.8k fns) can't stall.
 #
 # Runs SEM_JOBS corpora concurrently (default 4), each argot capped to
@@ -151,11 +151,24 @@ _disk-guard:
 # The feature-gated slices, which `verify`'s featureless base loop does not
 # build. Release binaries ship every one of them, so a green base loop verifies
 # a configuration nobody runs: a test asserting behaviour that had changed sat
-# green locally through several pushes and only failed in CI. These three are
-# pure Rust and cost seconds; `semantic` needs the llama.cpp C++ build and stays
-# CI-only (see "Keep PR CI fast").
+# green locally through several pushes and only failed in CI.
+#
+# `semantic` was excluded here while it linked llama.cpp from source. It is pure
+# Rust now, and the exclusion is exactly what let a release-only build break go
+# unnoticed — the featureless loop reported "all checks passed" while
+# `--features self-update,semantic` did not compile. It is in the loop.
 verify-features:
-    for f in script arch integrity; do \
+    # The combination release binaries actually ship (dist-workspace.toml). The
+    # per-feature loop below cannot see a gap that needs two slices at once:
+    # `update_check` (self-update) referenced a symbol owned by `semantic`, so
+    # every single-feature build was green and only the release combo failed.
+    cargo check -p argot --features self-update,semantic,arch,integrity,script
+    # `self-update` is in this loop because it was in no loop at all: the base
+    # build omits it and the combo above hides a break inside it behind the
+    # other four. A `#[cfg(feature = "semantic")]` left stranded on `update`'s
+    # return value compiled fine in both, and would only have failed for
+    # someone building `--features self-update` on its own.
+    for f in script arch integrity semantic self-update; do \
         cargo clippy --workspace --all-targets --features "$f" -- -D warnings || exit 1; \
         cargo test --workspace --features "$f" || exit 1; \
     done

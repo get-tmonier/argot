@@ -120,5 +120,6 @@ export interface SiteContent {
     readonly docs: string;
     readonly npm: string;
     readonly privacy: string;
+    readonly acknowledgements: string;
   };
 }

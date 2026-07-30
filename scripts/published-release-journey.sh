@@ -6,6 +6,7 @@ set -euo pipefail
 
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 release_tag=${ARGOT_RELEASE_TAG:-latest}
+expect_embedded_semantic=${ARGOT_EXPECT_EMBEDDED_SEMANTIC:-false}
 fixture=${1:-"$root/.github/fixtures/release-journey/app.py"}
 work=$(mktemp -d "${TMPDIR:-/tmp}/argot-published-release.XXXXXX")
 home="$work/home"
@@ -65,21 +66,6 @@ test -x "$binary"
 "$binary" --version
 test -f "$config/argot/argot-receipt.json"
 
-# A fresh cache in offline mode must neither fetch nor pretend that a model is
-# ready. Afterwards the explicit fetch is checked again with networking off.
-ARGOT_OFFLINE=1 "$binary" model status > "$work/offline-status.txt"
-grep -F 'model: not downloaded' "$work/offline-status.txt" > /dev/null
-set +e
-ARGOT_OFFLINE=1 "$binary" model fetch > "$work/offline-fetch.txt" 2>&1
-offline_status=$?
-set -e
-test "$offline_status" -eq 2
-grep -F 'ARGOT_OFFLINE' "$work/offline-fetch.txt" > /dev/null
-"$binary" model fetch > "$work/fetch.txt"
-grep -F 'model ready:' "$work/fetch.txt" > /dev/null
-ARGOT_OFFLINE=1 "$binary" model status > "$work/cached-status.txt"
-grep -F 'sha256 verified' "$work/cached-status.txt" > /dev/null
-
 cp "$fixture" "$repo/app.py"
 git -C "$repo" init -q
 git -C "$repo" config user.name 'Argot release fixture'
@@ -93,6 +79,23 @@ git -C "$repo" commit -qm 'fixture history'
 ARGOT_OFFLINE=1 "$binary" audit --repo "$repo" --commits 1 --format json > "$work/audit.json"
 ARGOT_OFFLINE=1 "$binary" init --repo "$repo" > "$work/init.txt"
 test -f "$repo/.argot/scorer-config.json"
+# A pull request exercises the latest already-published binary, while a release
+# event exercises the binary it just published. Keep those contracts explicit:
+# v0.2.112 correctly skips semantic work offline; the release made by this PR
+# must instead build its embedded semantic index with no download.
+case "$expect_embedded_semantic" in
+    true|1)
+        test -f "$repo/.argot/semantic-index.json"
+        ;;
+    false|0|'')
+        test ! -e "$repo/.argot/semantic-index.json"
+        ;;
+    *)
+        printf 'ARGOT_EXPECT_EMBEDDED_SEMANTIC must be true or false, got %s\n' \
+            "$expect_embedded_semantic" >&2
+        exit 2
+        ;;
+esac
 printf '\nimport requests\n' >> "$repo/app.py"
 set +e
 ARGOT_OFFLINE=1 "$binary" check --repo "$repo" --format json > "$work/finding.json"

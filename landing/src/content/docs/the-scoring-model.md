@@ -109,11 +109,16 @@ included in the output, and every rule's severity is configurable — see
 ## The semantic layer
 
 Separate from the BPE model above, argot keeps a per-repo **code-embedding index**. At fit it embeds
-every function with a small local model (`jina-embeddings-v2-base-code`, Q4 GGUF, ~100 MB, statically
-linked via llama.cpp — CPU-first, Metal-accelerated on macOS; fetched once to a local cache on first
-use, ~250 MB peak RAM while a check embeds) and stores the vectors in `.argot/semantic-index.json`.
-It turns a function into a vector — no prompt, no generation, nothing leaves your machine; offline,
-the layer no-ops and the base guardrail still runs.
+every function with a small model that ships inside the binary — a 15.6 MB static token-embedding
+table distilled from `jina-embeddings-v2-base-code` — and stores the vectors in
+`.argot/semantic-index.json`. There is nothing to download and no cache to warm: it works on an
+air-gapped machine, on the first run, on every platform argot ships for. It turns a function into a
+vector — no prompt, no generation, nothing leaves your machine.
+
+Being a table lookup rather than a transformer is what makes it cheap: the semantic embedding pass
+across a whole repository takes seconds rather than the tens of minutes a transformer took, and it
+runs in tens of MB of RAM. Full fit time still depends on history processing and calibration, with
+no accelerator. That cost is why the layer is on by default rather than an opt-in extra.
 
 At check, each new function is embedded and matched against the index:
 
@@ -125,7 +130,7 @@ At check, each new function is embedded and matched against the index:
 Both findings are pinned to the `unusual` **confidence** tier (the evidence is a similarity lookup)
 and carry severity `error` by default — they fail the check like any other rule, and they're one
 `[rules]` line to downgrade (`redundant = "warn"`, or `semantic = "off"` for the whole group; with
-the group off, fit and check skip the model download and the index entirely). Real repos hold real
+the group off, fit and check skip the embedding pass and the index entirely). Real repos hold real
 duplication and cross-cutting code, so argot shows the nearest existing function and lets you
 judge. This channel is separate from the foreign-catch metric — it does not change the base model's
 catch or false-alarm numbers.

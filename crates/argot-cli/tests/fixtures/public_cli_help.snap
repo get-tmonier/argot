@@ -18,8 +18,8 @@ Commands:
   status          Show the current repository's argot state
   list            List all registered repositories
   update          Update the argot CLI to the latest release
-  cache           Inspect or clear the machine-wide cache (`~/.cache/argot`): the downloaded model and the embedding cache
-  uninstall       Remove argot from this machine: every repo's artifacts, the model cache, global state, and the binary (shows the full list first)
+  cache           Inspect or clear the machine-wide embedding cache (`~/.cache/argot`)
+  uninstall       Remove argot from this machine: every repo's artifacts, the machine cache, global state, and the binary (shows the full list first)
   mcp             Run a Model Context Protocol server for LLM coding agents (stdio)
   describe-voice  Generate a STYLE.md describing the repo's learned voice
   conventions     List the conventions this repo already follows — naming, syntax idioms, familiar imports, and typical calls by area — from the fitted model
@@ -31,78 +31,6 @@ Options:
 
 Docs: https://argot.tmonier.com/docs/
 Coding agents: https://argot.tmonier.com/llms.txt
-===== root-semantic =====
-Surface repository-grounded divergence before code is accepted.
-
-Usage: argot [COMMAND]
-
-Commands:
-  audit           Audit recent history for patterns that would have prompted review. It scores the surviving base-to-head change and classifies only explicit AI markers; informational, exits 0
-  init            Set up argot for this repo: fit the voice model and report its health (`--suggest` lists directories you may want to exclude first)
-  fit             Fit the voice model to this repo (train + calibrate, one-shot)
-  check           Check code changes against the calibrated scorers
-  rules           List every rule with its group and effective severity for this repo
-  model           Manage the local embedding model behind the semantic rules
-  review          Score a PR (or diff range) against the local voice without checking it out
-  voice-diff      PR-level out-of-voice metric plus ranked hot-spots for a ref/range. Informational: always exits 0 (use `check`/`review` to gate)
-  inspect         Report corpus composition, calibration health, and repo suitability
-  mute            Mute a hit by hash (appends a [[mute]] to argot.toml)
-  list-mutes      List active suppressions across argot.toml [exclude], inline comments, and argot.toml [[mute]]
-  review-mutes    Re-score muted files and report which suppressions no longer fire
-  status          Show the current repository's argot state
-  list            List all registered repositories
-  update          Update the argot CLI to the latest release
-  cache           Inspect or clear the machine-wide cache (`~/.cache/argot`): the downloaded model and the embedding cache
-  uninstall       Remove argot from this machine: every repo's artifacts, the model cache, global state, and the binary (shows the full list first)
-  mcp             Run a Model Context Protocol server for LLM coding agents (stdio)
-  describe-voice  Generate a STYLE.md describing the repo's learned voice
-  conventions     List the conventions this repo already follows — naming, syntax idioms, familiar imports, and typical calls by area — from the fitted model
-  help            Print this message or the help of the given subcommand(s)
-
-Options:
-  -h, --help     Print help
-  -V, --version  Print version
-
-Docs: https://argot.tmonier.com/docs/
-Coding agents: https://argot.tmonier.com/llms.txt
-
-===== model =====
-Manage the local embedding model behind the semantic rules
-
-Usage: argot model <COMMAND>
-
-Commands:
-  fetch   Download and verify the model now (instead of on first use)
-  status  Show whether the model is present, where, and its size
-  clean   Delete the model cache (re-fetched on next use)
-  help    Print this message or the help of the given subcommand(s)
-
-Options:
-  -h, --help  Print help
-
-===== model-fetch =====
-Download and verify the model now (instead of on first use)
-
-Usage: argot model fetch
-
-Options:
-  -h, --help  Print help
-
-===== model-status =====
-Show whether the model is present, where, and its size
-
-Usage: argot model status
-
-Options:
-  -h, --help  Print help
-
-===== model-clean =====
-Delete the model cache (re-fetched on next use)
-
-Usage: argot model clean
-
-Options:
-  -h, --help  Print help
 
 ===== audit =====
 Audit recent history for patterns that would have prompted review. It scores the surviving base-to-head change and classifies only explicit AI markers; informational, exits 0
@@ -246,6 +174,7 @@ Options:
       --corpus           List the files that would shape the voice, one per line, and exit. The same walk `fit` uses — a corpus preview that needs no fit
       --format <FORMAT>  Output format: human (terminal) or json (stable machine-readable) [default: human] [possible values: human, json]
   -h, --help             Print help
+
 ===== mute =====
 Accept a finding: by hash for one hit, or `--path` for a standing rule covering a whole tree (appends a [[mute]] to argot.toml)
 
@@ -260,6 +189,7 @@ Options:
       --reason <REASON>  Why this hit is muted (recorded in argot.toml [[mute]])
       --expires <DAYS>   Auto-expire the mute after N days (e.g. `30d`)
   -h, --help             Print help
+
 ===== list-mutes =====
 List active suppressions across argot.toml [exclude], inline comments, and argot.toml [[mute]]
 
@@ -305,28 +235,27 @@ Options:
   -h, --help  Print help
 
 ===== cache =====
-Inspect or clear the machine-wide cache (`~/.cache/argot`): the downloaded model and the embedding cache
+Inspect or clear the machine-wide embedding cache (`~/.cache/argot`)
 
 Usage: argot cache [COMMAND]
 
 Commands:
-  clear  Delete the embedding cache (and, with --all, the downloaded model)
+  clear  Delete the embedding cache (functions re-embed on the next fit)
   help   Print this message or the help of the given subcommand(s)
 
 Options:
   -h, --help  Print help
 
 ===== cache-clear =====
-Delete the embedding cache (and, with --all, the downloaded model)
+Delete the embedding cache (functions re-embed on the next fit)
 
-Usage: argot cache clear [OPTIONS]
+Usage: argot cache clear
 
 Options:
-      --all   Also remove the downloaded embedding model (re-fetched on next use)
   -h, --help  Print help
 
 ===== uninstall =====
-Remove argot from this machine: every repo's artifacts, the model cache, global state, and the binary (shows the full list first)
+Remove argot from this machine: every repo's artifacts, the machine cache, global state, and the binary (shows the full list first)
 
 Usage: argot uninstall [OPTIONS]
 

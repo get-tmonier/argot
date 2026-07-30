@@ -37,7 +37,7 @@ pub(super) enum SemanticHitEvidence {
     },
 }
 /// The semantic group's detection pass. Skipped whole when both semantic
-/// rules are off: no index load, no model download, no cost.
+/// rules are off: no index load, no embedder load, no cost.
 ///
 /// Fit side: the index build observes the calibration loop's own corpus
 /// reads through [`Detector::fit_begin`] (embedder + prior artifact + cache
@@ -46,7 +46,7 @@ pub(super) enum SemanticHitEvidence {
 /// corpus read, per-language diagnostics kept in order, and no dependency
 /// from the base calibration onto this slice.
 pub struct SemanticDetector {
-    embedder: Option<crate::embedder::Embedder>,
+    embedder: Option<Box<dyn crate::embedding::EmbeddingModel>>,
     embed_cache: Option<crate::embed_cache::EmbedCache>,
     prior_artifact: Option<crate::index::SemanticArtifact>,
     /// The artifact under construction (`Some` once `fit_begin` ran).
@@ -94,12 +94,13 @@ impl Detector for SemanticDetector {
             None
         } else {
             let _t = argot_engine::timing::phase("calibrate: embedder load");
-            match crate::embedder::Embedder::ready() {
+            match load_embedder() {
                 Ok(e) => e,
                 Err(e) => {
-                    // Degrade to no-semantic-index, but NEVER silently: a load failure
-                    // (GPU memory pressure, corrupt model) must be visible, or a bench
-                    // records "0 recall" where the truth is "no embedder".
+                    // The weights are compiled in, so this only fires when
+                    // ARGOT_STATIC_MODEL points somewhere broken. Degrade to
+                    // no-semantic-index, but NEVER silently, or a sweep records
+                    // "0 recall" where the truth is "no embedder".
                     eprintln!(
                         "argot: semantic model failed to load — skipping semantic index: {e:#}"
                     );
@@ -107,6 +108,9 @@ impl Detector for SemanticDetector {
                 }
             }
         };
+        if let (Some(a), Some(m)) = (self.artifact.as_mut(), self.embedder.as_deref()) {
+            a.set_model(m);
+        }
         // The machine-wide embed cache: a fresh clone or audit worktree of an
         // already-seen repo reuses vectors across checkouts, not just within one.
         self.embed_cache = if self.embedder.is_some() {
@@ -124,7 +128,10 @@ impl Detector for SemanticDetector {
             std::fs::read_to_string(ctx.output.with_file_name(crate::SEMANTIC_INDEX_FILE))
                 .ok()
                 .and_then(|raw| crate::index::SemanticArtifact::from_json_str(&raw).ok())
-                .filter(|a| a.validate_current().is_ok())
+                .filter(|a| match self.embedder.as_deref() {
+                    Some(m) => a.validate_for(m).is_ok(),
+                    None => a.validate_current().is_ok(),
+                })
         };
     }
 
@@ -169,7 +176,7 @@ impl Detector for SemanticDetector {
         );
         let mut t_embed = argot_engine::timing::phase(String::new());
         match crate::index::SemanticIndex::build_with_reuse(
-            emb,
+            emb.as_ref(),
             &funcs,
             prior_index.as_ref(),
             self.embed_cache.as_ref(),
@@ -225,7 +232,7 @@ impl Detector for SemanticDetector {
             }
             Ok(_) => {}
             // `{e:#}` prints anyhow's full cause chain — the inner
-            // llama.cpp/tokenizer detail, not just the outer context.
+            // tokenizer/tensor detail, not just the outer context.
             Err(e) => eprintln!("argot: semantic index for {name} failed: {e:#}"),
         }
     }
@@ -270,6 +277,14 @@ impl Detector for SemanticDetector {
 /// The semantic pass (F1 reinvention, F2 placement) — additive `Finding`s from
 /// the per-repo embedding index. It runs *alongside* the
 /// statistical scorers, never through them: it reads `.argot/semantic-index.json`
+/// Acquire the embedder for this run. argot ships its weights, so this needs no
+/// file, no cache and no network; `Ok(None)` is kept in the signature because a
+/// corrupt build should degrade to the base guardrail rather than abort.
+fn load_embedder() -> anyhow::Result<Option<Box<dyn crate::embedding::EmbeddingModel>>> {
+    Ok(crate::static_embedder::StaticEmbedder::ready()?
+        .map(|e| Box::new(e) as Box<dyn crate::embedding::EmbeddingModel>))
+}
+
 /// plus the embedder, finds the functions the diff *defines*, and flags any that
 /// reinvent existing code. Returns extra hits to merge into the report. Empty
 /// (a clean graceful degrade) when the index or model is unavailable, so the
@@ -286,7 +301,6 @@ fn semantic_hits(
     repo_langs: argot_lang::ext::RepoLangs,
     stderr: &mut String,
 ) -> Vec<Finding> {
-    use crate::embedder::Embedder;
     use crate::index::{functions_in_file, FunctionRef, LoadedIndex, SemanticArtifact};
     use crate::placement::PlacementScorer;
     use crate::redundant::RedundantScorer;
@@ -307,7 +321,7 @@ fn semantic_hits(
     t_art.done();
     // A stale index (older format, different embedding model) must never be
     // queried — its cosines would be silently wrong. Loud skip + rebuild hint.
-    if let Err(reason) = artifact.validate_current() {
+    if let Err(reason) = artifact.validate_format() {
         stderr.push_str(&format!(
             "[argot] semantic index {reason} — run `argot fit` to rebuild; \
              redundant/misplaced checks skipped this run\n"
@@ -382,11 +396,11 @@ fn semantic_hits(
 
     // Acquire the embedder once; unavailable model → degrade (no semantic hits).
     let t_model = argot_engine::timing::phase("check: semantic embedder load");
-    let embedder = match Embedder::ready() {
+    let embedder = match load_embedder() {
         Ok(Some(e)) => e,
         Ok(None) => {
             stderr.push_str(
-                "[argot] semantic model unavailable — redundant/misplaced checks skipped this run\n",
+                "[argot] no semantic model — redundant/misplaced checks skipped this run\n",
             );
             return Vec::new();
         }
@@ -398,19 +412,31 @@ fn semantic_hits(
 
     t_model.done();
 
+    // The index must have been built by the embedder about to query it, or the
+    // cosines would be silently wrong. Loud skip + rebuild hint.
+    if let Err(reason) = artifact.validate_for(embedder.as_ref()) {
+        stderr.push_str(&format!(
+            "[argot] semantic index {reason} — run `argot fit` to rebuild; \
+             redundant/misplaced checks skipped this run\n"
+        ));
+        return Vec::new();
+    }
+
     // Embed all candidate functions in one batch, serving any the machine-wide
     // cache already holds (e.g. functions a fit of this repo indexed at HEAD).
     let t_embed =
         argot_engine::timing::phase(format!("check: semantic embed ({} fns)", candidates.len()));
     let embed_cache = crate::embed_cache::EmbedCache::open_current();
     let texts: Vec<&str> = candidates.iter().map(|(_, _, f)| f.text.as_str()).collect();
-    let vecs = match crate::embed_cache::embed_with_cache(&embedder, &texts, embed_cache.as_ref()) {
-        Ok(v) => v,
-        Err(e) => {
-            stderr.push_str(&format!("[argot] semantic embedding failed: {e}\n"));
-            return Vec::new();
-        }
-    };
+    let vecs =
+        match crate::embed_cache::embed_with_cache(embedder.as_ref(), &texts, embed_cache.as_ref())
+        {
+            Ok(v) => v,
+            Err(e) => {
+                stderr.push_str(&format!("[argot] semantic embedding failed: {e}\n"));
+                return Vec::new();
+            }
+        };
     t_embed.done();
     let _t_score = argot_engine::timing::phase("check: semantic score candidates");
 

@@ -12,7 +12,7 @@
 //! same machine into a lookup.
 //!
 //! Correctness: the cache directory is namespaced by the model's sha256, and
-//! [`Embedder::embed`](super::embedder::Embedder::embed) canonicalises every
+//! [`EmbeddingModel::embed`](super::embedding::EmbeddingModel::embed) canonicalises every
 //! vector to f16 precision — exactly the precision the on-disk artifact and
 //! this cache store — so a cache hit is *bit-identical* to a fresh embed and
 //! can never change a finding.
@@ -28,10 +28,10 @@ use std::path::{Path, PathBuf};
 
 use half::f16;
 
-use super::embedder::{EMBED_DIM, MODEL_SHA256};
-
 /// One record: the 8-byte content key + the f16 vector.
 const KEY_BYTES: usize = 8;
+/// On-disk record width, set from the model whose vectors the cache holds.
+const EMBED_DIM: usize = 256;
 const VEC_BYTES: usize = EMBED_DIM * 2;
 const RECORD_BYTES: usize = KEY_BYTES + VEC_BYTES;
 
@@ -54,7 +54,7 @@ impl EmbedCache {
         let dir = argot_engine::cache::cache_dir()
             .ok()?
             .join("embeddings")
-            .join(&MODEL_SHA256[..16]);
+            .join(model_namespace()?);
         Some(Self::open_at(dir))
     }
 
@@ -139,10 +139,10 @@ impl EmbedCache {
 /// Embed `texts` through the cache: serve every text whose vector is already
 /// cached, embed only the misses, and persist those for the next encounter.
 /// Order-preserving; with `cache: None` it is exactly `embedder.embed`.
-/// Because [`Embedder::embed`](super::embedder::Embedder::embed) canonicalises
+/// Because [`EmbeddingModel::embed`](super::embedding::EmbeddingModel::embed) canonicalises
 /// to the cache's f16 precision, a hit is bit-identical to a fresh embed.
 pub fn embed_with_cache(
-    embedder: &super::embedder::Embedder,
+    embedder: &dyn super::embedding::EmbeddingModel,
     texts: &[&str],
     cache: Option<&EmbedCache>,
 ) -> anyhow::Result<Vec<Vec<f32>>> {
@@ -233,3 +233,11 @@ fn gc_to_cap(dir: &Path, cap: u64) {
 
 #[cfg(test)]
 mod tests;
+
+/// Cache namespace: the fingerprint of the model whose vectors it holds, so a
+/// model change starts a fresh namespace instead of mixing two spaces.
+fn model_namespace() -> Option<String> {
+    use super::embedding::EmbeddingModel;
+    let m = super::static_embedder::StaticEmbedder::embedded().ok()?;
+    Some(m.fingerprint()[..16].to_string())
+}

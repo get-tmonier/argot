@@ -48,9 +48,6 @@ struct State {
     /// Latest published release version.
     #[serde(default)]
     latest: Option<String>,
-    /// Model release tag the latest binary pins.
-    #[serde(default)]
-    model_tag: Option<String>,
     /// Latest published skills bundle generation.
     #[serde(default)]
     skills_version: Option<u32>,
@@ -256,29 +253,12 @@ pub fn run_refresh() {
                 })
             {
                 state.latest = doc["latest"].as_str().map(String::from);
-                state.model_tag = doc["model_tag"].as_str().map(String::from);
                 state.skills_version = doc["skills_version"].as_u64().map(|v| v as u32);
             }
             write_state(&state);
         }
         // Network failure: record the attempt so we don't retry for a day.
         Err(_) => write_state(&state),
-    }
-}
-
-/// Post-`argot update` note: did the release we just installed change the
-/// pinned embedding model? (Compares the published tag against the tag THIS
-/// (old) binary pins — a difference means the next fit re-downloads.)
-#[cfg(feature = "semantic")]
-pub fn model_change_note() {
-    let state = read_state();
-    if let Some(remote_tag) = state.model_tag {
-        if remote_tag != argot_core::scoring::semantic::embedder::model_tag() {
-            eprintln!(
-                "note: this release changed the embedding model — the next `argot fit` \
-                 downloads ~100 MB and rebuilds the semantic index"
-            );
-        }
     }
 }
 
@@ -311,7 +291,6 @@ mod tests {
             last_checked: 42,
             etag: Some("abc".into()),
             latest: Some("0.3.0".into()),
-            model_tag: Some("semantic-model-v1".into()),
             skills_version: Some(2),
             last_notified: 41,
             notified_skills_version: Some(2),

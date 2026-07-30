@@ -116,7 +116,7 @@ anything as current unless it is confirmed there.
 - Detectors shipped in the release binary: `foreign-import` (+ friends), `superseded`, `redundant`, `misplaced`, `layering`, `test-deleted/-disabled/-weakened`, custom scripted rules, locked rules, `rule-tampered`.
 - CI: a non-blocking GitHub Action (score card + annotations), SARIF, JSON, GitHub annotations, live badge.
 - Distribution: shell/powershell installers, npm `@tmonier/argot`; macOS arm64/x64, Linux x64/arm64, Windows x64.
-- Privacy: **no telemetry**; only default egress is a suppressible once-per-24h update check and a one-time ~100 MB model download for the semantic detectors.
+- Privacy: **no telemetry**; the only default egress is a suppressible once-per-24h update check. The semantic detectors' embedding model ships inside the binary, so analysis needs no network at all.
 - Agent surface: Claude Code plugin (six skills + passive MCP server + a pre-write `foreign-import` "ask" guardrail); other agents via a third-party skills installer.
 
 **Not yet real (do not market as present):**
@@ -290,8 +290,8 @@ The logic that: detects findings; computes scores; determines severity; decides 
 violated; produces machine-readable evidence; and affects exit codes or automated enforcement.
 
 **Current reality.** This path is statistics (frequency tables + callee clustering) plus, for
-`redundant` and `misplaced`, a **local, deterministic code-embedding encoder** (jina-code via
-statically linked llama.cpp). The encoder is a fixed model that turns code into vectors; it is not a
+`redundant` and `misplaced`, a **local, deterministic code-embedding encoder** (a distilled
+static table compiled into the binary). The encoder is a fixed model that turns code into vectors; it is not a
 generative or opinion-forming model. `layering` uses a module-dependency graph; the integrity rules
 use a tree-sitter test inventory. All of it runs locally and is reproducible.
 
@@ -337,7 +337,7 @@ these but may not exceed them.
 | **D10** | "Voice" is demoted from positioning to a secondary brand and visual metaphor; it never carries the explanatory load. | Active | Describes the shrinking style axis; undersells trust and awareness. | Research shows "voice" is the phrase users actually adopt (§18). | 2026-07-22 |
 | **D11** | Keep the four positioning layers separate; do not compress them into one slogan. | Active | Collapsing them produces vague copy. | — | 2026-07-22 |
 | **D12** | No generative or opinion-forming model in the authoritative analytical core (§9). The existing local deterministic encoder is part of the core and is permitted. | Active | The core's value is reproducible evidence, not another model's opinion. | — (a deliberate architecture change, explicitly recorded). | 2026-07-22 |
-| **D13** | Local-first with no default telemetry. The only default egress is a suppressible once-per-24h update check and a one-time model download. Any retention measurement must be opt-in, anonymous, local-first. | Active | Neutrality and privacy are non-retrofittable trust assets. | A deliberate, documented reversal; none intended. | 2026-07-22 |
+| **D13** | Local-first with no default telemetry. The only default egress is a suppressible once-per-24h update check. Any retention measurement must be opt-in, anonymous, local-first. | Active | Neutrality and privacy are non-retrofittable trust assets. | A deliberate, documented reversal; none intended. | 2026-07-22 |
 | **D14** | Signal quality is existential; no detector ships default-gating above a defined noise threshold. | Active | A noisy accept-time check is worse than nothing. | — (threshold may be tuned; the principle holds). | 2026-07-22 |
 
 ---
@@ -354,7 +354,7 @@ Operational consequences of §10. Where a principle restates a decision, the dec
 6. **The individual local check stays free (D7).**
 7. **Cloud is never mandatory for the core check (D13).**
 8. **Local-first and neutrality are non-retrofittable trust assets (D13).**
-9. **Configuration is portable and user-owned.** *Current reality: `.argot/` and `argot.toml` are committed/portable.*
+9. **Configuration is portable and user-owned.** *Current reality: commit the reviewed `argot.toml`; rebuildable `.argot/` fit artifacts stay local or live in CI cache. Hand-written `.argot/rules/` custom rules are the exception and are committed.*
 10. **Stay embeddable.** Stable CLI, JSON, SARIF, hooks, agent integrations. *Note: JSON is stable-by-intent; a versioned schema is a P2 gap.*
 11. **No generative LLM in the authoritative core (D12).**
 12. **Do not reposition as "AI governance" prematurely (D6, D9).**
@@ -517,7 +517,7 @@ State the blind spot; state caveats once; let proof carry the rest.
 | "A repository-grounded check." | "An AI governance platform." | Premature governance framing (D6). |
 | "Runs locally; reproducible; no generative LLM in the core." | "Deterministic verification is our moat." / "No models at all." | Determinism is a real advantage but erodable as a moat; and a local encoder IS used (§9). |
 | "The onboarding aims to run it at the acceptance moment." | "Argot runs automatically before you accept." | Accept-time auto-run is a Product requirement, not shipped (§6). |
-| "All analysis is local; the only default egress is a suppressible update check and a one-time model download." | "Nothing ever leaves your machine." | Precise and true (§8, reality doc §3). |
+| "All analysis is local; the only default egress is a suppressible update check." | "Nothing ever leaves your machine." | Precise and true (§8, reality doc §3). |
 | "The individual local check is free." | (anything implying it may be paywalled) | D7. |
 | "Attributed from commit markers; a floor, not a census." | "It knows which code the AI wrote." | Attribution is marker-based and a floor (reality doc §1). |
 | "Here is what we cannot catch, and why." | (hiding the blind spot) | Honesty is a trust asset. |

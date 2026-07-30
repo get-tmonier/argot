@@ -22,9 +22,10 @@ aggregation stays sequential and ordered.
 - **`fit`** (once, then refreshed in the background) — walk the history,
   train the statistical voice model, calibrate thresholds, build the
   semantic index (embed every function), fit the architecture graph, and
-  learn the test-integrity gates from a replay of accepted history. On big
-  monorepos the semantic index dominates: tens of thousands of functions
-  through the embedding model.
+  learn the test-integrity gates from a replay of accepted history. The
+  embedded static table makes the semantic pass inexpensive; on a large
+  repository, history processing, calibration, and the integrity replay can
+  matter more than indexing the functions.
 - **`check`** (every diff) — statistical scoring per hunk, plus one
   embedding + index search per *new function the diff defines*, plus the
   architecture and integrity passes.
@@ -88,5 +89,5 @@ that split is the first thing to attach to an issue.
 ## CI
 
 The [GitHub Action](/docs/ci/) caches `.argot/` per base SHA. On large
-repos, also cache `~/.cache/argot` (the model download and the embedding
-cache) between runs — fits on ephemeral runners then start warm.
+repos, also cache `~/.cache/argot` (the embedding cache) between runs — fits on
+ephemeral runners then start warm.

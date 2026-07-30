@@ -27,7 +27,7 @@ const fr: SiteContent = {
     ctaSecondary: 'Star sur GitHub',
     install: 'npm i -g @tmonier/argot',
     installNote:
-      'open source sous licence MIT · cœur local gratuit · aucun compte n’est jamais requis · audit et check s’exécutent localement',
+      'open source sous licence MIT · cœur local gratuit · aucun compte n’est jamais requis · un binaire, rien à télécharger ensuite',
     installAlt: 'ou installer sans npm',
     watchFilm: 'Voir le film',
   },
@@ -121,11 +121,11 @@ const fr: SiteContent = {
   engine: {
     label: 'Sous le capot',
     title: 'De la compréhension sémantique. Aucun LLM génératif dans le cœur.',
-    body: 'Quatre moteurs locaux, un binaire [[Rust]] statique, tous ancrés dans votre historique git.',
+    body: 'Quatre moteurs locaux, un binaire [[Rust]] statique — modèle inclus, rien à télécharger — tous ancrés dans votre historique git.',
     cards: [
       {
-        title: 'Un modèle d’embeddings de code sur votre laptop',
-        desc: 'jina-code (~100 Mo, téléchargé une fois) transforme chaque fonction en vecteur — ainsi argot sait que vous [[l’avez déjà écrite]]. Un encodeur, pas un LLM : le CPU suffit, un GPU (Metal sur Mac) accélère simplement.',
+        title: 'Un modèle d’embeddings de code dans le binaire',
+        desc: 'Une table de 15,6 Mo qu’argot a distillée d’un encodeur de code transforme chaque fonction en vecteur — ainsi argot sait que vous [[l’avez déjà écrite]]. Rien à télécharger, aucun GPU, aucun cloud : elle est compilée dans le binaire et fonctionne hors ligne.',
       },
       {
         title: 'Un modèle de voix statistique',
@@ -147,7 +147,7 @@ const fr: SiteContent = {
       { value: '4 s', label: 'pour rafraîchir — les embeddings sont réutilisés' },
     ],
     finePrint:
-      'Mesuré sur FastAPI, CPU de portable. Un seul binaire statique — pas de Python, pas de Node.',
+      'Mesuré sur FastAPI, CPU de portable. Un seul binaire statique — pas de Python, pas de Node, aucun modèle à télécharger, aucun GPU.',
   },
   proof: {
     label: 'Mesuré, pas promis',
@@ -228,6 +228,7 @@ const fr: SiteContent = {
     docs: 'Docs',
     npm: 'npm',
     privacy: 'Confidentialité',
+    acknowledgements: 'Remerciements',
   },
 };
 

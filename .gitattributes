@@ -12,3 +12,8 @@
 *.mp4 binary
 *.woff binary
 *.woff2 binary
+
+# The embedded model weights: binary blobs that must never be line-ending
+# normalised. `* text=auto` would rely on git's heuristic; this states it.
+crates/argot-rules-semantic/model/embeddings.safetensors binary
+crates/argot-rules-semantic/model/tokenizer.json -text

@@ -34,7 +34,9 @@ justify in one sentence. Any phase can be skipped if I say so.
    https://argot.tmonier.com/docs/getting-started/). Confirm this is a git repo
    with real history, that I am on the default branch, and that the tree is
    clean — fitting a feature branch bakes unmerged commits into the voice.
-   Tell me setup will write argot.toml (committed) and .argot/ (gitignored).
+   Tell me setup will write argot.toml (committed) and .argot/ (gitignored,
+   rebuildable local fit artifacts). Do not add .argot/ to the repository;
+   CI caches it after default-branch fits.
 
 1. PROOF FIRST
    Run `argot audit --format json`, SAVE IT TO A FILE, and show me a readable
@@ -66,8 +68,7 @@ justify in one sentence. Any phase can be skipped if I say so.
    scoping is two passes, not one.
 
 3. FIT AND CHECK HEALTH
-   Run `argot init`. Warn me first that the first run downloads a ~100 MB
-   embedding model. Then run `argot inspect --format json` and read it:
+   Run `argot init`. Then run `argot inspect --format json` and read it:
      - verdict "not_recommended" -> go back to phase 2, do not continue
      - a reason with signal "voice_not_where_the_work_is" -> argot found a
        directory that shapes much of the voice but takes almost none of the
@@ -109,10 +110,12 @@ justify in one sentence. Any phase can be skipped if I say so.
    If the history shows one dependency replacing another, or I tell you we are
    mid-migration, propose a [[migration]] entry (from / to / reason).
 
-7. CONVENTIONS
-   Run `argot conventions --format json`. Do NOT dump it. Show me at most a
-   handful, ranked by whether a rule for it would have caught something in the
-   audit window. For any I pick, offer to write it as a custom rule.
+7. DO NOT WRITE CUSTOM RULES DURING CORE SETUP
+   `argot conventions` is useful above to choose a deliberately foreign import,
+   but do not mine conventions or create custom rules yet. First finish scope,
+   fit, baseline, tuning, and integrations. A rule written before those choices
+   settle is usually a frozen accident. The only custom-rule exploration is the
+   explicit opt-in at the very end (step 11).
 
 8. WHERE IT RUNS — ask me about local and CI together
    Local: the pre-write guardrail hook (already included if I use the Claude
@@ -120,8 +123,9 @@ justify in one sentence. Any phase can be skipped if I say so.
    and the MCP server (`argot mcp`) for agent context.
    CI: the GitHub Action, non-blocking by default. Two things you must tell me:
      - the workflow needs BOTH `pull_request:` and `push:` to the default
-       branch. The push run fits the model and publishes it to a cache; pull
-       requests read that cache and stay fast. Without it every PR pays the fit.
+       branch. The push run fits and publishes the resulting `.argot/` artifacts
+       to a cache; pull requests read that cache and stay fast. Without it every
+       PR pays the fit.
      - that cache does not exist until the workflow is MERGED to the default
        branch. Until then every run is a cold fit and looks slow. Say so before
        I judge the tool on its first PR.
@@ -136,6 +140,50 @@ justify in one sentence. Any phase can be skipped if I say so.
     was wired, and what my team sees on their next PR. Tell me refits are
     automatic but re-scoping is not: when a new generated or vendored tree
     appears, argot names it at the next fit and I should act on it.
+
+11. OPTIONAL: EXPLORE ONLY THE CONVENTIONS ARGOT SHOULD ENFORCE
+    Only after the summary, ask me exactly once whether I want a read-only,
+    opt-in exploration for zero to three team conventions that are genuinely
+    worth custom rules. Make clear that saying no is normal, the exploration
+    creates no files, and selecting a candidate is a separate approval to write
+    a rule.
+
+    If I say yes:
+      - use `argot conventions --format json`, the audit saved in step 1,
+        `argot rules`, argot.toml, existing .argot/rules/, canonical source
+        examples, and targeted git history to find durable team decisions;
+      - reject generic syntax/style/import-order/deprecated-API/security rules
+        that OXLint, ESLint, or another normal linter can own; reject built-in
+        Argot duplicates; turn a mined migration into [[migration]], not a
+        script; reject weak placement, rules that need type inference or
+        cross-file binding resolution, and anything without a one-sentence
+        canonical remedy;
+      - keep a candidate only if Argot has a real contextual advantage: the
+        pre-image (`ts_query_old` / file.old_text), the other paths in this
+        changeset (`changeset_paths()`), a committed contract or its siblings
+        (`read_repo_file()` / `repo_paths()`), the fitted-history allowlist
+        (`import_attested()` / `callee_attested()`), or a strongly concentrated
+        learned placement convention (feature F belongs in location L, so F
+        outside L is the violation);
+      - show at most three candidates, or zero if none clear the bar. For each
+        show the counts and locations supporting it (concentration, home_files,
+        out_files, audit/history evidence), one canonical good example, one
+        plausible bad change, the exact Argot-only context, a syntactically
+        detectable shape, proposed scope, and why current leaks are legitimate
+        exceptions, debt, or a reason to reject the idea;
+      - ask me separately which candidate, if any, to codify. Do NOT create a
+        .argot/rules/ directory merely because I opted into exploration.
+
+    For each candidate I explicitly approve, use argot-suggest-rules when it
+    came from a mined placement convention; use argot-write-rule when I stated
+    the convention. Write fixtures before the script: at least one firing case
+    and one silent canonical case, plus old.<ext> or sibling fixture files when
+    a pre-image or repository read matters. Loop `argot rules test <name>` until
+    green, then prove it on a throwaway real diff and revert the diff. The
+    fixture harness has no fitted model, so import_attested/callee_attested are
+    false there: test the unattested path in fixtures and the attested path live.
+    Start every new rule at warn; promote it to error or lock it only after real
+    PRs show that no legitimate exception exists.
 
 DIAGNOSIS — read this before concluding anything about argot's quality.
 If it seems noisy, or seems to catch nothing, it is far more often mis-scoped

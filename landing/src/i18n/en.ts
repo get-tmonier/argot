@@ -26,7 +26,7 @@ const en: SiteContent = {
     ctaSecondary: 'Star on GitHub',
     install: 'npm i -g @tmonier/argot',
     installNote:
-      'MIT-licensed open source · free local core · no account is ever required · audit and check run locally',
+      'MIT-licensed open source · free local core · no account is ever required · one binary, nothing downloaded after it',
     installAlt: 'or install without npm',
     watchFilm: 'Watch the film',
   },
@@ -122,11 +122,11 @@ const en: SiteContent = {
   engine: {
     label: 'Under the hood',
     title: 'Semantic understanding. No generative LLM in the core.',
-    body: 'Four local engines, one static [[Rust]] binary, all grounded in your git history.',
+    body: 'Four local engines, one static [[Rust]] binary — model included, nothing fetched — all grounded in your git history.',
     cards: [
       {
-        title: 'A code-embedding model on your laptop',
-        desc: 'jina-code (~100 MB, fetched once) turns every function into a vector — how argot knows you [[already wrote this]]. An encoder, not an LLM: CPU is plenty, and a GPU (Metal on Macs) just makes it faster.',
+        title: 'A code-embedding model inside the binary',
+        desc: 'A 15.6 MB table argot distilled from a code encoder turns every function into a vector — how argot knows you [[already wrote this]]. Nothing to download, no GPU, no cloud: it ships compiled in and works air-gapped.',
       },
       {
         title: 'A statistical voice model',
@@ -147,7 +147,8 @@ const en: SiteContent = {
       { value: '25s', label: 'first fit, 1,100-file repo' },
       { value: '4s', label: 'to refresh — embeddings are reused' },
     ],
-    finePrint: 'Measured on FastAPI, laptop CPU. Single static binary — no Python, no Node.',
+    finePrint:
+      'Measured on FastAPI, laptop CPU. Single static binary — no Python, no Node, no model download, no GPU.',
   },
   proof: {
     label: 'Measured, not promised',
@@ -228,6 +229,7 @@ const en: SiteContent = {
     docs: 'Docs',
     npm: 'npm',
     privacy: 'Privacy',
+    acknowledgements: 'Acknowledgements',
   },
 };
 

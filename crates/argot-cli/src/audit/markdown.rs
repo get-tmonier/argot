@@ -183,7 +183,7 @@ mod tests {
                     group: "semantic",
                     status: GroupStatus::Skipped,
                     findings: 0,
-                    skip_reason: Some("embedding model not available (offline?)".into()),
+                    skip_reason: Some("no semantic index was built at fit".into()),
                 },
             ],
             findings,
@@ -223,7 +223,7 @@ mod tests {
         assert!(md.contains("runs automatically at commit time once configured"));
         assert!(md.contains("GitHub Action runs automatically in CI once configured"));
         assert!(md.contains(CI_GUIDE_URL));
-        assert!(md.contains("embedding model not available (offline?)"));
+        assert!(md.contains("no semantic index was built at fit"));
         assert!(!md.contains('\x1b'));
     }
 

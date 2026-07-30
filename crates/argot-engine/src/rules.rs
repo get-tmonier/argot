@@ -586,8 +586,8 @@ impl RuleSettings {
     }
 
     /// True when at least one rule in `group` runs (severity != off) — the
-    /// gate for skipping a whole detector pass (and its costs: index load,
-    /// model download).
+    /// gate for skipping a whole detector pass (and its costs: index and
+    /// embedder load).
     pub fn group_enabled(&self, group: &str) -> bool {
         if group == GROUP_CUSTOM {
             return self

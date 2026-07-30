@@ -77,10 +77,11 @@ inputs:
     default: ""
   semantic:
     description: >-
-      Run the semantic rules (redundant/misplaced) in CI. 'false' sets
-      ARGOT_OFFLINE=1 — no ~100 MB model download, no index build at fit;
-      the voice and layering rules still run. Use on locked-down runners or
-      to keep base-advance fits fast on very large repos.
+      Run the semantic rules (redundant/misplaced) in CI. 'false' passes
+      `--rule semantic=off` to the check, so neither rule reports; the voice,
+      layering and integrity rules still run. The embedder ships inside the
+      binary, so an air-gapped runner needs no special handling and there is
+      nothing to download either way.
     required: false
     default: "true"
   fail-on-hits:
@@ -201,17 +202,6 @@ runs:
         } >> "$GITHUB_OUTPUT"
         echo "voice learned from base $base_sha; scoring '${range:-HEAD}'."
 
-    # The embedding model (~100 MB GGUF) is keyed on its release tag, not the
-    # base commit — it only changes when a release pins a new model. Cached
-    # here so a base advance never re-downloads it; `argot model fetch`
-    # verifies the sha256 either way (a cache hit costs one hash pass).
-    - name: Cache the embedding model
-      if: ${{ inputs.cache == 'true' && inputs.semantic == 'true' }}
-      uses: actions/cache@v6
-      with:
-        path: ~/.cache/argot/models
-        key: argot-embedding-model-semantic-model-v1-${{ runner.os }}
-
     # The machine-wide, content-addressed embedding cache. Independent of the
     # base-keyed `.argot` below: on a base advance (or a fresh runner) where
     # the `.argot` model misses, unchanged functions still serve their vectors
@@ -226,11 +216,6 @@ runs:
         key: argot-embeddings-${{ runner.os }}-${{ inputs.argot-version }}-${{ steps.base.outputs.base_sha }}
         restore-keys: |
           argot-embeddings-${{ runner.os }}-${{ inputs.argot-version }}-
-
-    - name: Fetch the embedding model
-      if: ${{ inputs.semantic == 'true' }}
-      shell: bash
-      run: argot model fetch
 
     # The model cache is a SLOT that runs off the default branch refresh and
     # pull requests read — not a per-commit key. Keying it on the base commit
@@ -316,8 +301,6 @@ runs:
         ARGOT_PATH: ${{ inputs.path }}
         BASE_SHA: ${{ steps.base.outputs.base_sha }}
         ORIG_SHA: ${{ steps.base.outputs.orig_sha }}
-        # semantic: false → no model download, no index build at fit.
-        ARGOT_OFFLINE: ${{ inputs.semantic != 'true' && '1' || '' }}
       run: |
         set -euo pipefail
         # Learn the repo's established voice from the BASE tree — NOT the PR head.
@@ -347,7 +330,12 @@ runs:
         ARGOT_FORMAT: ${{ inputs.format }}
         ARGOT_OUT: ${{ inputs.output-file }}
         ARGOT_RULES: ${{ inputs.rules }}
-        ARGOT_OFFLINE: ${{ inputs.semantic != 'true' && '1' || '' }}
+        # `semantic: false` is enforced on the check, which is the surface that
+        # takes rule overrides — `argot fit` has no `--rule`. The fit still
+        # builds the index, which now costs ~1.5 s of an 81 s fit; before the
+        # embedder shipped in the binary this switch also avoided a ~100 MB
+        # download, and that is the part that no longer exists.
+        ARGOT_SEMANTIC_OFF: ${{ inputs.semantic != 'true' && '1' || '' }}
       run: |
         set -euo pipefail
         # Score the same range the base was resolved from, against the base-fit
@@ -361,6 +349,9 @@ runs:
         for rule in $ARGOT_RULES; do
           args+=(--rule "$rule")
         done
+        if [ -n "${ARGOT_SEMANTIC_OFF:-}" ]; then
+          args+=(--rule semantic=off)
+        fi
         set +e
         argot check --repo "$ARGOT_PATH" "${args[@]}" --format "$ARGOT_FORMAT" > "$ARGOT_OUT"
         code=$?

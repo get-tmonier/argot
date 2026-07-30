@@ -11,9 +11,9 @@ an instruction to reject a change.
 
 ## Install
 
-argot is a **single static binary** — no Python, no Node, no runtime to install. (On first use the
-semantic layer fetches a ~100 MB code-embedding model to a local cache — a one-time download, and
-still nothing that leaves your machine.)
+argot is a **single static binary** — no Python, no Node, no runtime to install, and nothing to
+fetch afterwards. The code-embedding model the semantic layer uses is compiled into the binary, so
+the first run works on an air-gapped machine and nothing ever leaves it.
 
 **macOS / Linux** — package-manager-free installer:
 

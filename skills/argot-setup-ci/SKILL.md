@@ -30,7 +30,7 @@ wants CI specifically, or already has a configured repo.
    on:
      pull_request:
      push:
-       branches: [main]   # the run that fits the model every PR then reads
+       branches: [main]   # the run that refreshes the fitted artifacts PRs reuse
 
    permissions:
      contents: read
@@ -47,13 +47,13 @@ wants CI specifically, or already has a configured repo.
          - uses: get-tmonier/argot@main
    ```
 
-   Both triggers matter: the `push` run fits the model and publishes it, the
-   `pull_request` run reads it and stays at seconds. See step 5.
+   Both triggers matter: the `push` run fits the base and publishes the
+   resulting `.argot/` artifacts, while the `pull_request` run reuses them and
+   stays at seconds. See step 5.
 
-   That's the whole workflow — the Action installs argot, caches and fetches
-   the ~100 MB semantic embedding model itself (no manual cache step needed),
-   fits, and scores. In a hand-rolled workflow, run `argot model fetch` once
-   after installing argot instead.
+   That's the whole workflow — the Action installs argot, fits, and scores.
+   There is no model to fetch: the embedder ships inside the binary, so an
+   air-gapped runner needs no special handling.
 
 3. If the repo already has an `argot.toml` (from local setup or by hand), leave
    it — the Action respects it. It's optional; for a monorepo with peripheral
@@ -79,10 +79,11 @@ wants CI specifically, or already has a configured repo.
 6. **Say that the cache does not exist until this workflow is merged.** The
    producer run is a `push` to the default branch, so until the pull request
    adding the workflow is *merged*, there is no cache to read and **every run is
-   a cold fit** — minutes, not seconds. Tell the user this before they judge the
-   tool: the workflow's own PR, and any PR opened before it lands, are the slow
-   ones by design. After the merge the next default-branch push fills the slot
-   and pull requests drop to seconds.
+   a cold fit** — it has to walk history and build fresh artifacts, rather than
+   only run the check. Tell the user this before they judge the tool: the
+   workflow's own PR, and any PR opened before it lands, are the slow ones by
+   design. After the merge the next default-branch push fills the slot and pull
+   requests drop to seconds.
 
 7. Tell the user what they'll get on each configured PR workflow: a
    **non-blocking** job summary, optional sticky PR comment, and inline
@@ -102,10 +103,9 @@ wants CI specifically, or already has a configured repo.
    with no shields.io round-trip: `argot voice-diff <range> --format svg`.)
 
 9. If the user prefers a hand-rolled workflow over the Action (or already has
-   one), the building blocks are: install argot, `argot model fetch` (cache
-   `~/.cache/argot/models` to keep the download out of every run; also cache
+   one), the building blocks are: install argot, cache
    `~/.cache/argot/embeddings` with a loose restore-key so unchanged functions
-   don't re-embed across runs), `argot fit`, then `argot check --format github` — the
+   don't re-embed across runs, `argot fit`, then `argot check --format github` — the
    `github` format prints workflow commands that GitHub renders as inline PR
    annotations. For a strict setup, `--error-on-warnings` makes warn-severity
    hits fail the run too. If an existing workflow runs `argot extract && argot

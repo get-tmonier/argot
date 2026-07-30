@@ -33,6 +33,10 @@ rebuildable artifacts under `.argot/`, including the fitted scorer configuration
 `.argot/.gitignore` protects that directory from version control. `fit` can be used on detached
 checkouts, which is why configuration scaffolding belongs only to `init`.
 
+For a repository using Argot, commit the reviewed `argot.toml`, not `.argot/`. The latter is a
+local snapshot of the chosen base and is regenerated locally or restored by the CI cache. The
+embedded model is different: it is a frozen build input committed only in Argot's own source tree.
+
 ## Build a trustworthy voice
 
 Run `argot init` first on a fresh clone so its shared `argot.toml` exists. Then run
@@ -61,7 +65,7 @@ starting line you want before wiring argot into anything:
   baseline quietly becomes permanent.
 - **Clean slate** — fix or mute the existing findings now. Right for a smaller or younger repository.
 
-## Health and offline use
+## Health
 
 `argot inspect` reports `Ready`, `Ready with notes`, or `Not recommended`. Treat notes as tuning
 evidence, and down-weight findings if the fit is not recommended. `--format json` makes the verdict
@@ -70,8 +74,8 @@ and its reasons machine-readable, so a setup flow can gate on them rather than e
 One reason is worth acting on immediately: `voice_not_where_the_work_is` means a directory shapes a
 large share of the voice while taking almost none of the recent changes — a model learned from code
 nobody edits, judging the code everybody does. It names the directory and both shares. If that tree
-is demos, vendored, or generated, exclude it and refit. The semantic index uses a local
-embedding model that may download once to a machine cache. Run `argot model fetch` before going
-offline, or use the offline configuration where semantic checks are unavailable.
+is demos, vendored, or generated, exclude it and refit. The semantic index is built with a model
+compiled into the binary — no download, no cache to warm, and a fit on an air-gapped machine
+behaves exactly like one online.
 
 For configuration syntax and artifact reference details, see [Configure](/docs/configure/).

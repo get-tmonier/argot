@@ -21,13 +21,13 @@
       "key": "semantic.reinvention",
       "status": "canonical",
       "source": "landing/src/data/semantic.json",
-      "revision": "3a3cb5f7; generated_at=2026-07-28",
-      "observedAt": "2026-07-28",
+      "revision": "b8e6ea2d; generated_at=2026-07-29; jina-v2-code-static-256@8b0ebc376052",
+      "observedAt": "2026-07-29",
       "scope": "31 corpora / 11 languages; authored reinvention fixtures, window 150",
-      "qualifier": "detector-specific fixture recall, aggregated over corpora that vary widely (28%-100%); median 89%. Not a product-wide accuracy claim",
-      "numerator": 477,
+      "qualifier": "detector-specific fixture recall, aggregated over corpora that vary widely (72%-100%); median 94%. Not a product-wide accuracy claim",
+      "numerator": 545,
       "denominator": 584,
-      "percentage": 81.67808219178082,
+      "percentage": 93.32191780821918,
       "supersedes": [
         "semantic.aggregate"
       ]
@@ -36,13 +36,13 @@
       "key": "semantic.misplacement",
       "status": "canonical",
       "source": "landing/src/data/semantic.json",
-      "revision": "3a3cb5f7; generated_at=2026-07-28",
-      "observedAt": "2026-07-28",
-      "scope": "the 24 of 31 corpora with separable architecture / 11 languages; window 150. The other 7 abstain, having no layering the detector can read",
+      "revision": "b8e6ea2d; generated_at=2026-07-29; jina-v2-code-static-256@8b0ebc376052",
+      "observedAt": "2026-07-29",
+      "scope": "the 22 of 31 corpora with separable architecture / 11 languages; window 150. The other 9 abstain, having no layering the detector can read",
       "qualifier": "detector-specific recall on evaluable corpora only; abstention elsewhere is by design, not a miss. Not a product-wide accuracy claim",
-      "numerator": 15285,
-      "denominator": 16032,
-      "percentage": 95.34056886227546,
+      "numerator": 12899,
+      "denominator": 13456,
+      "percentage": 95.86058263971462,
       "supersedes": [
         "semantic.aggregate"
       ]

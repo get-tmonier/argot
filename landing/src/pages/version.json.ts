@@ -8,8 +8,6 @@ import { resolve } from 'node:path';
  * so it can never drift from what a release ships:
  *  - `latest`         — workspace version (root Cargo.toml; the auto-release
  *                       workflow bumps it on every release to main)
- *  - `model_tag`      — the release tag the pinned embedding model ships
- *                       under (parsed from embedder.rs's MODEL_URL)
  *  - `skills_version` — the skills/ bundle generation (skills/VERSION)
  *  - `min_supported`  — oldest binary version still considered supported
  */
@@ -21,10 +19,6 @@ const cargo = read('../Cargo.toml');
 const latest = cargo.match(/^version = "([^"]+)"/m)?.[1];
 if (!latest) throw new Error('version.json: no workspace version in Cargo.toml');
 
-const embedder = read('../crates/argot-rules-semantic/src/embedder.rs');
-const modelTag = embedder.match(/releases\/download\/([^/"]+)\//)?.[1];
-if (!modelTag) throw new Error('version.json: no model tag in embedder.rs MODEL_URL');
-
 const skillsVersion = Number.parseInt(read('../skills/VERSION').trim(), 10);
 if (!Number.isFinite(skillsVersion)) throw new Error('version.json: skills/VERSION is not a number');
 
@@ -33,7 +27,6 @@ export const GET: APIRoute = () =>
     JSON.stringify(
       {
         latest,
-        model_tag: modelTag,
         skills_version: skillsVersion,
         min_supported: '0.2.0',
       },

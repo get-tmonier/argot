@@ -332,7 +332,7 @@ mod tests {
                 group: "semantic",
                 status: GroupStatus::Skipped,
                 findings: 0,
-                skip_reason: Some("embedding model not available (offline?)".into()),
+                skip_reason: Some("no semantic index was built at fit".into()),
             }],
             findings: vec![f],
         };
@@ -357,7 +357,7 @@ mod tests {
         assert!(html.contains("GitHub Action runs automatically in CI once configured"));
         assert!(html.contains(CI_GUIDE_URL));
         assert!(html.contains(&format!("href=\"{CI_GUIDE_URL}\"")));
-        assert!(html.contains("embedding model not available (offline?)"));
+        assert!(html.contains("no semantic index was built at fit"));
         assert!(!html.contains("og:image"));
     }
 }

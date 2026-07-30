@@ -39,7 +39,7 @@ argot-rules-script = { path = "../argot-rules-script", optional = true }
 #
 # The Cargo feature nonetheless defaults OFF purely as a BUILD-TIME gate: it lets
 # the dev/CI lean loop (`cargo build`, `just verify`) compile pure-Rust with no
-# cmake/llama.cpp toolchain, and lets CI prove the base statistical guardrail is
+# heavy optional slices, and lets CI prove the base statistical guardrail is
 # byte-for-byte unchanged and zero-cost when the layer is absent. Invisible to
 # users — it governs how the binary is built, not whether the feature is on.
 semantic = ["dep:argot-rules-semantic"]

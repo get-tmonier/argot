@@ -34,14 +34,14 @@ test('manifest keeps the selected lineages and rejects known stale denominators'
   expect(
     canonicalManifest.claims.find((record) => record.key === 'semantic.reinvention'),
   ).toMatchObject({
-    numerator: 477,
+    numerator: 545,
     denominator: 584,
   });
   expect(
     canonicalManifest.claims.find((record) => record.key === 'semantic.misplacement'),
   ).toMatchObject({
-    numerator: 15285,
-    denominator: 16032,
+    numerator: 12899,
+    denominator: 13456,
   });
   expect(canonicalManifest.claims.find((record) => record.key === 'integrity.catch')).toMatchObject(
     {

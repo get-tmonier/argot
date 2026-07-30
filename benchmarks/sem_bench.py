@@ -6,7 +6,7 @@ file so it's cross-file) into the corpus, run the real `argot check`, and count
 `redundant` fires → recall. Faithful: exercises the shipped binary end to end.
 
 Usage: sem_bench.py <corpus_repo> <reimpls_dir> [--lang py|ts]
-Env: ARGOT (binary), ARGOT_SEMANTIC_MODEL (gguf path).
+Env: ARGOT (binary). The embedder ships inside the binary — nothing to fetch.
 """
 import json, os, re, subprocess, sys, shutil, tempfile
 
@@ -143,10 +143,22 @@ def main():
         ev = f"  {fired[fid]}" if fid in fired else ""
         print(f"  {mark}  {fid} (reimpl of {orig}){ev}")
 
+    # The similarity each caught fixture fired at. Recall is a function of the
+    # cosine bar, and the bar is a constant fitted to one embedding model's
+    # distribution; recording the per-fixture similarity is what lets a bar
+    # change be evaluated against BOTH recall and the fires in sem_fp's records
+    # without re-running the sweep for every candidate value.
+    sims = {}
+    for fid, ev in fired.items():
+        m = re.search(r"similarity (\d+\.\d+)", ev)
+        if m:
+            sims[fid] = float(m.group(1))
+
     shutil.rmtree(BENCH_DIR, ignore_errors=True)
     print(json.dumps({"corpus": os.path.basename(CORPUS.rstrip('/')),
                       "channel": "reinvention", "planted": n,
-                      "fired": len(fired), "recall": round(recall, 3)}))
+                      "fired": len(fired), "recall": round(recall, 3),
+                      "fired_similarity": sims}))
 
 
 if __name__ == "__main__":

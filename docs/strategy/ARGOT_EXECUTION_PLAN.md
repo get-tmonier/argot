@@ -40,7 +40,7 @@ The intended end state is an honest funnel: discover the behavioral problem, run
 
 ### Acquisition engine
 
-`argot audit` is already the correct acquisition primitive: it creates a temporary historical worktree, fits at a historical base, checks the base-to-HEAD net diff, attributes surviving findings using concrete commit markers, leaves the working tree untouched, and exits zero when findings exist. Acquisition work should reduce first-run uncertainty, disclose model download and net-window boundaries, improve the proof asset, and turn the result into a setup decision.
+`argot audit` is already the correct acquisition primitive: it creates a temporary historical worktree, fits at a historical base, checks the base-to-HEAD net diff, attributes surviving findings using concrete commit markers, leaves the working tree untouched, and exits zero when findings exist. Acquisition work should reduce first-run uncertainty, disclose net-window boundaries, improve the proof asset, and turn the result into a setup decision.
 
 ### Retention engine
 
@@ -74,7 +74,7 @@ Use the canonical four-layer model consistently:
 - Skills are invocable instructions, not an automatic lifecycle.
 - The pre-commit hook is user-wired commit-time checking. The GitHub Action is CI, not accept time.
 - The plugin’s current pre-write hook is Claude-only, fitted-repo-only, foreign-import-only, ask-only, and not an end-of-generation check.
-- Local analysis sends no code or usage data, but model download, update/version checks, PR review through `gh`, CI artifact downloads, and explicit update operations are network paths.
+- Local analysis sends no code or usage data and needs no network at all (the embedding model ships inside the binary), but update/version checks, PR review through `gh`, CI artifact downloads, and explicit update operations are network paths.
 - Signal quality is a product gate, not a paragraph to add after launch.
 
 ## 3. Current experience map
@@ -84,7 +84,7 @@ Use the canonical four-layer model consistently:
 | Discovery | Search/social/GitHub reaches the Astro homepage or README. | “Harness for AI-written code,” “voice,” “statistics, not a second LLM,” “100% local.” | Several concepts compete before the user sees the product job. | Voice/style and AI-review framing obscure awareness at acceptance. | `landing/src/i18n/en.ts`, `fr.ts`; `README.md:1-55`; `landing/public/og.png` |
 | Landing page | Homepage order is film, hero, demo, trust, audit, custom rules, engine, proof, setup, CI score, CTA. | Audit is one feature among many; primary CTAs are docs/GitHub. | Acquisition front door is below multiple explanatory sections. | The page does not enact D2–D4. | `landing/src/components/HomePage.astro`; `landing/src/components/{Film,Hero,Demo,Audit,Setup,CiScore}.astro` |
 | README | Rich feature catalogue, benchmarks, install paths, plugin, MCP, Action, internals. | “Your codebase has a voice”; audit then fit/check, with broad agent and privacy claims. | Proof, setup, architecture, governance, and every feature compete in one long page. | The README is not a fast audit-first activation surface and exceeds current reality in places. | `README.md` |
-| Installation | Shell, PowerShell, npm and release assets are produced; homepage shows npm. | Static binary, platforms, local/no cloud. | The first semantic use may download ~100 MB; update behavior and installer-specific update paths are dispersed. | “Zero setup/100% local” is read as “no cost/no egress.” | `dist-workspace.toml`; `README.md`; `landing/src/content/docs/getting-started.md`; `crates/argot-rules-semantic/src/embedder.rs`; `crates/argot-cli/src/update*.rs` |
+| Installation | Shell, PowerShell, npm and release assets are produced; homepage shows npm. | Static binary, platforms, local/no cloud. | Nothing is downloaded after the binary; update behavior and installer-specific update paths are dispersed. | “Zero setup/100% local” is read as “no cost/no egress.” | `dist-workspace.toml`; `README.md`; `landing/src/content/docs/getting-started.md`; `crates/argot-cli/src/update*.rs` |
 | First command | Docs and root no-arg help tend toward `argot init && argot check`; homepage install has no strong audit command. | Fit the “voice model” first. | User must trust setup before seeing their own proof. | It reverses the acquisition strategy. | `crates/argot-cli/src/main.rs::print_help_banner`; `landing/src/content/docs/{getting-started,setup,the-commands}.md` |
 | Audit | Defaults to 50 first-parent commits, caps 1,000, fits a temporary historical base, checks net base..HEAD, attributes findings, exits 0. | “What AI snuck in,” “before merge,” “all in voice.” | Net-window and first-run-cost boundaries are not prominent. | Strong product proof is weakened by old positioning and incomplete caveats. | `crates/argot-cli/src/audit/*`; `docs/research/evidence/{audit-command,audit-runtime}.md` |
 | Audit output | Terminal, JSON v1, Markdown, standalone HTML and share caption exist. | One card plus “Next: argot init … argot check.” | The next action ends at a manual command and offers no integration choice. | Acquisition does not become a habit. | `crates/argot-cli/src/audit/{term,markdown,html,report}.rs` |
@@ -169,7 +169,7 @@ Use the canonical four-layer model consistently:
 
 1. **Discover.** The hero states the behavioral truth and current product job in seconds. It does not claim an automatic lifecycle that is not released.
 2. **Understand.** A compact example shows valid-looking code, the repository evidence that makes it divergent, and the human decision Argot prompts.
-3. **Install.** The user chooses a tested installer. The page states supported platforms, the one-time semantic-model download, offline behavior, and update behavior without implying that code or telemetry is uploaded.
+3. **Install.** The user chooses a tested installer. The page states supported platforms, offline behavior, and update behavior without implying that code or telemetry is uploaded.
 4. **Run audit.** `argot audit` is the primary command. It works without a prior Argot fit and clearly states its history and supported-source prerequisites.
 5. **See credible evidence.** The report leads with one inspectable finding and identifies the rule, location, evidence, audited window, net-diff limitation, and marker-based attribution limit.
 6. **Understand the next step.** Every audit renderer says: `argot init` creates the current repository fit; then choose one tested recurring workflow. It never says the audit itself installed automation.
@@ -405,7 +405,7 @@ Tasks are ordered by dependency, not by directory. `L` is intentionally unused. 
 - **Goal:** Establish reproducible cold/warm audit and fit timing across ordinary and large repositories.
 - **Strategic reason:** D12; “sixty seconds” and “two minutes” are not generally supported.
 - **Current evidence:** `docs/research/evidence/audit-runtime.md` records roughly 25s, 4.7m and 16.9m cold cases; public pages generalize faster cases.
-- **Scope:** Pinned repositories, five release targets where practical, cold model download separated from analysis, warm/offline/failure paths, peak memory.
+- **Scope:** Pinned repositories, five release targets where practical, cold/warm/offline/failure paths, peak memory.
 - **Out of scope:** Performance optimization in the measurement task.
 - **Dependencies:** ACTION-01 for released installer validation.
 - **Complexity:** M.
@@ -698,7 +698,7 @@ Tasks are ordered by dependency, not by directory. `L` is intentionally unused. 
 - **Out of scope:** Testing every agent in one fixture.
 - **Dependencies:** CLI-03/04, AUDIT-03, selected integration tasks.
 - **Complexity:** M.
-- **Implementation notes:** Run offline and normal modes; treat model download separately; keep fixture deterministic.
+- **Implementation notes:** Run offline and normal modes; keep fixture deterministic.
 - **Acceptance criteria:** The flow completes from no `.argot` state and documents every mutation/network action and expected exit code.
 - **Tests and verification:** Linux CI baseline; platform extensions in QA-02.
 - **Documentation impact:** Supplies verified getting-started commands.
@@ -1034,7 +1034,7 @@ Tasks are ordered by dependency, not by directory. `L` is intentionally unused. 
 - **Out of scope:** Duplicating full Audit/Init/Integration guides.
 - **Dependencies:** AUDIT-03, PERF-01, INTEGRATION-01.
 - **Complexity:** S.
-- **Implementation notes:** Put alternate installers behind a concise table/link; name one-time model download.
+- **Implementation notes:** Put alternate installers behind a concise table/link.
 - **Acceptance criteria:** A fresh user can complete the flow using only README commands and knows which recurring behavior is automatic versus wired.
 - **Tests and verification:** Execute commands in ONBOARD-02 fixture; link check.
 - **Documentation impact:** Must match getting-started.
@@ -1703,8 +1703,8 @@ Status values: **current** (verified), **qualified** (true only with boundary), 
 | GitHub Action | current after ACTION-01 | `action.yml` behavior; archive mismatch blocks reliability now | “User-wired PR check, non-blocking by default, optional gate” after smoke | “Never a merge gate”; “accept-time” | Marketplace metadata, CI docs, landing |
 | Local analysis | current/qualified | Core uses local git/tree-sitter/models; privacy code inventory | “Source/history/findings are analyzed locally and are not uploaded” | Unqualified “nothing leaves your machine” if it implies no network | All trust/privacy surfaces |
 | Telemetry | current | No usage telemetry path found; strategy D8 | “No default telemetry” | “No network of any kind” | Landing, README, privacy, security |
-| Model usage | qualified | Base statistical scorer; local Jina GGUF semantic encoder; no generative judge | “No generative or opinion-forming model in the authoritative analytical path; semantic rules use a pinned local encoder” | “No model,” “No LLM anywhere,” “statistics only” | Hero, engine, README, docs, OG, llms |
-| Network behavior | qualified | Model fetch, passive version GET, review via `gh`, update and CI downloads; offline mode | Enumerate paths; “`ARGOT_OFFLINE=1` disables automatic network access” | “No network by default” without explaining first semantic/update behavior | Privacy, SECURITY, threat model, setup |
+| Model usage | qualified | Base statistical scorer; embedded local Jina semantic encoder; no generative judge | “No generative or opinion-forming model in the authoritative analytical path; semantic rules use a pinned local encoder” | “No model,” “No LLM anywhere,” “statistics only” | Hero, engine, README, docs, OG, llms |
+| Network behavior | qualified | Passive version GET, review via `gh`, update and CI downloads; offline mode | Enumerate paths; “`ARGOT_OFFLINE=1` disables automatic network access” | “No network of any kind” without explaining version/update behavior | Privacy, SECURITY, threat model, setup |
 | Deterministic/replayable | qualified | Pinned artifacts and golden/model tests; external/environment inputs still matter | “Authoritative findings are inspectable and designed to replay for pinned inputs/config” | “One thing that can’t hallucinate”; universal magic guarantee | Landing, README, architecture docs |
 | Foreign visible-symbol detection | current/qualified pending BENCH-02 lineage | `foreign.json` 595/605; latest aggregate separates masked cases | “98% (595/605) of visible-symbol foreign fixtures in the named revision” | Product-wide 98%; mixing 604/618 without lineage | README, homepage, What It Catches, llms |
 | Architecture detection | disputed until BENCH-02 | Current `arch.json` 264/272, 0/148; public old 244/252, 0/140 | Only canonical manifest wording after lineage decision | Hand-changing one surface to either generation | README, landing, docs, AGENTS, llms |
