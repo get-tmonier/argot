@@ -85,16 +85,20 @@ same reviewed files already in Git and posts advisory evidence on the PR.
 `argot.toml` says **what** the team wants Argot to consider. The fit snapshot says **what Argot
 learned from the repository at that point in time**. They are both inputs to a meaningful check.
 
-| Committed part | Why it matters |
-| --- | --- |
-| Voice snapshot (`scorer-config.json` + baseline) | Contains the learned vocabulary and calibrated thresholds. Without it, another machine cannot tell whether an API or idiom is foreign without fitting again. |
-| Semantic index (`semantic-index.json`) | Contains the local map from functions to their nearest existing neighbours. Without it, `redundant` and `misplaced` cannot make the same “you already have this” comparison. |
-| Layering, integrity, health, manifest | Preserve the learned dependency/test signals and prove the snapshot matches the configuration and binary model; they also make a stale snapshot visible. |
+| Committed part | Why it matters | Typical size |
+| --- | --- | --- |
+| Voice snapshot (`scorer-config.json` + baseline) | Contains the learned vocabulary and calibrated thresholds. Without it, another machine cannot tell whether an API or idiom is foreign without fitting again. | Usually hundreds of KB to a few MB. |
+| Semantic index (`semantic-index.json`) | Contains the local map from functions to their nearest existing neighbours. Without it, `redundant` and `misplaced` cannot make the same “you already have this” comparison. | Usually the largest part: a few MB to a few tens of MB, depending on the number of functions. |
+| Layering, integrity, health, manifest | Preserve the learned dependency/test signals and prove the snapshot matches the configuration and binary model; they also make a stale snapshot visible. | Usually KBs to low MBs. |
 
 Committing them is therefore the lightweight alternative to a CI fit: every developer, agent, and
 PR starts from the **same reviewed baseline**. A pull request cannot replace that baseline with its
 own code, and CI remains a fast reader instead of a second training system. The snapshot changes
 only when a human deliberately runs `argot fit`, reviews the diff, and commits the update.
+
+As one concrete scale reference, a recent full setup produced a **21 MB** snapshot, including a
+**16 MB** semantic index. Run `argot status` after fitting to see the exact size for your own
+repository before committing it; there is no hidden CI storage or download.
 
 The **supersession detector** rides the same fit: it replays up to 1,000 accepted first-parent
 commits and mines replacement pairs — an import or callee removed while its replacement is added,
