@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   voice:
-    name: Configured findings
+    name: Argot review
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

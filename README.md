@@ -106,7 +106,7 @@ The embedding model itself ships inside the binary. Git stores only the
 repository-specific learned snapshot—typically a few MB to a few tens of MB—so
 every clone can reproduce the check without retraining or operating a service.
 
-`check` reports configured findings on the selected changeset; a clean result
+`check` reports patterns worth reviewing on the selected changeset; a clean result
 does not prove the change correct or fully idiomatic. Read the
 [Audit](https://argot.tmonier.com/docs/audit/),
 [Init and Fit](https://argot.tmonier.com/docs/init-and-fit/), and

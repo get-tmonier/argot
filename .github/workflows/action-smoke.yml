@@ -28,7 +28,7 @@ jobs:
         run: |
           set -euo pipefail
           cargo test -p argot voice_diff::tests
-          grep -Fq 'No configured findings on {} scanned hunks.' crates/argot-cli/src/voice_diff.rs
+          grep -Fq 'No patterns requiring review across {} scanned hunks.' crates/argot-cli/src/voice_diff.rs
           grep -Fq 'Non-blocking by default' action.yml
           grep -Fq 'argot-configured-findings' action.yml
           grep -Fq 'fit-recommendation:' action.yml
