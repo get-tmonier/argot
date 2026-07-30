@@ -506,23 +506,36 @@ paths = ["scratch/", "experiments/"]   # appended to the committed excludes
 drift, staleness — is one page:
 [Health & freshness](/docs/health-and-freshness/).*
 
-A fit is a committed snapshot: as the repo merges new dependencies and modules,
-a stale model starts reading accepted code as foreign. When **accepted history**
-gains `refresh-after` commits touching in-scope source since the fit, `check`,
-`status`, and the CI scorecard tell you to refresh it. They never refit in the
-background or in CI: run `argot fit` locally, review the `.argot/` diff, and
-commit it deliberately.
+A fit is a committed snapshot: as the repo evolves, enough accepted source and
+layout change can make the learned model stop representing the repository.
+Argot measures that change directly by comparing the final accepted tree with
+the tree at `fit_sha`. It does **not** use commit count or elapsed time as its
+default policy. Ten tiny commits, a hundred docs commits, and a change later
+reverted do not create artificial maintenance.
+
+The deterministic adaptive verdict is `fresh`, `watch`, `recommended`, or
+`strongly_recommended`. `watch` is visible in `status` and MCP but stays out of
+routine checks and CI annotations. A recommendation remains advisory: run
+`argot fit` locally, review the `.argot/` diff, and commit it deliberately.
 
 "Accepted" is the load-bearing word: staleness is measured at the **merge-base
 with your default branch**. A feature branch's own commits and uncommitted
-edits never age the baseline it is judged against. Only commits touching
-in-scope source count, so docs and CI churn do not make a refresh due. `init`
-writes the defaults explicitly:
+edits never age the baseline it is judged against. Only accepted in-scope
+source, function, and layout changes shape the adaptive measurement. `init` writes the
+accepted-history anchor explicitly:
 
 ```toml
 [fit]
-refresh-after = 10                # accepted in-scope commits before a reminder
 refresh-from = "default-branch"   # auto-detected — see below
+```
+
+There is no default commit threshold. A team may add a deliberate backstop if
+its own process requires one; it supplements adaptive drift rather than
+replacing it:
+
+```toml
+[fit]
+refresh-after = 250               # optional; absent by default
 ```
 
 `refresh-from` is a mode, not a blank to fill in: `"default-branch"`
@@ -545,8 +558,8 @@ to recalibrate:
 - **editing `[exclude]`/`[detect]` is itself a refresh trigger**: the next
   check notices the config fingerprint changed and tells you to refit locally,
 - **`argot status`** (`--repo <path>` for a repository you are not sitting in)
-  is the one-stop health view: fitted SHA, commits behind,
-  config in sync or not, and unexcluded noisy directories,
+  is the one-stop health view: fitted SHA, adaptive drift score and evidence,
+  accepted commits as context only, config compatibility, and unexcluded noisy directories,
 - `argot status --format json` also reports whether every required snapshot
   artifact is present and tracked, so CI can refuse a misleading partial run.
 
@@ -594,12 +607,11 @@ the base commit's snapshot and never fits or rebuilds it.
 | `.argot/layering.json` | `fit` / `init` | The module-dependency graph the `layering` rule checks. | **Yes, when produced** — status names an intentional abstention. |
 | `.argot/integrity.json` | `fit` / `init` | Per-repo learned gates for the test-integrity rules. | **Yes, when produced** — status names an intentional abstention. |
 | `.argot/manifest.json` | `fit` / `init` | Versioned, hashed record of what was learned. | **Yes** — provenance. |
-| `.argot/health.json` | `fit` / `init` | Fit SHA, config fingerprint, and drift candidates. | **Yes** — freshness. |
+| `.argot/health.json` | `fit` / `init` | Fit SHA, config fingerprint, drift candidates, and compact corpus denominators for adaptive freshness. | **Yes** — freshness. |
 | `.argot/repo-corpus.txt` | `fit` / `init` | The source files counted into the repo distribution. | No — rebuildable. |
 | `.argot/generic-baseline.json` | `fit` / `init` | The bundled generic-baseline reference. | **Yes** — required by voice scoring. |
 | `.argot/dataset.jsonl` | `extract` | Raw training dataset — one record per hunk. The check path doesn't need it. | No — rebuildable. |
 | `.argot/last-check.json` | `check` | Cache of the last check's hits, so `argot mute <hash>` can resolve. | No — rebuildable. |
-| `.argot/auto-refit.json` + `.lock` | local runtime state | Never part of a snapshot. | No — ignored. |
 | `.argot/.gitignore` | `fit` / `init` | Selectively ignores runtime state while exposing snapshot files. | **Yes** — commit it. |
 | `.argot/rules/<name>/` | `argot-write-rule` / `argot-suggest-rules` / by hand | Your [custom rules](/docs/custom-rules/) — `rule.toml` + `check.rhai`, authored not generated. | **Yes** — ordinary tracked source. |
 

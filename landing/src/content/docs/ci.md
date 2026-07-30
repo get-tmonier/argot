@@ -55,13 +55,15 @@ semantic index, layering/integrity artifacts, health record, and manifest; trans
 ignored. The Action never runs `argot fit`, restores no cache, and never writes a snapshot.
 
 On every PR it extracts the base commit’s snapshot into a temporary directory. That prevents a PR
-from self-certifying by changing `.argot/`. Its summary reports how many accepted source commits the
-snapshot is behind and tells the team to refresh it locally when due. A missing, incomplete, or
-configuration-mismatched base snapshot is a clear setup error rather than a silent partial check.
+from self-certifying by changing `.argot/`. Its summary reports the same adaptive freshness verdict
+as local `status`: source/function/layout drift is measured against `fit_sha`, while accepted commits are
+context only. `recommended` creates a notice and `strongly_recommended` a warning; neither gates the
+PR. A missing, incomplete, or configuration-mismatched base snapshot is a clear setup error rather
+than a silent partial check.
 
 ### Refreshing it
 
-When the scorecard says the fit is behind, update the accepted branch locally:
+When the scorecard recommends a refresh, update the accepted branch locally:
 
 ```sh
 argot fit
@@ -70,8 +72,9 @@ git add .argot/ argot.toml
 git commit -m "chore(argot): refresh fit snapshot"
 ```
 
-Do this after accepted code or a scope/configuration change, not on a feature branch whose code the
-fit should still judge. The Action remains fast because a check only reads committed files.
+Do this after material accepted drift or a scope/configuration change, not after an arbitrary number
+of commits and not on a feature branch whose code the fit should still judge. The Action remains
+fast because a check only reads committed files.
 
 ## pre-commit
 

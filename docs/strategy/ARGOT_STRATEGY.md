@@ -354,7 +354,7 @@ Operational consequences of §10. Where a principle restates a decision, the dec
 6. **The individual local check stays free (D7).**
 7. **Cloud is never mandatory for the core check (D13).**
 8. **Local-first and neutrality are non-retrofittable trust assets (D13).**
-9. **Configuration is portable and user-owned.** *Current reality: commit the reviewed `argot.toml` and `.argot/` fit snapshot; CI reads the approved base snapshot and never fits or caches it. Hand-written `.argot/rules/` custom rules remain committed source.*
+9. **Configuration is portable and user-owned.** *Current reality: commit the reviewed `argot.toml` and `.argot/` fit snapshot; CI reads the approved base snapshot and never fits or caches it. Refresh is adaptive to accepted source/function/layout drift; commit count is only an explicit opt-in backstop. Hand-written `.argot/rules/` custom rules remain committed source.*
 10. **Stay embeddable.** Stable CLI, JSON, SARIF, hooks, agent integrations. *Note: JSON is stable-by-intent; a versioned schema is a P2 gap.*
 11. **No generative LLM in the authoritative core (D12).**
 12. **Do not reposition as "AI governance" prematurely (D6, D9).**

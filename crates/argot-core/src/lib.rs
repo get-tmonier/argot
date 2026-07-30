@@ -24,8 +24,8 @@ pub mod compose;
 /// timing,json,stats,cache,par,finding,detector,corpus}` (and internal
 /// `crate::...`) caller keeps resolving unchanged.
 pub use argot_engine::{
-    cache, config, corpus, detector, finding, git_walk, health, json, output, par, rules, stats,
-    timing,
+    cache, config, corpus, detector, finding, git_walk, health, json, output, par, refresh, rules,
+    stats, timing,
 };
 
 /// `check` is a thin facade: everything rule-agnostic re-exports straight from

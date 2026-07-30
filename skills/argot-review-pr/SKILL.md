@@ -22,9 +22,9 @@ fit the PR head and let the change certify itself.
    <https://argot.tmonier.com/docs/getting-started/>) and stop.
 2. Run `argot status --format json`. The snapshot must report
    `snapshot.complete: true` and `snapshot.committed: true`. If it is missing,
-   uncommitted, stale, or config-mismatched, ask for an explicit local
-   `argot fit` on the accepted branch, followed by review and commit of
-   `.argot/`; otherwise the result cannot represent what CI/other clones see.
+   uncommitted, config-incompatible, or refresh is recommended, ask for an
+   explicit local `argot fit` on the accepted branch, followed by review and
+   commit of `.argot/`. `watch` remains usable and informational.
 3. For a PR by number/URL, the `gh` CLI must be authenticated and network access
    is required because argot fetches the PR diff through it. A locally available
    `base..head` range or commit SHA needs no network; fetch the refs first if

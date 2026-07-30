@@ -50,9 +50,11 @@ both commands warn if uncommitted source files or unmerged source commits would 
 manual fit still runs after that warning, so the choice remains yours. Set
 `[fit] refresh-from = "current-branch"` only when branch fitting is intentional.
 
-`argot check` and `argot status` warn when the accepted-history fit is stale or `argot.toml` no
-longer matches it. They never refit automatically: run `argot fit` locally on the accepted branch,
-review the `.argot/` diff, and commit the refresh. This keeps every CI result reproducible.
+`argot status` measures final accepted source/function/layout drift from `fit_sha`; commit count and age do
+not trigger maintenance by default. `argot check` speaks only when that deterministic assessment
+recommends a refresh, or when `argot.toml` no longer matches the fit. Neither command refits
+automatically: run `argot fit` locally on the accepted branch, review the `.argot/` diff, and commit
+the refresh. This keeps every CI result reproducible.
 
 ## Adopting on an existing codebase
 

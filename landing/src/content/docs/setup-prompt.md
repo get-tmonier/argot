@@ -126,8 +126,10 @@ justify in one sentence. Any phase can be skipped if I say so.
    CI: the GitHub Action, non-blocking by default. It extracts the committed
    fit snapshot from the PR base, so a PR cannot self-certify by changing its
    own `.argot/`. It never fits, downloads a model, or restores an Argot cache.
-   Its scorecard warns when the snapshot is old and names the local refresh
-   command; missing/incomplete snapshots are explicit setup errors.
+   Its scorecard reports deterministic adaptive source/function/layout drift and names
+   the local refresh command only when maintenance is recommended. Commit count
+   and age alone do not trigger it; missing/incomplete snapshots are explicit
+   setup errors.
 
 9. PROVE IT
    Give me the phase-4 fixture as a repeatable local command, so I can re-run
@@ -136,9 +138,11 @@ justify in one sentence. Any phase can be skipped if I say so.
 
 10. SUMMARIZE
     What the audit found, what we excluded and why, the health verdict, what
-    was wired, and what my team sees on their next PR. Explain that no refit is
-    automatic: when the scorecard says it is due, run `argot fit` locally on
-    the accepted branch, review `.argot/`, and commit the refreshed snapshot.
+    was wired, and what my team sees on their next PR. Explain that refresh is
+    data-driven: Argot measures material accepted source/function/layout drift, while
+    commit count and age are not triggers by default. No refit is automatic:
+    when the scorecard recommends it, run `argot fit` locally on the accepted
+    branch, review `.argot/`, and commit the refreshed snapshot.
 
 11. OPTIONAL: EXPLORE ONLY THE CONVENTIONS ARGOT SHOULD ENFORCE
     Only after the summary, ask me exactly once whether I want a read-only,

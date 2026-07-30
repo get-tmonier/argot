@@ -41,9 +41,10 @@ model — reinstall argot and fit again.
 
 ## The fit is stale
 
-**Symptom:** `status` or `check` reports drift, stale artifacts, or a config
-change. **Cause:** accepted history or corpus configuration changed after the
-fit. **Safe command:** run `argot status`, then `argot fit` locally on the
+**Symptom:** `status` or `check` recommends a refresh or reports a config
+change. **Cause:** a material share of the learned source/function/layout surface changed,
+or the corpus configuration no longer matches the fit. Commit count and age alone
+do not cause this. **Safe command:** run `argot status`, then `argot fit` locally on the
 accepted branch, review and commit `.argot/` when a refresh is needed.
 **Escalate:** review generated/vendor/data exclusions before refitting;
 see [Health & freshness](/docs/health-and-freshness/).

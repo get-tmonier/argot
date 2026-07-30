@@ -7,7 +7,7 @@ use std::process::{Command, Stdio};
 
 use serde_json::Value;
 
-fn commit_all(repo: &git2::Repository, message: &str) {
+fn commit_all(repo: &git2::Repository, message: &str) -> String {
     let mut index = repo.index().expect("open index");
     index
         .add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None)
@@ -17,8 +17,22 @@ fn commit_all(repo: &git2::Repository, message: &str) {
         .find_tree(index.write_tree().expect("write tree"))
         .unwrap();
     let sig = git2::Signature::now("test", "test@example.com").unwrap();
-    repo.commit(Some("HEAD"), &sig, &sig, message, &tree, &[])
-        .expect("commit fixture");
+    let parents = repo
+        .head()
+        .ok()
+        .and_then(|head| head.peel_to_commit().ok())
+        .into_iter()
+        .collect::<Vec<_>>();
+    repo.commit(
+        Some("HEAD"),
+        &sig,
+        &sig,
+        message,
+        &tree,
+        &parents.iter().collect::<Vec<_>>(),
+    )
+    .expect("commit fixture")
+    .to_string()
 }
 
 fn status(repo: &Path) -> Value {
@@ -83,6 +97,73 @@ fn snapshot_status_requires_a_commit_and_reports_optional_detector_abstention() 
 }
 
 #[test]
+fn status_exposes_the_adaptive_refresh_verdict() {
+    let path = Path::new(env!("CARGO_TARGET_TMPDIR"))
+        .join(format!("adaptive_status_{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&path);
+    std::fs::create_dir_all(path.join("src")).unwrap();
+    let repo = git2::Repository::init(&path).unwrap();
+    let source = |changed: usize| {
+        (0..100)
+            .map(|i| {
+                if i < changed {
+                    format!("value_{i} = changed_{i}\n")
+                } else {
+                    format!("value_{i} = {i}\n")
+                }
+            })
+            .collect::<String>()
+    };
+    std::fs::write(path.join("src/app.py"), source(0)).unwrap();
+    let fit_sha = commit_all(&repo, "fit point");
+
+    std::fs::create_dir_all(path.join(".argot")).unwrap();
+    for name in [
+        "generic-baseline.json",
+        "scorer-config.json",
+        "manifest.json",
+    ] {
+        std::fs::write(path.join(".argot").join(name), "{}").unwrap();
+    }
+    let config = argot_core::config::ArgotConfig::default();
+    let health = serde_json::json!({
+        "fit_sha": fit_sha,
+        "config_fingerprint": argot_core::health::config_fingerprint(&config),
+        "drift_candidates": [],
+        "refresh_profile": {
+            "schema": 1,
+            "source": {
+                "files": 1,
+                "lines": 100,
+                "languages": { "python": { "files": 1, "lines": 100 } },
+                "areas": { "src": { "files": 1, "lines": 100 } }
+            }
+        }
+    });
+    std::fs::write(
+        path.join(".argot/health.json"),
+        serde_json::to_vec_pretty(&health).unwrap(),
+    )
+    .unwrap();
+    commit_all(&repo, "commit fit snapshot");
+
+    let fresh = status(&path);
+    assert_eq!(fresh["refresh"]["compatibility"], "ready");
+    assert_eq!(fresh["refresh"]["recommendation"], "fresh");
+
+    std::fs::write(path.join("src/app.py"), source(40)).unwrap();
+    commit_all(&repo, "large accepted refactor");
+    let changed = status(&path);
+    assert_eq!(changed["refresh"]["recommendation"], "recommended");
+    assert_eq!(changed["refresh"]["score"], 40);
+    assert!(changed["refresh"]["summary"]
+        .as_str()
+        .unwrap()
+        .contains("40.0%"));
+    let _ = std::fs::remove_dir_all(&path);
+}
+
+#[test]
 fn mcp_fit_status_exposes_the_snapshot_contract() {
     let path = Path::new(env!("CARGO_TARGET_TMPDIR"))
         .join(format!("mcp_snapshot_status_{}", std::process::id()));
@@ -115,6 +196,6 @@ fn mcp_fit_status_exposes_the_snapshot_contract() {
     let fit_status: Value = serde_json::from_str(text).expect("fit status JSON");
     assert_eq!(fit_status["snapshot"]["complete"], false);
     assert_eq!(fit_status["snapshot"]["committed"], false);
-    assert!(fit_status["freshness"].is_object());
+    assert!(fit_status["refresh"].is_null());
     let _ = std::fs::remove_dir_all(&path);
 }

@@ -139,7 +139,7 @@ fn tool_definitions() -> Value {
         },
         {
             "name": "argot.fit_status",
-            "description": "Passively report fitted-model suitability plus committed-snapshot completeness, freshness, and config sync when the host calls it. This read-only status does not inspect code or guarantee other tool invocation. Use the full CLI `argot check` for complete changeset checking.",
+            "description": "Passively report fitted-model suitability plus committed-snapshot completeness and the shared adaptive refresh assessment. This read-only status never fits or writes. Use the full CLI `argot check` for complete changeset checking.",
             "inputSchema": json!({ "type": "object", "properties": {} }),
         },
         {
@@ -326,27 +326,11 @@ fn tool_fit_status(repo: &Path) -> Result<Value, String> {
 
     let health = argot_core::health::read(&snapshot_dir);
     let (config, _) = argot_core::compose::load_config(repo);
-    let behind = health.as_ref().and_then(|h| {
-        (!h.fit_sha.is_empty())
-            .then(|| {
-                argot_core::check::accepted_source_commits_behind(
-                    &repo.to_string_lossy(),
-                    &h.fit_sha,
-                    &config,
-                    config.fit_refresh_after,
-                )
-            })
-            .flatten()
-    });
-    let config_in_sync = health.as_ref().map(|h| {
-        h.config_fingerprint.is_empty()
-            || h.config_fingerprint == argot_core::health::config_fingerprint(&config)
-    });
-    out["freshness"] = json!({
-        "commits_behind": behind,
-        "config_in_sync": config_in_sync,
-        "refresh_after": config.fit_refresh_after,
-    });
+    out["refresh"] = health
+        .as_ref()
+        .map(|h| argot_core::refresh::assess(repo, h, &config))
+        .map(|assessment| serde_json::to_value(assessment).unwrap_or(Value::Null))
+        .unwrap_or(Value::Null);
     Ok(out)
 }
 

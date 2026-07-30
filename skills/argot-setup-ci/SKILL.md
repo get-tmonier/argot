@@ -69,10 +69,12 @@ wants CI specifically, or already has a configured repo.
 
 5. **Validate the precondition before committing the workflow:** `argot status
    --format json` must show `snapshot.complete: true` and `snapshot.committed:
-   true`. If it is stale, run `argot fit` locally on the accepted branch, review
-   and commit `.argot/`; never add a CI fit as a workaround.
+   true`. Read `refresh.compatibility` and `refresh.recommendation`: commit count
+   and age do not make it stale by default. If refresh is recommended, run
+   `argot fit` locally on the accepted branch, review and commit `.argot/`;
+   never add a CI fit as a workaround.
 
-6. Explain the scorecard: it is advisory when a complete snapshot is old, but a
+6. Explain the scorecard: adaptive refresh recommendations are advisory, but a
    missing/incomplete/config-mismatched base snapshot is an explicit setup error
    because a partial check must not pretend to cover semantic, layering, or
    integrity rules.

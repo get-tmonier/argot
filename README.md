@@ -81,6 +81,13 @@ argot init
 argot check
 ```
 
+Review and commit the generated `argot.toml` and `.argot/` fit snapshot so
+local tools and CI use the same learned baseline. CI only reads the base
+branch snapshot; it never fits. `argot status` later recommends a local
+fit-and-commit refresh only when accepted source, function, or layout surfaces
+have materially changed. Commit count and age are not refresh triggers by
+default; `[fit] refresh-after` is available only as an explicit team backstop.
+
 `check` reports configured findings on the selected changeset; a clean result
 does not prove the change correct or fully idiomatic. Read the
 [Audit](https://argot.tmonier.com/docs/audit/),

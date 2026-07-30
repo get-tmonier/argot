@@ -243,20 +243,32 @@ runs:
           cp -R "$ARGOT_PATH/.argot/rules" "$snapshot/rules"
         fi
         complete=$(jq -r '.snapshot.complete' <<<"$status")
-        sync=$(jq -r '.health.config_in_sync // false' <<<"$status")
-        behind=$(jq -r '.health.commits_behind // "unknown"' <<<"$status")
+        compatibility=$(jq -r '.refresh.compatibility // "profile_missing"' <<<"$status")
+        recommendation=$(jq -r '.refresh.recommendation // "unknown"' <<<"$status")
+        score=$(jq -r '.refresh.score // "unknown"' <<<"$status")
+        summary=$(jq -r '.refresh.summary // "refresh assessment unavailable"' <<<"$status")
+        summary="${summary//$'\r'/ }"
+        summary="${summary//$'\n'/ }"
+        commits=$(jq -r '.refresh.accepted_source_commits // "unknown"' <<<"$status")
+        commits_at_least=$(jq -r '.refresh.accepted_source_commits_at_least // false' <<<"$status")
+        if [ "$commits_at_least" = true ] && [ "$commits" != unknown ]; then
+          commits="${commits}+"
+        fi
         unavailable=$(jq -r '.snapshot.unavailable | join(", ")' <<<"$status")
-        if [ "$complete" != true ] || [ "$sync" != true ]; then
+        if [ "$complete" != true ] || [ "$compatibility" != ready ]; then
           echo "::error::Argot's committed base fit snapshot is incomplete or incompatible. Run `argot fit` locally on the accepted branch, review and commit .argot/."
           echo "$status"
           exit 2
         fi
         {
           echo "dir=$snapshot"
-          echo "behind=$behind"
+          echo "recommendation=$recommendation"
+          echo "score=$score"
+          echo "summary=$summary"
+          echo "commits=$commits"
           echo "unavailable=$unavailable"
         } >> "$GITHUB_OUTPUT"
-        echo "Argot uses committed snapshot from ${BASE_SHA:0:12}; it is ${behind} accepted source commit(s) behind."
+        echo "Argot uses committed snapshot from ${BASE_SHA:0:12}; adaptive freshness: ${recommendation} (${summary})."
 
     - name: Run argot check
       id: check
@@ -311,14 +323,26 @@ runs:
       if: ${{ always() }}
       shell: bash
       env:
-        BEHIND: ${{ steps.snapshot.outputs.behind }}
+        RECOMMENDATION: ${{ steps.snapshot.outputs.recommendation }}
+        SCORE: ${{ steps.snapshot.outputs.score }}
+        REFRESH_SUMMARY: ${{ steps.snapshot.outputs.summary }}
+        ACCEPTED_COMMITS: ${{ steps.snapshot.outputs.commits }}
         UNAVAILABLE: ${{ steps.snapshot.outputs.unavailable }}
         BASE_SHA: ${{ steps.base.outputs.base_sha }}
       run: |
         set -euo pipefail
+        if [ "$RECOMMENDATION" = "strongly_recommended" ]; then
+          echo "::warning::Argot fit refresh strongly recommended (advisory). See the job summary; run argot fit locally, review and commit .argot/."
+        elif [ "$RECOMMENDATION" = "recommended" ]; then
+          echo "::notice::Argot fit refresh recommended (advisory). See the job summary; run argot fit locally, review and commit .argot/."
+        fi
         {
           echo
-          echo "<sub>Scored against the committed fit snapshot from base \`${BASE_SHA:0:12}\` (${BEHIND:-unknown} accepted source commit(s) behind). CI never fits or rebuilds this snapshot. Refresh locally with \`argot fit\`, review, then commit \`.argot/\` when it becomes stale.</sub>"
+          echo "### Fit snapshot: ${RECOMMENDATION//_/ }"
+          echo
+          echo "${REFRESH_SUMMARY}. Adaptive drift score: ${SCORE}/100. Accepted source commits are context only: ${ACCEPTED_COMMITS}."
+          echo
+          echo "<sub>Scored against the committed fit snapshot from base \`${BASE_SHA:0:12}\`. CI never fits or rebuilds this snapshot. When refresh is recommended, run \`argot fit\` locally, review, then commit \`.argot/\`.</sub>"
           if [ -n "${UNAVAILABLE:-}" ]; then
             echo "<sub>Coverage unavailable for: ${UNAVAILABLE}. This fit legitimately abstained because no artifact was produced.</sub>"
           fi

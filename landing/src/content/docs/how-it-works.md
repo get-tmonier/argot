@@ -56,7 +56,7 @@ deliberate maintenance commit, not infrastructure that has to run on every PR.
   <text x="875" y="162" class="d-thread-label">same approved baseline</text>
   <text x="26" y="338" class="d-phase">3 · REFRESH DELIBERATELY, NOT IN CI</text>
   <g class="d-node d-merge"><rect x="26" y="356" width="202" height="72" rx="11"></rect><text x="127" y="384" class="d-stage">accepted code merges</text><text x="127" y="404" class="d-sub">the repository keeps moving</text></g>
-  <g class="d-node d-warn"><rect x="294" y="356" width="252" height="72" rx="11"></rect><text x="420" y="383" class="d-stage">status / CI says “refresh due”</text><text x="420" y="404" class="d-sub">after ~10 accepted source commits*</text></g>
+  <g class="d-node d-warn"><rect x="294" y="356" width="252" height="72" rx="11"></rect><text x="420" y="383" class="d-stage">status / CI recommends refresh</text><text x="420" y="404" class="d-sub">when learned surfaces materially drift*</text></g>
   <g class="d-node d-accent"><rect x="612" y="356" width="188" height="72" rx="11"></rect><text x="706" y="384" class="d-cmd">argot fit</text><text x="706" y="404" class="d-sub">locally on the accepted branch</text></g>
   <g class="d-node d-artifact"><rect x="846" y="356" width="194" height="72" rx="11"></rect><text x="943" y="383" class="d-stage">review + recommit</text><text x="943" y="404" class="d-sub">the refreshed snapshot</text><text x="943" y="418" class="d-sub">next PRs read it</text></g>
   <line class="d-link" x1="228" y1="392" x2="294" y2="392" marker-end="url(#lifecycle-arrow)"></line>
@@ -65,7 +65,7 @@ deliberate maintenance commit, not infrastructure that has to run on every PR.
   <line class="d-flow d-flow-1" x1="228" y1="392" x2="294" y2="392"></line>
   <line class="d-flow d-flow-2" x1="546" y1="392" x2="612" y2="392"></line>
   <line class="d-flow d-flow-3" x1="800" y1="392" x2="846" y2="392"></line>
-  <text x="580" y="514" class="d-thread-label">* configurable freshness threshold · CI never runs the fit</text>
+  <text x="580" y="514" class="d-thread-label">* adaptive source + function + layout drift · CI never runs the fit</text>
 </svg>
 <figcaption>One deliberate snapshot gives local tools and CI the same learned baseline. Custom rules are opt-in source code; CI is advisory by default; a freshness reminder asks for a small local fit-and-commit update rather than doing work behind your back.</figcaption>
 </figure>

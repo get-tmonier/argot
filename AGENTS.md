@@ -32,6 +32,13 @@ depends on the repo. **A hit is a prompt to think, never a reason to refuse.**
 2. **Check (per change).** Before committing code you generated or edited, score
    it. → `argot check`, or the **argot-check** skill.
 
+Snapshot maintenance is adaptive, not scheduled: `argot status` compares the
+accepted tree with the fitted source/function/layout profile. Commit count and age are
+context only unless the team explicitly configures `[fit] refresh-after` as a
+backstop. `watch` is informational; only `recommended` or
+`strongly_recommended` should prompt a local `argot fit`, review, and commit.
+No command or CI workflow refits automatically.
+
 ## Reading `argot check`
 
 Run `argot check --format json` for machine output. Each hit carries a `rule`,

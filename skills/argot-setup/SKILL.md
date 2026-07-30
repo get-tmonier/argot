@@ -286,8 +286,9 @@ jobs:
 ```
 
 The Action is a pure consumer: it reads the committed fit snapshot from the PR
-base and never fits, caches, or rebuilds an index. Its scorecard reports when
-that snapshot is behind. Refresh it locally on the accepted branch with
+base and never fits, caches, or rebuilds an index. Its scorecard reports the
+shared adaptive drift verdict; commit count and age are context only. When it
+recommends refresh, do it locally on the accepted branch with
 `argot fit`, review the `.argot/` diff, and commit it; never ask CI to do this.
 
 Do not add `fail-on-hits: true` unless they explicitly want a merge gate.
@@ -306,8 +307,10 @@ demonstrate the tool.
 - what was excluded and why (the one-sentence reasons)
 - the health verdict and any remaining notes
 - which integrations were wired, and what the team sees on their next PR
-- **maintenance:** `check`/CI warn when the snapshot falls behind. Refresh it
-  locally on the accepted branch, review and commit `.argot/`. *Re-scoping is
+- **maintenance:** `status` measures material accepted source/function/layout drift;
+  commit count and age are context, not default triggers. `check`/CI speak only
+  when refresh is recommended. Refresh locally on the accepted branch, review
+  and commit `.argot/`. *Re-scoping is
   not automatic* — when a new `gen/` or vendored tree appears, act on it before
   that refresh.
 

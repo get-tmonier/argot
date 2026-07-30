@@ -6,13 +6,11 @@
 //! the tree walk is already paid for — and written here so every later
 //! command can surface them for free:
 //!
-//! - `check` reads this file (no re-scan) and prints one-line notes — the
-//!   command users actually run is the one that tells them it's time to
-//!   recalibrate. This also closes the background-refit hole: a detached
-//!   refit's stdout goes to /dev/null, but its health verdict persists.
+//! - `check` reads this file and prints a one-line note only when material
+//!   accepted drift makes deliberate maintenance worth recommending.
 //! - `status` renders it as the one-stop "is my setup healthy?" answer.
-//! - the auto-refresh treats a changed config fingerprint as staleness, so
-//!   editing `argot.toml` excludes triggers a background refit by itself.
+//! - adaptive freshness compares the accepted tree with a compact fit-time
+//!   profile. It only recommends a deliberate local fit-and-commit refresh.
 
 use crate::config::ArgotConfig;
 use serde::{Deserialize, Serialize};
@@ -37,6 +35,10 @@ pub struct FitHealth {
     /// shows the evidence). Empty on a well-configured repo.
     #[serde(default)]
     pub drift_candidates: Vec<String>,
+    /// Compact denominators for adaptive freshness. Later commands compare
+    /// the accepted tree with `fit_sha`; they never rebuild a model or index.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub refresh_profile: Option<crate::refresh::FitProfile>,
 }
 
 /// FNV-1a over the fit-relevant config. Dependency-free and stable across
@@ -73,8 +75,8 @@ pub fn config_fingerprint(config: &ArgotConfig) -> String {
     format!("{hash:016x}")
 }
 
-/// Write the health artifact (atomic; best-effort — health must never fail a
-/// fit).
+/// Write the health artifact atomically. Best-effort artifact diagnostics must
+/// never corrupt an otherwise successful fit.
 pub fn write(argot_dir: &Path, health: &FitHealth) {
     let Ok(body) = serde_json::to_string_pretty(health) else {
         return;
@@ -117,7 +119,7 @@ mod tests {
         // refit signal.
         let mut rules_only = ArgotConfig::default();
         rules_only.update_check = false;
-        rules_only.fit_auto_refresh = false;
+        rules_only.fit_refresh_after = Some(250);
         assert_eq!(a, config_fingerprint(&rules_only));
     }
 
@@ -142,6 +144,7 @@ mod tests {
             fit_sha: "abc".into(),
             config_fingerprint: "deadbeef".into(),
             drift_candidates: vec!["gen/".into()],
+            refresh_profile: Some(crate::refresh::FitProfile::default()),
         };
         write(&dir, &h);
         let back = read(&dir).unwrap();

@@ -5,10 +5,6 @@
 //! the suppression commands) runs in-process against `argot-core`.
 
 mod audit;
-// Kept only for backwards-compatible invocation of the hidden legacy command;
-// checks no longer schedule a background fit because snapshots are committed.
-#[allow(dead_code)]
-mod auto_refit;
 mod cache_cmd;
 mod describe;
 mod hook;
@@ -103,12 +99,6 @@ fn date_days_from_now(days: u64) -> String {
     format!("{y:04}-{m:02}-{d:02}")
 }
 
-/// A fit older than this many days earns a soft "consider re-fitting" hint —
-/// generous on purpose (a stale model is lower-confidence, not wrong). Never
-/// affects exit codes or the verdict; it's a nudge for the "fit once, forgot"
-/// case. Internal, not a user knob.
-const STALE_FIT_DAYS: i64 = 90;
-
 /// The reviewable fit snapshot. These files cover every persisted learned
 /// detector; transient extraction/check state intentionally stays outside this
 /// list. Some detectors legitimately abstain on a small or unsupported corpus.
@@ -134,47 +124,6 @@ const REQUIRED_FIT_SNAPSHOT_FILES: &[&str] = &[
     "health.json",
     "manifest.json",
 ];
-
-/// Days since the Unix epoch for a civil date — inverse of `civil_from_days`
-/// (Howard Hinnant's `days_from_civil`).
-fn days_from_civil(y: i64, m: i64, d: i64) -> i64 {
-    let y = if m <= 2 { y - 1 } else { y };
-    let era = (if y >= 0 { y } else { y - 399 }) / 400;
-    let yoe = y - era * 400;
-    let mp = if m > 2 { m - 3 } else { m + 9 };
-    let doy = (153 * mp + 2) / 5 + d - 1;
-    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
-    era * 146097 + doe - 719468
-}
-
-/// Whole days between a fit timestamp (ISO `YYYY-MM-DD…`) and `today`
-/// (`YYYY-MM-DD`). `None` if either can't be parsed.
-fn days_since_fit(fit_ts: &str, today: &str) -> Option<i64> {
-    let parse = |s: &str| -> Option<(i64, i64, i64)> {
-        let mut it = s.get(..10)?.split('-');
-        Some((
-            it.next()?.parse().ok()?,
-            it.next()?.parse().ok()?,
-            it.next()?.parse().ok()?,
-        ))
-    };
-    let (fy, fm, fd) = parse(fit_ts)?;
-    let (ty, tm, td) = parse(today)?;
-    Some(days_from_civil(ty, tm, td) - days_from_civil(fy, fm, fd))
-}
-
-/// The calibration timestamp from a fitted `scorer-config.json` (any language;
-/// they share the fit time). Used only for the staleness hint.
-fn fit_timestamp(argot_dir: &Path) -> Option<String> {
-    let bytes = fs::read(argot_dir.join("scorer-config.json")).ok()?;
-    let v: serde_json::Value = serde_json::from_slice(&bytes).ok()?;
-    v.get("languages")?.as_object()?.values().find_map(|lc| {
-        lc.get("calibration")?
-            .get("timestamp_utc")?
-            .as_str()
-            .map(String::from)
-    })
-}
 
 #[derive(Parser)]
 #[command(
@@ -253,9 +202,6 @@ enum Command {
     #[cfg(feature = "self-update")]
     #[command(name = "refresh-version-cache", hide = true)]
     RefreshVersionCache,
-    /// Refit the voice model in the background (spawned detached; hidden).
-    #[command(name = "background-refit", hide = true)]
-    BackgroundRefit(BackgroundRefitCmd),
     /// Run a Model Context Protocol server for LLM coding agents (stdio).
     Mcp(McpCmd),
     /// Generate a STYLE.md describing the repo's learned voice.
@@ -719,27 +665,12 @@ fn run_status(c: StatusCmd) -> ExitCode {
     let calibrated = snapshot_dir.join("scorer-config.json").exists();
     let snapshot = fit_snapshot_status(Path::new(&ctx.git_root), &snapshot_dir);
 
-    // The one-stop "is my setup healthy / is it time to recalibrate?" answer:
-    // freshness (commits behind), config sync, and calibration drift — all
-    // read from what the last fit persisted, no tree walk here.
+    // One shared adaptive assessment powers status, check, MCP, and CI.
     let health = argot_core::health::read(&snapshot_dir);
     let (status_config, _) = argot_core::compose::load_config(Path::new(&ctx.git_root));
-    let behind = health.as_ref().and_then(|h| {
-        (!h.fit_sha.is_empty())
-            .then(|| {
-                argot_core::check::accepted_source_commits_behind(
-                    &ctx.git_root,
-                    &h.fit_sha,
-                    &status_config,
-                    status_config.fit_refresh_after,
-                )
-            })
-            .flatten()
-    });
-    let config_in_sync = health.as_ref().map(|h| {
-        h.config_fingerprint.is_empty()
-            || h.config_fingerprint == argot_core::health::config_fingerprint(&status_config)
-    });
+    let refresh = health
+        .as_ref()
+        .map(|h| argot_core::refresh::assess(Path::new(&ctx.git_root), h, &status_config));
     let drift: Vec<String> = health
         .as_ref()
         .map(|h| h.drift_candidates.clone())
@@ -793,10 +724,9 @@ fn run_status(c: StatusCmd) -> ExitCode {
             },
             "health": health.as_ref().map(|h| serde_json::json!({
                 "fit_sha": h.fit_sha,
-                "commits_behind": behind,
-                "config_in_sync": config_in_sync,
                 "drift_candidates": drift,
             })),
+            "refresh": refresh,
             "migrations": {
                 "mined": mined_migrations,
                 "declared": declared_migrations,
@@ -851,28 +781,57 @@ fn run_status(c: StatusCmd) -> ExitCode {
         );
     }
     if let Some(h) = &health {
-        let fresh = match behind {
-            Some(0) => "fresh (nothing accepted since the fit)".to_string(),
-            Some(n) => {
-                let plus = if n >= status_config.fit_refresh_after {
-                    "+"
-                } else {
-                    ""
-                };
-                format!("{n}{plus} accepted source commit(s) behind — refresh locally and commit the fit snapshot")
-            }
-            None => "unknown".to_string(),
-        };
         println!(
-            "Voice:    fitted at {} · {fresh}",
+            "Voice:    fitted at {}",
             &h.fit_sha[..12.min(h.fit_sha.len())]
         );
-        match config_in_sync {
-            Some(true) => println!("Config:   in sync with the fit"),
-            Some(false) => {
-                println!("Config:   argot.toml changed since the fit — run `argot fit`, then commit `.argot/`")
+        if let Some(assessment) = &refresh {
+            use argot_core::refresh::{Compatibility, Recommendation};
+            match assessment.compatibility {
+                Compatibility::Ready => {
+                    let label = match assessment.recommendation {
+                        Some(Recommendation::Fresh) => "fresh",
+                        Some(Recommendation::Watch) => "watch",
+                        Some(Recommendation::Recommended) => "refresh recommended",
+                        Some(Recommendation::StronglyRecommended) => {
+                            "refresh strongly recommended"
+                        }
+                        None => "unknown",
+                    };
+                    let detail = assessment
+                        .primary_reason()
+                        .map(argot_core::refresh::RefreshReason::human_summary)
+                        .unwrap_or_else(|| "no material learned-surface drift".to_string());
+                    println!("Refresh:  {label} · {detail}");
+                    if assessment.recommendation.is_some_and(|r| r.notifies_check()) {
+                        println!(
+                            "          run `argot fit` on the accepted branch, review, then commit `.argot/`"
+                        );
+                    }
+                    if let Some(commits) = assessment.accepted_source_commits {
+                        let plus = if assessment.accepted_source_commits_at_least {
+                            "+"
+                        } else {
+                            ""
+                        };
+                        println!(
+                            "Context:  {commits}{plus} accepted source commit(s) since the fit"
+                        );
+                    }
+                }
+                Compatibility::ConfigChanged => println!(
+                    "Refresh:  required · argot.toml changed since the fit — run `argot fit`, review, then commit `.argot/`"
+                ),
+                Compatibility::ProfileMissing => println!(
+                    "Refresh:  required · adaptive freshness profile missing — run `argot fit`, review, then commit `.argot/`"
+                ),
+                Compatibility::LineageDiverged => println!(
+                    "Refresh:  required · snapshot belongs to a different accepted history"
+                ),
+                Compatibility::HistoryUnavailable => {
+                    println!("Refresh:  unknown · fit history is unavailable in this clone")
+                }
             }
-            None => {}
         }
         if drift.is_empty() {
             println!("Hygiene:  no unexcluded generated/data-heavy/vendored directories");
@@ -1685,14 +1644,7 @@ fn run_check_cmd(c: CheckCmd) -> ExitCode {
     if !quiet || outcome.exit_code >= 2 {
         eprint!("{}", outcome.stderr);
     }
-    // Soft staleness nudge — human output only, never affects the exit code or
-    // the machine formats. Catches the "fit once, forgot for months" case.
     if human && !quiet && outcome.exit_code < 2 {
-        if let Some(days) = fit_timestamp(&argot_dir).and_then(|ts| days_since_fit(&ts, &today)) {
-            if days >= STALE_FIT_DAYS {
-                eprintln!("note: voice model fitted {days} days ago — `argot fit` to refresh.");
-            }
-        }
         freshness_hook();
     }
     ExitCode::from(outcome.exit_code as u8)
@@ -1727,13 +1679,6 @@ fn run_audit_cmd(c: AuditCmd) -> ExitCode {
         None => audit::window::WindowSpec::Commits(c.commits),
     };
     audit::run_audit(&c.repo, spec, format)
-}
-
-#[derive(Args)]
-struct BackgroundRefitCmd {
-    /// Path to the repository to refit.
-    #[arg(long, default_value = ".")]
-    repo: PathBuf,
 }
 
 #[derive(Args)]
@@ -2047,7 +1992,7 @@ fn paint(text: &str, color: &str, use_color: bool) -> String {
     }
 }
 
-fn render_inspect_human(report: &InspectReport, use_color: bool, today: &str) -> String {
+fn render_inspect_human(report: &InspectReport, use_color: bool, _today: &str) -> String {
     use std::fmt::Write as _;
     let mut out = String::new();
     let _ = writeln!(out, "Inspecting {}", report.path);
@@ -2125,22 +2070,6 @@ fn render_inspect_human(report: &InspectReport, use_color: bool, today: &str) ->
                     "    phrasing headroom: {:+.2} (BPE ceiling {:.2} + callee cap {:.0} vs threshold {:.2})",
                     lc.phrasing_headroom, lc.bpe_ceiling, lc.contribution_cap, lc.threshold
                 );
-            }
-            // Soft freshness nudge — a stale model is lower-confidence, not
-            // wrong. Advisory only; it never changes the verdict.
-            if let Some(days) = cal
-                .languages
-                .values()
-                .next()
-                .and_then(|lc| days_since_fit(&lc.timestamp_utc, today))
-            {
-                if days >= STALE_FIT_DAYS {
-                    let _ = writeln!(
-                        out,
-                        "  {} fitted {days} days ago — `argot fit` to refresh",
-                        paint("stale:", ANSI_YELLOW, use_color)
-                    );
-                }
             }
         }
         None => {
@@ -2928,10 +2857,6 @@ fn main() -> ExitCode {
             ExitCode::SUCCESS
         }
         Some(Command::Audit(c)) => run_audit_cmd(c),
-        Some(Command::BackgroundRefit(c)) => {
-            auto_refit::run_background_refit(&c.repo);
-            ExitCode::SUCCESS
-        }
         Some(Command::Mcp(c)) => mcp::run_mcp(c.repo),
         Some(Command::DescribeVoice(c)) => describe::run_describe_voice(c.repo, c.top, c.out),
         Some(Command::Conventions(c)) => run_conventions_cmd(c),
@@ -2942,9 +2867,8 @@ fn main() -> ExitCode {
 #[cfg(test)]
 mod tests {
     use super::{
-        days_since_fit, ensure_local_config_gitignored, ensure_model_gitignored, fit_repo,
-        init_recurring_actions, is_npm_install, resolve_argot_dir, root_help, wants_json, Cli,
-        Verdict, FIT_SNAPSHOT_FILES,
+        ensure_local_config_gitignored, ensure_model_gitignored, fit_repo, init_recurring_actions,
+        is_npm_install, resolve_argot_dir, root_help, wants_json, Cli, Verdict, FIT_SNAPSHOT_FILES,
     };
     use clap::CommandFactory;
 
@@ -3030,19 +2954,6 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    #[test]
-    fn days_since_fit_counts_calendar_days() {
-        // Same day, ISO timestamp with a time part.
-        assert_eq!(
-            days_since_fit("2026-07-06T07:39:27+00:00", "2026-07-06"),
-            Some(0)
-        );
-        assert_eq!(days_since_fit("2026-01-01", "2026-01-31"), Some(30));
-        // A year (2024 is a leap year → 366 from mid-2024, but 2025→2026 is 365).
-        assert_eq!(days_since_fit("2025-07-06", "2026-07-06"), Some(365));
-        // Unparseable input never panics.
-        assert_eq!(days_since_fit("not-a-date", "2026-07-06"), None);
-    }
     use std::path::{Path, PathBuf};
 
     #[test]
