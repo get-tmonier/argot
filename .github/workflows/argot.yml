@@ -1,4 +1,4 @@
-name: Argot
+name: Argot UI demo (disposable)
 
 on:
   pull_request:
@@ -18,7 +18,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # Argot reads the reviewed snapshot from the PR base.
-      # The Action downloads the latest released Argot CLI by default.
-      - uses: get-tmonier/argot@main
+      # Build and run this PR's Action + renderer so reviewers can inspect the
+      # unreleased card. This workflow is only for the disposable demo PR.
+      - run: cargo build --quiet -p argot
+      - uses: ./
         with:
+          argot-version: local
+          format: github
+          upload-sarif: false
           fail-on-hits: false # Advisory: a finding never blocks this job.
