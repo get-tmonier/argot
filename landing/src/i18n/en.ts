@@ -193,9 +193,10 @@ const en: SiteContent = {
     body: 'Run [[argot init]], then choose the CLI, skills, a commit hook, or a GitHub Action. The Claude plugin adds a narrow pre-write prompt — not a full acceptance-time check.',
     installLabel: 'Install the CLI',
     skillsLabel: 'Add agent skills',
-    skillsIntro: 'six on-demand skills for compatible hosts:',
+    skillsIntro: 'seven on-demand skills for compatible hosts:',
     skillDescs: [
       'reads your tree, writes argot.toml, verifies the catch',
+      'reviews scope and mutes, then refreshes the learned snapshot',
       'scores each diff, flags what’s foreign — never blocks',
       'reviews one PR against your repo’s voice, no checkout',
       'a non-blocking voice score on every PR',

@@ -58,14 +58,20 @@ On every PR it extracts the base commit’s snapshot into a temporary directory.
 from self-certifying by changing `.argot/`. Its summary reports the same adaptive freshness verdict
 as local `status`: source/function/layout drift is measured against `fit_sha`, while accepted commits are
 context only. `recommended` creates a notice and `strongly_recommended` a warning; neither gates the
-PR. A missing, incomplete, or configuration-mismatched base snapshot is a clear setup error rather
+PR. The summary also exposes `next_action`: `fit` for ordinary learned-surface drift, or
+`review_scope_then_fit` when structural paths or fit-relevant configuration need review first. A
+missing, incomplete, or configuration-mismatched base snapshot is a clear setup error rather
 than a silent partial check.
 
 ### Refreshing it
 
-When the scorecard recommends a refresh, update the accepted branch locally:
+When the scorecard recommends a refresh, invoke the `argot-refresh` skill on the accepted branch.
+It runs `init --suggest`, checks structural paths and the current corpus, reviews mutes read-only,
+asks once before changing policy, and only then fits. The manual core is:
 
 ```sh
+argot init --suggest --format json
+argot review-mutes
 argot fit
 argot status
 git add .argot/ argot.toml

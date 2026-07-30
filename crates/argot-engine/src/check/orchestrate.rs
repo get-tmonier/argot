@@ -477,13 +477,13 @@ pub fn run_check(args: CheckArgs, detectors: Vec<RegisteredDetector<'_>>) -> Che
         let refresh = crate::refresh::assess(Path::new(&args.repo_path), &health, &config);
         match refresh.compatibility {
             crate::refresh::Compatibility::ConfigChanged => stderr.push_str(
-                "[argot] argot.toml changed since the last fit — run `argot fit` locally, then review and commit the refreshed `.argot/` snapshot\n",
+                "[argot] argot.toml changed since the last fit — use the `argot-refresh` skill to review scope and mutes before fitting, then commit the refreshed `.argot/` snapshot\n",
             ),
             crate::refresh::Compatibility::ProfileMissing => stderr.push_str(
-                "[argot] fit snapshot has no adaptive freshness profile — run `argot fit` locally, then review and commit `.argot/`\n",
+                "[argot] fit snapshot has no adaptive freshness profile — use the `argot-refresh` skill locally, then review and commit `.argot/`\n",
             ),
             crate::refresh::Compatibility::LineageDiverged => stderr.push_str(
-                "[argot] fit snapshot belongs to a different accepted history — run `argot fit` locally, then review and commit `.argot/`\n",
+                "[argot] fit snapshot belongs to a different accepted history — use the `argot-refresh` skill on the accepted branch, then review and commit `.argot/`\n",
             ),
             _ => {
                 if refresh.recommendation.is_some_and(|r| r.notifies_check()) {
@@ -491,8 +491,15 @@ pub fn run_check(args: CheckArgs, detectors: Vec<RegisteredDetector<'_>>) -> Che
                         .primary_reason()
                         .map(crate::refresh::RefreshReason::human_summary)
                         .unwrap_or_else(|| "material learned-surface drift detected".to_string());
+                    let action = if refresh.next_action
+                        == crate::refresh::NextAction::ReviewScopeThenFit
+                    {
+                        "use the `argot-refresh` skill to review scope and mutes before fitting"
+                    } else {
+                        "use the `argot-refresh` skill, or run `argot fit` locally on the accepted branch"
+                    };
                     stderr.push_str(&format!(
-                        "[argot] fit refresh recommended — {reason}; run `argot fit` locally on the accepted branch, review and commit `.argot/`\n"
+                        "[argot] fit refresh recommended — {reason}; {action}, then review and commit `.argot/`\n"
                     ));
                 }
             }

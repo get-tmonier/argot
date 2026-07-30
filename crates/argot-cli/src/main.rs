@@ -786,7 +786,7 @@ fn run_status(c: StatusCmd) -> ExitCode {
             &h.fit_sha[..12.min(h.fit_sha.len())]
         );
         if let Some(assessment) = &refresh {
-            use argot_core::refresh::{Compatibility, Recommendation};
+            use argot_core::refresh::{Compatibility, NextAction, Recommendation};
             match assessment.compatibility {
                 Compatibility::Ready => {
                     let label = match assessment.recommendation {
@@ -803,10 +803,14 @@ fn run_status(c: StatusCmd) -> ExitCode {
                         .map(argot_core::refresh::RefreshReason::human_summary)
                         .unwrap_or_else(|| "no material learned-surface drift".to_string());
                     println!("Refresh:  {label} · {detail}");
-                    if assessment.recommendation.is_some_and(|r| r.notifies_check()) {
-                        println!(
-                            "          run `argot fit` on the accepted branch, review, then commit `.argot/`"
-                        );
+                    match assessment.next_action {
+                        NextAction::ReviewScopeThenFit => println!(
+                            "Next:     use the `argot-refresh` skill to review scope + mutes before fitting"
+                        ),
+                        NextAction::Fit => println!(
+                            "Next:     use the `argot-refresh` skill (or run `argot fit`), then review and commit `.argot/`"
+                        ),
+                        _ => {}
                     }
                     if let Some(commits) = assessment.accepted_source_commits {
                         let plus = if assessment.accepted_source_commits_at_least {
@@ -820,16 +824,16 @@ fn run_status(c: StatusCmd) -> ExitCode {
                     }
                 }
                 Compatibility::ConfigChanged => println!(
-                    "Refresh:  required · argot.toml changed since the fit — run `argot fit`, review, then commit `.argot/`"
+                    "Refresh:  required · argot.toml changed since the fit\nNext:     use the `argot-refresh` skill to review scope + mutes before fitting"
                 ),
                 Compatibility::ProfileMissing => println!(
-                    "Refresh:  required · adaptive freshness profile missing — run `argot fit`, review, then commit `.argot/`"
+                    "Refresh:  required · adaptive freshness profile missing\nNext:     use the `argot-refresh` skill (or run `argot fit`), then review and commit `.argot/`"
                 ),
                 Compatibility::LineageDiverged => println!(
-                    "Refresh:  required · snapshot belongs to a different accepted history"
+                    "Refresh:  required · snapshot belongs to a different accepted history\nNext:     use the `argot-refresh` skill on the accepted branch"
                 ),
                 Compatibility::HistoryUnavailable => {
-                    println!("Refresh:  unknown · fit history is unavailable in this clone")
+                    println!("Refresh:  unknown · fit history is unavailable in this clone\nNext:     fetch full accepted history before deciding")
                 }
             }
         }

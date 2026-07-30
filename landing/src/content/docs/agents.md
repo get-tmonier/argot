@@ -16,8 +16,9 @@ Install the skill bundle in a compatible host:
 npx skills add get-tmonier/argot
 ```
 
-The bundle contains `argot-setup`, `argot-check`, `argot-review-pr`, `argot-setup-ci`,
-`argot-write-rule`, and `argot-suggest-rules`. A user or agent must select a skill; installation
+The bundle contains `argot-setup`, `argot-refresh`, `argot-check`, `argot-review-pr`,
+`argot-setup-ci`, `argot-write-rule`, and `argot-suggest-rules`. `argot-refresh` re-audits
+scope, structural paths, and mutes before a deliberate fit. A user or agent must select a skill; installation
 does not configure a hook or MCP server, and a skill does not schedule Argot commands on its own.
 The selected workflow may require the `argot` CLI and a fitted repository.
 
@@ -49,6 +50,7 @@ a check before a commit, at the end of an agent turn, or at acceptance time.
 2. Optionally ask MCP for context before generating a change.
 3. Run the full [`argot check`](/docs/check/) on the intended changeset.
 4. Read the rule evidence; keep the human decision explicit.
+5. When fit status recommends maintenance, use `argot-refresh`; never fit in CI.
 
 Copying Argot’s [`AGENTS.md`](https://github.com/get-tmonier/argot/blob/main/AGENTS.md) into a
 repository can give agents the same interpretation contract, but it does not install or trigger

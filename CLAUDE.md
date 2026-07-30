@@ -91,7 +91,7 @@ crates/
   argot-cli/             # clap CLI → the single `argot` binary (package name: argot);
                          #   per-command modules: mcp.rs (MCP server) · review.rs ·
                          #   audit/ · voice_diff.rs · describe.rs (describe-voice) ·
-                         #   auto_refit.rs · update_check.rs · uninstall.rs · worktree.rs
+                         #   update_check.rs · uninstall.rs · worktree.rs
   argot-bench/           # research harness (never shipped; publish = false)
 vendor/
   tree-sitter-pascal/    # the ONE forked grammar (upstream 0.10.2 + 12 rules).
@@ -247,9 +247,9 @@ Keep evidence of every experiment in `docs/research/evidence/` regardless of out
 When a command, flag, rule, or exit code changes, these ship the change to
 users and must move together:
 
-- `skills/` — the six shipped skills (`argot-setup`, `argot-check`,
-  `argot-review-pr`, `argot-setup-ci`, `argot-suggest-rules`,
-  `argot-write-rule`); workflow procedures, not command catalogs —
+- `skills/` — the seven shipped skills (`argot-setup`, `argot-refresh`,
+  `argot-check`, `argot-review-pr`, `argot-setup-ci`,
+  `argot-suggest-rules`, `argot-write-rule`); workflow procedures, not command catalogs —
   `argot --help` stays the source of truth.
 - `crates/argot-cli/src/mcp.rs` — the MCP server (`argot mcp`).
 - `.claude-plugin/` — the Claude Code plugin (bundles the skills + MCP server).

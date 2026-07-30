@@ -288,8 +288,9 @@ jobs:
 The Action is a pure consumer: it reads the committed fit snapshot from the PR
 base and never fits, caches, or rebuilds an index. Its scorecard reports the
 shared adaptive drift verdict; commit count and age are context only. When it
-recommends refresh, do it locally on the accepted branch with
-`argot fit`, review the `.argot/` diff, and commit it; never ask CI to do this.
+recommends refresh, use the **argot-refresh** skill locally on the accepted
+branch. It re-audits scope and mutes before fitting, then shows the `.argot/`
+diff to review and commit; never ask CI to do this.
 
 Do not add `fail-on-hits: true` unless they explicitly want a merge gate.
 
@@ -309,10 +310,9 @@ demonstrate the tool.
 - which integrations were wired, and what the team sees on their next PR
 - **maintenance:** `status` measures material accepted source/function/layout drift;
   commit count and age are context, not default triggers. `check`/CI speak only
-  when refresh is recommended. Refresh locally on the accepted branch, review
-  and commit `.argot/`. *Re-scoping is
-  not automatic* — when a new `gen/` or vendored tree appears, act on it before
-  that refresh.
+  when refresh is recommended. `refresh.next_action` distinguishes a direct fit
+  from `review_scope_then_fit`; use **argot-refresh** to re-audit paths and mutes,
+  ask once before policy edits, fit locally, then review and commit `.argot/`.
 
 Optional: `argot describe-voice --out STYLE.md` writes a committed,
 human-readable description of what argot learned.

@@ -44,9 +44,11 @@ model — reinstall argot and fit again.
 **Symptom:** `status` or `check` recommends a refresh or reports a config
 change. **Cause:** a material share of the learned source/function/layout surface changed,
 or the corpus configuration no longer matches the fit. Commit count and age alone
-do not cause this. **Safe command:** run `argot status`, then `argot fit` locally on the
-accepted branch, review and commit `.argot/` when a refresh is needed.
-**Escalate:** review generated/vendor/data exclusions before refitting;
+do not cause this. **Safe command:** run `argot status` and read `refresh.next_action`. Prefer the
+`argot-refresh` skill on the accepted branch: it
+reviews generated/vendor/data exclusions, moved paths, corpus composition, and mutes before asking
+once for approval and fitting. Review and commit `.argot/` afterwards.
+**Escalate:** if history is unavailable, use a full clone rather than guessing;
 see [Health & freshness](/docs/health-and-freshness/).
 
 ## Action, plugin, or pre-commit integration behaves unexpectedly

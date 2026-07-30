@@ -5,12 +5,12 @@ group: Configure
 order: 2
 ---
 
-This is the canonical guide for the Argot Claude Code plugin. It packages six skills, an MCP
+This is the canonical guide for the Argot Claude Code plugin. It packages seven skills, an MCP
 server, and one narrow hook. These are different capabilities:
 
 | Surface | Invocation | Coverage |
 | --- | --- | --- |
-| Skills | User or agent selects one | Six on-demand workflows; no scheduling by a skill. |
+| Skills | User or agent selects one | Seven on-demand workflows, including guided snapshot refresh; no scheduling by a skill. |
 | MCP | Agent selects a tool call | Read-only context and checks over stdio; it does not invoke itself. |
 | Pre-write hook | Automatic when plugin is enabled and repository is fitted | Asks only before a `Write`, `Edit`, or `MultiEdit` introduces a foreign import. |
 

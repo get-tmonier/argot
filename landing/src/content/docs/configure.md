@@ -516,7 +516,8 @@ reverted do not create artificial maintenance.
 The deterministic adaptive verdict is `fresh`, `watch`, `recommended`, or
 `strongly_recommended`. `watch` is visible in `status` and MCP but stays out of
 routine checks and CI annotations. A recommendation remains advisory: run
-`argot fit` locally, review the `.argot/` diff, and commit it deliberately.
+the `argot-refresh` skill locally, review its scope/mute proposal, then fit and
+commit the `.argot/` diff deliberately.
 
 "Accepted" is the load-bearing word: staleness is measured at the **merge-base
 with your default branch**. A feature branch's own commits and uncommitted
@@ -560,10 +561,18 @@ to recalibrate:
 - **`argot status`** (`--repo <path>` for a repository you are not sitting in)
   is the one-stop health view: fitted SHA, adaptive drift score and evidence,
   accepted commits as context only, config compatibility, and unexcluded noisy directories,
+- `refresh.next_action` distinguishes `fit` from `review_scope_then_fit`. The
+  latter is emitted for material new areas/languages/layout changes or a
+  fit-relevant config mismatch; use `argot-refresh` before rebuilding,
 - `argot status --format json` also reports whether every required snapshot
   artifact is present and tracked, so CI can refuse a misleading partial run.
 
 A well-configured repo stays quiet on all of it.
+
+Mutes and `[rules]` are deliberately not part of the fit fingerprint: they
+change which findings are shown, not what the model learns. `argot-refresh`
+reviews them in the same maintenance pass because stale policy can hide useful
+evidence, but mute-only cleanup does not force an otherwise unnecessary fit.
 
 ## `[update]` — the passive update notice
 

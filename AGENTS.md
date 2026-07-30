@@ -36,8 +36,10 @@ Snapshot maintenance is adaptive, not scheduled: `argot status` compares the
 accepted tree with the fitted source/function/layout profile. Commit count and age are
 context only unless the team explicitly configures `[fit] refresh-after` as a
 backstop. `watch` is informational; only `recommended` or
-`strongly_recommended` should prompt a local `argot fit`, review, and commit.
-No command or CI workflow refits automatically.
+`strongly_recommended` should prompt maintenance. Use the **argot-refresh**
+skill: `refresh.next_action` says whether to fit directly or review scope first;
+the skill also reviews mutes before the local fit, review, and commit. No
+command or CI workflow refits automatically.
 
 ## Reading `argot check`
 
@@ -198,9 +200,10 @@ Trust the binary. `argot rules` prints the live rule registry and `argot
 
 ## More
 
-- **Skills:** `argot-setup` (local), `argot-check` (per-diff), `argot-review-pr`
+- **Skills:** `argot-setup` (local), `argot-refresh` (review scope/mutes and
+  refresh the committed snapshot), `argot-check` (per-diff), `argot-review-pr`
   (review one PR against the repo's voice), `argot-setup-ci` (wire the GitHub
-  Action), `argot-write-rule` (codify a convention as a custom rule) —
+  Action), `argot-write-rule` and `argot-suggest-rules` (codify conventions) —
   install with `npx skills add get-tmonier/argot`.
 - **MCP** (proactive): `argot mcp` exposes `voice_context` so you can write
   in-voice from the first token — see

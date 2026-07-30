@@ -192,9 +192,10 @@ const fr: SiteContent = {
     body: 'Lancez [[argot init]], puis choisissez la CLI, les skills, un hook de commit ou une GitHub Action. Le plugin Claude ajoute une invite étroite avant écriture — pas une vérification complète à l’acceptation.',
     installLabel: 'Installer la CLI',
     skillsLabel: 'Ajouter les skills agent',
-    skillsIntro: 'six skills à la demande pour les hôtes compatibles :',
+    skillsIntro: 'sept skills à la demande pour les hôtes compatibles :',
     skillDescs: [
       'lit votre arbre, écrit argot.toml, vérifie la détection',
+      'révise le scope et les mutes, puis rafraîchit le snapshot appris',
       'score chaque diff, signale l’étranger — ne bloque jamais',
       'examine une PR selon la voix de votre dépôt, sans checkout',
       'un score de voix non bloquant sur chaque PR',

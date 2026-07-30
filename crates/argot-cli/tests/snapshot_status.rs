@@ -150,12 +150,14 @@ fn status_exposes_the_adaptive_refresh_verdict() {
     let fresh = status(&path);
     assert_eq!(fresh["refresh"]["compatibility"], "ready");
     assert_eq!(fresh["refresh"]["recommendation"], "fresh");
+    assert_eq!(fresh["refresh"]["next_action"], "none");
 
     std::fs::write(path.join("src/app.py"), source(40)).unwrap();
     commit_all(&repo, "large accepted refactor");
     let changed = status(&path);
     assert_eq!(changed["refresh"]["recommendation"], "recommended");
     assert_eq!(changed["refresh"]["score"], 40);
+    assert_eq!(changed["refresh"]["next_action"], "fit");
     assert!(changed["refresh"]["summary"]
         .as_str()
         .unwrap()

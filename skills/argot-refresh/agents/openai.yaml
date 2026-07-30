@@ -1,0 +1,4 @@
+interface:
+  display_name: "Argot Refresh"
+  short_description: "Review scope and safely refresh Argot"
+  default_prompt: "Use $argot-refresh to review this repository’s Argot scope and mutes, then refresh its committed fit snapshot safely."

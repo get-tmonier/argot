@@ -245,6 +245,7 @@ runs:
         complete=$(jq -r '.snapshot.complete' <<<"$status")
         compatibility=$(jq -r '.refresh.compatibility // "profile_missing"' <<<"$status")
         recommendation=$(jq -r '.refresh.recommendation // "unknown"' <<<"$status")
+        next_action=$(jq -r '.refresh.next_action // "inspect_history"' <<<"$status")
         score=$(jq -r '.refresh.score // "unknown"' <<<"$status")
         summary=$(jq -r '.refresh.summary // "refresh assessment unavailable"' <<<"$status")
         summary="${summary//$'\r'/ }"
@@ -256,13 +257,18 @@ runs:
         fi
         unavailable=$(jq -r '.snapshot.unavailable | join(", ")' <<<"$status")
         if [ "$complete" != true ] || [ "$compatibility" != ready ]; then
-          echo "::error::Argot's committed base fit snapshot is incomplete or incompatible. Run `argot fit` locally on the accepted branch, review and commit .argot/."
+          if [ "$next_action" = review_scope_then_fit ]; then
+            echo "::error::Argot's committed base fit snapshot is incomplete or incompatible. Use the argot-refresh skill to review scope and mutes before fitting locally, then review and commit .argot/."
+          else
+            echo "::error::Argot's committed base fit snapshot is incomplete or incompatible. Use the argot-refresh skill locally on the accepted branch, then review and commit .argot/."
+          fi
           echo "$status"
           exit 2
         fi
         {
           echo "dir=$snapshot"
           echo "recommendation=$recommendation"
+          echo "next_action=$next_action"
           echo "score=$score"
           echo "summary=$summary"
           echo "commits=$commits"
@@ -324,6 +330,7 @@ runs:
       shell: bash
       env:
         RECOMMENDATION: ${{ steps.snapshot.outputs.recommendation }}
+        NEXT_ACTION: ${{ steps.snapshot.outputs.next_action }}
         SCORE: ${{ steps.snapshot.outputs.score }}
         REFRESH_SUMMARY: ${{ steps.snapshot.outputs.summary }}
         ACCEPTED_COMMITS: ${{ steps.snapshot.outputs.commits }}
@@ -331,10 +338,15 @@ runs:
         BASE_SHA: ${{ steps.base.outputs.base_sha }}
       run: |
         set -euo pipefail
+        if [ "$NEXT_ACTION" = review_scope_then_fit ]; then
+          action_text="Use the argot-refresh skill to review scope and mutes before fitting locally."
+        else
+          action_text="Use the argot-refresh skill, or run argot fit locally."
+        fi
         if [ "$RECOMMENDATION" = "strongly_recommended" ]; then
-          echo "::warning::Argot fit refresh strongly recommended (advisory). See the job summary; run argot fit locally, review and commit .argot/."
+          echo "::warning::Argot fit refresh strongly recommended (advisory). ${action_text} Review and commit .argot/."
         elif [ "$RECOMMENDATION" = "recommended" ]; then
-          echo "::notice::Argot fit refresh recommended (advisory). See the job summary; run argot fit locally, review and commit .argot/."
+          echo "::notice::Argot fit refresh recommended (advisory). ${action_text} Review and commit .argot/."
         fi
         {
           echo
@@ -342,7 +354,9 @@ runs:
           echo
           echo "${REFRESH_SUMMARY}. Adaptive drift score: ${SCORE}/100. Accepted source commits are context only: ${ACCEPTED_COMMITS}."
           echo
-          echo "<sub>Scored against the committed fit snapshot from base \`${BASE_SHA:0:12}\`. CI never fits or rebuilds this snapshot. When refresh is recommended, run \`argot fit\` locally, review, then commit \`.argot/\`.</sub>"
+          echo "Next action: \`${NEXT_ACTION}\`. ${action_text}"
+          echo
+          echo "<sub>Scored against the committed fit snapshot from base \`${BASE_SHA:0:12}\`. CI never fits or rebuilds this snapshot. Refresh remains a reviewed local maintenance commit.</sub>"
           if [ -n "${UNAVAILABLE:-}" ]; then
             echo "<sub>Coverage unavailable for: ${UNAVAILABLE}. This fit legitimately abstained because no artifact was produced.</sub>"
           fi

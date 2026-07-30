@@ -62,6 +62,20 @@ pub enum Recommendation {
     StronglyRecommended,
 }
 
+/// The maintenance route a caller should offer. This is deliberately separate
+/// from the recommendation strength: structural drift needs a corpus-scope
+/// review before fitting, while ordinary source drift can go straight to a
+/// deliberate fit refresh.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum NextAction {
+    None,
+    Monitor,
+    Fit,
+    ReviewScopeThenFit,
+    InspectHistory,
+}
+
 impl Recommendation {
     pub fn notifies_check(self) -> bool {
         self >= Self::Recommended
@@ -94,6 +108,7 @@ pub struct RefreshAssessment {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub score: Option<u8>,
     pub algorithm: String,
+    pub next_action: NextAction,
     pub fit_sha: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub accepted_sha: Option<String>,
@@ -113,6 +128,12 @@ impl RefreshAssessment {
             recommendation: None,
             score: None,
             algorithm: "adaptive-v1".to_string(),
+            next_action: match compatibility {
+                Compatibility::ConfigChanged => NextAction::ReviewScopeThenFit,
+                Compatibility::ProfileMissing | Compatibility::LineageDiverged => NextAction::Fit,
+                Compatibility::HistoryUnavailable => NextAction::InspectHistory,
+                Compatibility::Ready => NextAction::None,
+            },
             fit_sha: fit_sha.to_string(),
             accepted_sha: None,
             accepted_source_commits: None,
@@ -155,8 +176,20 @@ impl RefreshReason {
             ("language_turnover", Some(scope)) => {
                 format!("{pct:.1}% of the fitted {scope} source changed")
             }
+            ("new_language_surface", Some(scope)) => {
+                format!(
+                    "a new {scope} source surface entered the corpus ({} lines)",
+                    self.current
+                )
+            }
             ("area_turnover", Some(scope)) => {
                 format!("{pct:.1}% of the fitted {scope} area changed")
+            }
+            ("new_area_surface", Some(scope)) => {
+                format!(
+                    "a new {scope} area entered the corpus ({} lines)",
+                    self.current
+                )
             }
             ("explicit_commit_backstop", _) => format!(
                 "the explicit refresh-after backstop was reached ({} accepted source commits)",
@@ -306,6 +339,27 @@ fn level_for_ratio(value: f64) -> Recommendation {
         Recommendation::Watch
     } else {
         Recommendation::Fresh
+    }
+}
+
+fn next_action_for(recommendation: Recommendation, reasons: &[RefreshReason]) -> NextAction {
+    match recommendation {
+        Recommendation::Fresh => NextAction::None,
+        Recommendation::Watch => NextAction::Monitor,
+        Recommendation::Recommended | Recommendation::StronglyRecommended => {
+            let structural = reasons.iter().any(|reason| {
+                reason.level >= Recommendation::Recommended
+                    && matches!(
+                        reason.kind.as_str(),
+                        "layout_turnover" | "new_language_surface" | "new_area_surface"
+                    )
+            });
+            if structural {
+                NextAction::ReviewScopeThenFit
+            } else {
+                NextAction::Fit
+            }
+        }
     }
 }
 
@@ -562,9 +616,14 @@ pub fn assess(repo_path: &Path, health: &FitHealth, config: &ArgotConfig) -> Ref
             .unwrap_or_default();
         let current = current_count(baseline.lines, delta.additions, delta.deletions);
         if material_slice(baseline.lines, current, current_lines) {
+            let kind = if baseline.lines == 0 && current > 0 {
+                "new_language_surface"
+            } else {
+                "language_turnover"
+            };
             push_reason(
                 &mut reasons,
-                "language_turnover",
+                kind,
                 Some(language),
                 delta.changed,
                 baseline.lines,
@@ -576,9 +635,14 @@ pub fn assess(repo_path: &Path, health: &FitHealth, config: &ArgotConfig) -> Ref
         let baseline = profile.source.areas.get(&area).cloned().unwrap_or_default();
         let current = current_count(baseline.lines, delta.additions, delta.deletions);
         if material_slice(baseline.lines, current, current_lines) {
+            let kind = if baseline.lines == 0 && current > 0 {
+                "new_area_surface"
+            } else {
+                "area_turnover"
+            };
             push_reason(
                 &mut reasons,
-                "area_turnover",
+                kind,
                 Some(area),
                 delta.changed,
                 baseline.lines,
@@ -633,6 +697,7 @@ pub fn assess(repo_path: &Path, health: &FitHealth, config: &ArgotConfig) -> Ref
         recommendation: Some(recommendation),
         score: Some(score),
         algorithm: "adaptive-v1".to_string(),
+        next_action: next_action_for(recommendation, &reasons),
         fit_sha: health.fit_sha.clone(),
         accepted_sha: Some(accepted_sha),
         accepted_source_commits,
@@ -740,6 +805,7 @@ mod tests {
         let docs = assess(&dir, &health, &config);
         assert_eq!(docs.recommendation, Some(Recommendation::Fresh));
         assert_eq!(docs.score, Some(0));
+        assert_eq!(docs.next_action, NextAction::None);
 
         std::fs::write(dir.join("src/app.py"), source(40)).unwrap();
         commit_all(&repo, "large refactor");
@@ -747,6 +813,7 @@ mod tests {
         assert_eq!(changed.compatibility, Compatibility::Ready);
         assert_eq!(changed.recommendation, Some(Recommendation::Recommended));
         assert_eq!(changed.score, Some(40));
+        assert_eq!(changed.next_action, NextAction::Fit);
         assert!(changed
             .reasons
             .iter()
@@ -762,10 +829,9 @@ mod tests {
 
         let mut reconfigured = config.clone();
         reconfigured.exclude.paths.push("generated/".to_string());
-        assert_eq!(
-            assess(&dir, &health, &reconfigured).compatibility,
-            Compatibility::ConfigChanged
-        );
+        let config_changed = assess(&dir, &health, &reconfigured);
+        assert_eq!(config_changed.compatibility, Compatibility::ConfigChanged);
+        assert_eq!(config_changed.next_action, NextAction::ReviewScopeThenFit);
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -800,6 +866,7 @@ mod tests {
             with_backstop.recommendation,
             Some(Recommendation::Recommended)
         );
+        assert_eq!(with_backstop.next_action, NextAction::Fit);
         assert!(with_backstop
             .reasons
             .iter()
@@ -835,10 +902,45 @@ mod tests {
         commit_all(&repo, "refactor api package");
         let assessment = assess(&dir, &health, &config);
         assert_eq!(assessment.recommendation, Some(Recommendation::Recommended));
+        assert_eq!(assessment.next_action, NextAction::Fit);
         assert!(assessment.reasons.iter().any(|reason| {
             reason.kind == "area_turnover"
                 && reason.scope.as_deref() == Some("packages/api")
                 && (reason.ratio - 0.4).abs() < f64::EPSILON
+        }));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_material_new_area_routes_through_scope_review() {
+        let dir = scratch("new_monorepo_area");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("packages/api/src")).unwrap();
+        let repo = git2::Repository::init(&dir).unwrap();
+        std::fs::write(dir.join("packages/api/src/app.py"), source(0)).unwrap();
+        let fit_sha = commit_all(&repo, "fit point");
+        let config = ArgotConfig::default();
+        let health = FitHealth {
+            fit_sha,
+            config_fingerprint: crate::health::config_fingerprint(&config),
+            drift_candidates: Vec::new(),
+            refresh_profile: Some(build_fit_profile(
+                &dir,
+                &[PathBuf::from("packages/api/src/app.py")],
+            )),
+        };
+
+        std::fs::create_dir_all(dir.join("packages/admin/src")).unwrap();
+        std::fs::write(dir.join("packages/admin/src/app.py"), source(0)).unwrap();
+        commit_all(&repo, "add admin package");
+        let assessment = assess(&dir, &health, &config);
+        assert_eq!(
+            assessment.recommendation,
+            Some(Recommendation::StronglyRecommended)
+        );
+        assert_eq!(assessment.next_action, NextAction::ReviewScopeThenFit);
+        assert!(assessment.reasons.iter().any(|reason| {
+            reason.kind == "new_area_surface" && reason.scope.as_deref() == Some("packages/admin")
         }));
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -866,10 +968,11 @@ mod tests {
             assessment.recommendation,
             Some(Recommendation::StronglyRecommended)
         );
+        assert_eq!(assessment.next_action, NextAction::ReviewScopeThenFit);
         assert!(assessment
             .reasons
             .iter()
-            .any(|reason| reason.kind == "language_turnover"));
+            .any(|reason| reason.kind == "new_language_surface"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -885,5 +988,6 @@ mod tests {
         let assessment = assess(Path::new("."), &health, &config);
         assert_eq!(assessment.compatibility, Compatibility::ProfileMissing);
         assert_eq!(assessment.recommendation, None);
+        assert_eq!(assessment.next_action, NextAction::Fit);
     }
 }

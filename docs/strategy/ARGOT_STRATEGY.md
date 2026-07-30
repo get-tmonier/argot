@@ -117,7 +117,7 @@ anything as current unless it is confirmed there.
 - CI: a non-blocking GitHub Action (score card + annotations), SARIF, JSON, GitHub annotations, live badge.
 - Distribution: shell/powershell installers, npm `@tmonier/argot`; macOS arm64/x64, Linux x64/arm64, Windows x64.
 - Privacy: **no telemetry**; the only default egress is a suppressible once-per-24h update check. The semantic detectors' embedding model ships inside the binary, so analysis needs no network at all.
-- Agent surface: Claude Code plugin (six skills + passive MCP server + a pre-write `foreign-import` "ask" guardrail); other agents via a third-party skills installer.
+- Agent surface: Claude Code plugin (seven skills + passive MCP server + a pre-write `foreign-import` "ask" guardrail); other agents via a third-party skills installer.
 
 **Not yet real (do not market as present):**
 - **Product requirement:** Argot running automatically at the acceptance moment. Today only a *pre-write* foreign-import guardrail is automatic (Claude Code only); commit-time `check` is manual, agent-chosen, or user-wired pre-commit.

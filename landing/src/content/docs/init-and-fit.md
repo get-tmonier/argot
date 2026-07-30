@@ -5,8 +5,8 @@ group: Configure
 order: 1
 ---
 
-Use `argot init` for first-time repository setup. Use `argot fit` when you intentionally want to
-refresh the committed fit snapshot after configuration or accepted source changes.
+Use `argot init` for first-time repository setup. When maintenance is recommended, use the
+`argot-refresh` skill to re-audit corpus paths and mutes before it deliberately runs `argot fit`.
 
 ```bash
 argot init                 # create portable configuration, fit, and report health
@@ -51,10 +51,11 @@ manual fit still runs after that warning, so the choice remains yours. Set
 `[fit] refresh-from = "current-branch"` only when branch fitting is intentional.
 
 `argot status` measures final accepted source/function/layout drift from `fit_sha`; commit count and age do
-not trigger maintenance by default. `argot check` speaks only when that deterministic assessment
-recommends a refresh, or when `argot.toml` no longer matches the fit. Neither command refits
-automatically: run `argot fit` locally on the accepted branch, review the `.argot/` diff, and commit
-the refresh. This keeps every CI result reproducible.
+not trigger maintenance by default. Its structured `refresh.next_action` is `fit` for ordinary
+content drift and `review_scope_then_fit` when new/moved paths, a language surface, layout, or
+fit-relevant configuration should be audited first. `argot-refresh` also runs the mute review
+read-only and asks once before editing policy. Neither status, check, the skill, nor CI refits in
+the background: fitting is a deliberate local step whose `.argot/` diff is reviewed and committed.
 
 ## Adopting on an existing codebase
 
