@@ -18,6 +18,72 @@ patterns — a dependency or API the repo has never used (rules `foreign-import`
 `unfamiliar-callee`, `rare-tokens`) — and it's why the statistical pass fits in seconds and scores in milliseconds
 on CPU.
 
+## The everyday lifecycle
+
+Argot is not a service that silently learns from every pull request. A team periodically
+reviews and commits a small **fit snapshot**: the learned repository voice and the indexes
+that make checks reproducible. Think of it like updating a lockfile or a dependency: a small,
+deliberate maintenance commit, not infrastructure that has to run on every PR.
+
+<figure class="diagram lifecycle-diagram">
+<svg viewBox="0 0 1080 538" role="img" aria-label="Argot's lifecycle: initial local fit and commit, optional custom rules, local MCP and pre-commit help, advisory pull-request CI using the base snapshot, then a local refresh after accepted changes.">
+  <defs>
+    <marker id="lifecycle-arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"></path></marker>
+  </defs>
+
+  <text x="26" y="29" class="d-phase">1 · SET UP ON AN ACCEPTED BRANCH</text>
+  <g class="d-node"><rect x="26" y="47" width="170" height="72" rx="11"></rect><text x="111" y="76" class="d-stage">audit the history</text><text x="111" y="96" class="d-sub">choose exclusions · scope</text></g>
+  <g class="d-node d-accent"><rect x="242" y="47" width="170" height="72" rx="11"></rect><text x="327" y="75" class="d-cmd">argot init</text><text x="327" y="96" class="d-sub">fit voice · index · graph</text></g>
+  <g class="d-node d-optional"><rect x="458" y="47" width="178" height="72" rx="11"></rect><text x="547" y="74" class="d-stage">optional: custom rules</text><text x="547" y="95" class="d-sub">only high-value conventions</text><text x="547" y="109" class="d-sub">fixtures prove no false positives</text></g>
+  <g class="d-node d-artifact"><rect x="682" y="47" width="358" height="72" rx="11"></rect><text x="861" y="73" class="d-file">review + commit</text><text x="861" y="95" class="d-sub">argot.toml · .argot/ snapshot · optional rules</text></g>
+  <line class="d-link" x1="196" y1="83" x2="242" y2="83" marker-end="url(#lifecycle-arrow)"></line>
+  <line class="d-link" x1="412" y1="83" x2="458" y2="83" marker-end="url(#lifecycle-arrow)"></line>
+  <line class="d-link" x1="636" y1="83" x2="682" y2="83" marker-end="url(#lifecycle-arrow)"></line>
+  <line class="d-flow d-flow-1" x1="196" y1="83" x2="242" y2="83"></line>
+  <line class="d-flow d-flow-2" x1="412" y1="83" x2="458" y2="83"></line>
+  <line class="d-flow d-flow-3" x1="636" y1="83" x2="682" y2="83"></line>
+
+  <text x="26" y="183" class="d-phase">2 · WRITE WITH CONTEXT, THEN OPEN A PR</text>
+  <g class="d-node"><rect x="26" y="201" width="202" height="72" rx="11"></rect><text x="127" y="229" class="d-stage">before writing</text><text x="127" y="249" class="d-sub">MCP shares familiar APIs</text><text x="127" y="263" class="d-sub">and migrations with the agent</text></g>
+  <g class="d-node"><rect x="274" y="201" width="186" height="72" rx="11"></rect><text x="367" y="229" class="d-stage">while developing</text><text x="367" y="249" class="d-sub">optional pre-commit check</text><text x="367" y="263" class="d-sub">surfaces, never decides</text></g>
+  <g class="d-node d-accent"><rect x="506" y="201" width="156" height="72" rx="11"></rect><text x="584" y="229" class="d-stage">pull request</text><text x="584" y="249" class="d-sub">code under review</text></g>
+  <g class="d-node d-ci"><rect x="708" y="201" width="332" height="72" rx="11"></rect><text x="874" y="226" class="d-stage">advisory CI · ArgoScore</text><text x="874" y="247" class="d-sub">reads the committed base snapshot</text><text x="874" y="262" class="d-sub">findings explain; default is not a merge gate</text></g>
+  <line class="d-link" x1="228" y1="237" x2="274" y2="237" marker-end="url(#lifecycle-arrow)"></line>
+  <line class="d-link" x1="460" y1="237" x2="506" y2="237" marker-end="url(#lifecycle-arrow)"></line>
+  <line class="d-link" x1="662" y1="237" x2="708" y2="237" marker-end="url(#lifecycle-arrow)"></line>
+  <line class="d-flow d-flow-1" x1="228" y1="237" x2="274" y2="237"></line>
+  <line class="d-flow d-flow-2" x1="460" y1="237" x2="506" y2="237"></line>
+  <line class="d-flow d-flow-3" x1="662" y1="237" x2="708" y2="237"></line>
+  <path class="d-thread" d="M862,119 L862,201" marker-end="url(#lifecycle-arrow)"></path>
+  <text x="875" y="162" class="d-thread-label">same approved baseline</text>
+
+  <text x="26" y="338" class="d-phase">3 · REFRESH DELIBERATELY, NOT IN CI</text>
+  <g class="d-node d-merge"><rect x="26" y="356" width="202" height="72" rx="11"></rect><text x="127" y="384" class="d-stage">accepted code merges</text><text x="127" y="404" class="d-sub">the repository keeps moving</text></g>
+  <g class="d-node d-warn"><rect x="294" y="356" width="252" height="72" rx="11"></rect><text x="420" y="383" class="d-stage">status / CI says “refresh due”</text><text x="420" y="404" class="d-sub">after ~10 accepted source commits*</text></g>
+  <g class="d-node d-accent"><rect x="612" y="356" width="188" height="72" rx="11"></rect><text x="706" y="384" class="d-cmd">argot fit</text><text x="706" y="404" class="d-sub">locally on the accepted branch</text></g>
+  <g class="d-node d-artifact"><rect x="846" y="356" width="194" height="72" rx="11"></rect><text x="943" y="383" class="d-stage">review + recommit</text><text x="943" y="404" class="d-sub">the refreshed snapshot</text></g>
+  <line class="d-link" x1="228" y1="392" x2="294" y2="392" marker-end="url(#lifecycle-arrow)"></line>
+  <line class="d-link" x1="546" y1="392" x2="612" y2="392" marker-end="url(#lifecycle-arrow)"></line>
+  <line class="d-link" x1="800" y1="392" x2="846" y2="392" marker-end="url(#lifecycle-arrow)"></line>
+  <line class="d-flow d-flow-1" x1="228" y1="392" x2="294" y2="392"></line>
+  <line class="d-flow d-flow-2" x1="546" y1="392" x2="612" y2="392"></line>
+  <line class="d-flow d-flow-3" x1="800" y1="392" x2="846" y2="392"></line>
+  <path class="d-return" d="M943,428 C943,495 327,495 327,119" marker-end="url(#lifecycle-arrow)"></path>
+  <text x="580" y="514" class="d-thread-label">* configurable freshness threshold · CI never runs the fit</text>
+</svg>
+<figcaption>One deliberate snapshot gives local tools and CI the same learned baseline. Custom rules are opt-in source code; CI is advisory by default; a freshness reminder asks for a small local fit-and-commit update rather than doing work behind your back.</figcaption>
+</figure>
+
+The snapshot is needed because it is the learned state, not a cache: it contains the calibrated
+voice, semantic index, architecture and integrity artifacts, plus provenance that lets Argot tell
+when the baseline is old. Without it, another clone — including CI — cannot make the same
+repository-grounded comparison. For the exact files and refresh command, see
+[Configure](/docs/configure/#which-files-live-where) and [CI](/docs/ci/#refreshing-it).
+
+CI itself is optional: a team can use MCP context and a local pre-commit check only. When it does
+add the Action, there is no separate service, cache, or fit runner to operate — it just reads the
+same reviewed files already in Git and posts advisory evidence on the PR.
+
 The **supersession detector** rides the same fit: it replays up to 1,000 accepted first-parent
 commits and mines replacement pairs — an import or callee removed while its replacement is added,
 in the same file of the same commit, repeatedly, across files, in one direction. A survivor means
@@ -70,7 +136,7 @@ A hunk is suspicious when at least one of its tokens is far more likely under th
 than under your repo. High surprise means "this looks like generic open-source code, not code from
 *here*."
 
-## Two phases
+## The engine: two phases
 
 The pipeline splits into **fit** (run once per repo, and after major refactors) and **check** (run on
 every diff).

@@ -326,6 +326,23 @@ const next = idx >= 0 && idx < flat.length - 1 ? flat[idx + 1] : null;
     stroke: color-mix(in srgb, var(--ember) 40%, var(--line-2));
     stroke-dasharray: 5 4;
   }
+  .d-node.d-optional rect {
+    fill: color-mix(in srgb, var(--panel-2) 85%, transparent);
+    stroke: color-mix(in srgb, var(--muted) 58%, var(--line-2));
+    stroke-dasharray: 4 3;
+  }
+  .d-node.d-ci rect {
+    fill: color-mix(in srgb, var(--jade) 7%, var(--panel-2));
+    stroke: color-mix(in srgb, var(--jade) 45%, var(--line-2));
+  }
+  .d-node.d-merge rect {
+    fill: color-mix(in srgb, var(--jade) 6%, var(--panel-2));
+    stroke: color-mix(in srgb, var(--jade) 38%, var(--line-2));
+  }
+  .d-node.d-warn rect {
+    fill: color-mix(in srgb, var(--amber) 8%, var(--panel-2));
+    stroke: color-mix(in srgb, var(--amber) 55%, var(--line-2));
+  }
   .d-cmd {
     fill: var(--ink);
     font-family: var(--font-mono);
@@ -376,6 +393,24 @@ const next = idx >= 0 && idx < flat.length - 1 ? flat[idx + 1] : null;
     font-family: var(--font-mono);
     font-size: 10px;
   }
+  .d-return {
+    stroke: color-mix(in srgb, var(--ember) 70%, var(--muted));
+    stroke-width: 1.8;
+    stroke-dasharray: 5 5;
+    fill: none;
+  }
+  .lifecycle-diagram .d-flow {
+    animation: lifecycle-flow 1.5s linear infinite;
+  }
+  .lifecycle-diagram .d-flow-2 {
+    animation-delay: 0.22s;
+  }
+  .lifecycle-diagram .d-flow-3 {
+    animation-delay: 0.44s;
+  }
+  @keyframes lifecycle-flow {
+    to { stroke-dashoffset: -23; }
+  }
   .d-out rect {
     stroke-width: 1.5;
   }
@@ -402,6 +437,9 @@ const next = idx >= 0 && idx < flat.length - 1 ? flat[idx + 1] : null;
   @media (prefers-reduced-motion: reduce) {
     .d-flow {
       display: none;
+    }
+    .lifecycle-diagram .d-flow {
+      animation: none;
     }
   }
   .doc-pager {
