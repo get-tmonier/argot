@@ -33,15 +33,16 @@
 # A (near-)sink is a net-importee: a layer whose outbound mass is <= 0.5 * its
 # total mass (imported at least as much as it imports out). Target popularity
 # (in-mass) at this corpus's pinned SHA, from the resolver-verified candidate
-# menu (`--mode arch-candidates`): rest 151, soa 109, orm 53, db 44, net 31,
-# crypt 20, lib 15, app 8, ui 3, {script,tools,misc} 1. The heavily-imported
-# service layers (rest/soa/orm/db/net/crypt) and the low FFI layer (lib) are
-# net-importees; app/soa/orm read as (near-)sinks in the fitted graph.
+# menu (`--mode arch-candidates`): core 444, rest 151, orm 149, soa 109, db 52,
+# crypt 45, net 42, lib 19, app 8, ui 3, {script,tools,misc} 1. The
+# heavily-imported service layers (rest/soa/orm/db/net/crypt) and the low FFI
+# layer (lib) are net-importees; app/soa/orm read as (near-)sinks in the fitted
+# graph. `misc` did too until v0.2.119 — see the db->app fixture below.
 #
 # Every row below is a resolver-VERIFIED 0-usage candidate for this corpus (its
 # import_line was synthesized and checked to create the stated src->tgt edge);
 # none were invented. All `.pas` hosts. 10 violations (5 sink_out, 3 reversal,
-# 2 transitive_reversal) across 6 target layers and 8 source layers; 4 forward
+# 2 transitive_reversal) across 7 target layers and 7 source layers; 4 forward
 # controls.
 
 violations:
@@ -60,17 +61,25 @@ violations:
       novel outbound edge app->rest trips the sink-out rule: a sink layer suddenly
       reaching out to the most-imported service layer (rest, in-mass 151).
 
-  - host_file: "src/misc/mormot.misc.iso.pas"
-    source_layer: "misc"
-    import_line: "uses mormot.orm.sqlite3;\n"
-    target_layer: "orm"
+  - host_file: "src/db/mormot.db.core.pas"
+    source_layer: "db"
+    import_line: "uses mormot.app.console;\n"
+    target_layer: "app"
     kind: "sink_out"
     rationale: >-
-      misc is a tiny leaf helper layer (in-mass 1) and a net-importee. A misc
-      unit newly pulling in mormot.orm.sqlite3 — the ORM's SQLite3 storage engine
-      — is an outbound edge from a sink into the ORM (in-mass 53). Neither orm->misc
-      nor any orm ->* misc path is attested, so classify falls through to SinkOut:
-      a miscellaneous helper has no business owning a dependency on the ORM.
+      db (in 52 / out 32) is a net-importee — the database layer is consumed by
+      orm/rest far more than it reaches out. A db core unit newly pulling in
+      mormot.app.console, the daemon/console app framework, is an outbound edge
+      from a sink into the application layer (in-mass 8). app->db is unattested
+      and app does not transitively reach db, so classify falls through to
+      SinkOut: the DB core has no business owning a dependency on the console
+      app framework.
+      Replaces a misc->orm sink_out fixture retired in v0.2.119: `misc` read as
+      a near-sink (in 1 / out 1) only because mormot.core.base — the unit its one
+      importing file depends on — was inside a whole-file parse ERROR, so the
+      edge misc->core never registered. With the unit parsed the layer is in 1 /
+      out 2, no longer a sink, and no violation of any kind can be authored from
+      misc. See docs/research/evidence/pascal-grammar-two-rules-bench.md.
 
   - host_file: "src/soa/mormot.soa.client.pas"
     source_layer: "soa"

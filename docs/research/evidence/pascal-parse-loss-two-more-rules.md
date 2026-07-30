@@ -103,26 +103,29 @@ will not ask for it on its own — it is an explicit decision.
 - Upstream's own 88-case corpus still passes unchanged.
 - Workspace green at 933 tests with `semantic`, `arch`, `integrity`, `script`.
 
-## Not done here
+## Benchmarked afterwards — [`pascal-grammar-two-rules-bench.md`](pascal-grammar-two-rules-bench.md)
 
-The recall/false-alarm harness (`argot-bench`) was **not** run for this change,
-and by decision it does not gate it — the full matrix is too slow to sit in
-front of the fix. It lands in a follow-up PR.
+The recall/false-alarm harness was **not** run in front of this fix (it shipped
+as a hotfix) and the open question was recorded here as: does making 36 000
+previously-invisible lines feed calibration improve or degrade catch-rate on the
+Pascal corpora? It was measured immediately afterwards — the full `honest`
+matrix at v0.2.118 vs v0.2.119, plus the architecture and integrity guards.
 
-What that leaves open:
+The answer, in short:
 
-- the parse-loss measurement above **is** like-for-like and uses the same method
-  as the earlier investigation, so 6,59 % → 0,05 % stands on its own;
-- the calibrated Pascal threshold moved (5,4496 → 5,2465) because 36 000
-  previously invisible lines now feed calibration. Whether that improves or
-  degrades catch-rate on the Pascal corpora — mormot2, castle-engine,
-  mseide-msegui, uos — is **unmeasured**;
-- the PR's `benchmark` job runs the *quick* subset only: one corpus, `ink`, in
-  TypeScript, recall-only, no false-positive columns. It exercises none of the
-  above.
+- gated novel-pattern catch **645/756 = 85.32 %, unchanged**; no fixture lost in
+  any of the 36 corpora, and **31 non-Pascal rows bit-identical** (which is also
+  the production measurement the iterative `collect_tokens` rewrite needed);
+- castle-engine, mormot2 and uos are bit-identical too, down to the calibrated
+  threshold — the two constructs cost those repositories nothing;
+- the cost is **+0.31 pp over-fire on mseide-msegui and +0.47 pp on ideu** (0.31 %
+  and 0.50 %, against a ≤2 % bar), both non-gated extra corpora;
+- integrity 11/11 unchanged; architecture 20/20 after re-authoring one mormot2
+  fixture whose premise — *"misc is a near-sink"* — turned out to be an artefact
+  of `mormot.core.base` sitting inside a whole-file parse error.
 
-More code being visible should help rather than hurt, but that is a reasonable
-expectation, not a measurement.
+One gap the same run found and did **not** close: `src/core/mormot.core.os.pas`
+(12 534 lines) is still lost whole to a third construct.
 
 ## How it was found
 
