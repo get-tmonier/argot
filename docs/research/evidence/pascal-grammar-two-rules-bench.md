@@ -180,6 +180,14 @@ to every rule. That is a third construct these two rules do not cover, and it is
 worth its own investigation; it is out of scope here and nothing in this branch
 addresses it.
 
+**Follow-up, 2026-07-31.** The third construct was an anonymous record type in a
+variable declaration (`SystemEntropy: record … end;`). The grammar already
+accepted that form for fields and array elements, but not variables. With the
+same local corpus and Argot's directive masking path, the unit is no longer a
+whole-file error: its 12,534-line span becomes 13 residual error rows, and its
+unit declaration returns to the index. This document preserves the earlier
+two-rule benchmark; the grammar follow-up carries the focused regression test.
+
 ## Semantic layer: no fixture exists to measure it
 
 `benchmarks/semantic-fixtures/` covers 31 corpora and not one of them is Pascal,
@@ -206,9 +214,9 @@ inside a file that was 100% invisible; `mormot.core.base` — mORMot's foundatio
 edges that were being classified as violations on a distorted graph now reading
 correctly as forward.
 
-Two things this run says are **not** done: `mormot.core.os` is still lost whole
-to a third construct, and the semantic layer has no Pascal fixture to be measured
-by.
+One thing this run says is **not** done: the semantic layer has no Pascal fixture
+to be measured by. The `mormot.core.os` parse loss was fixed in the 2026-07-31
+grammar follow-up noted above.
 
 Raw results: `benchmarks/results/{ab-before,ab-after}` (voice),
 `{ab-arch-before,ab-arch-after,ab-arch-after2}` (arch),

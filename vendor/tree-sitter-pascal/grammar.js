@@ -715,7 +715,11 @@ module.exports = grammar({
 			...enable_if(rtti, optional($.rttiAttributes)),
 			field('name', delimited1($.identifier)),
 			':',
-			field('type', $.type),
+			// Object Pascal permits an anonymous record/class/object as a variable
+			// type too. mORMot's `SystemEntropy: record … end;` otherwise makes
+			// `record` look like a type name and loses the rest of its 12k-line
+			// mormot.core.os unit to recovery.
+			field('type', $._typeOrAnonRecord),
 			optional(choice(
 				seq($.kAbsolute, $._ref),
 				field('defaultValue', $.defaultValue)

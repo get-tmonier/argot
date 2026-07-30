@@ -5569,7 +5569,7 @@
           "name": "type",
           "content": {
             "type": "SYMBOL",
-            "name": "type"
+            "name": "_typeOrAnonRecord"
           }
         },
         {

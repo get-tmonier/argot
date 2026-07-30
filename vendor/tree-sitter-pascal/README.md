@@ -21,7 +21,7 @@ real corpus file, and upstream's own 88-case test corpus still passes unchanged.
 | **qualified** property accessor | `property PendingRead: PtrInt read fRd.Len;` |
 | routine directive with **no semicolon before it** | `procedure Foo() override;` (MSEide writes every method this way) |
 | bare **re-raise** | `raise;` inside an `except` block |
-| **anonymous inline record** as a field or element type | `Union: record … end;` · `array[1..9] of record … end` |
+| **anonymous inline record** as a field, element, or variable type | `Union: record … end;` · `array[1..9] of record … end` · `State: record … end;` |
 | **calling convention on a function-typed field** | `xCreate: function(…): integer; cdecl;` |
 | set over an ordinal **range** | `set of 0..31` |
 | Delphi **codepage-parameterised** string type | `W = type AnsiString(1252);` |
@@ -90,6 +90,21 @@ Guarded by `a_final_record_field_may_omit_its_semicolon` and
 `a_block_may_end_on_a_labelled_empty_statement` in
 `crates/argot-lang/src/ts_parse/tests.rs`; both fail against the released
 grammar. Upstream's 88-case corpus still passes unchanged.
+
+### Anonymous variable records — 2026-07-31
+
+`mormot.core.os.pas` still had one whole-file error after those two rules:
+`SystemEntropy: record … end;` is a variable with an anonymous record type.
+`declVar` accepted `type`, while fields and array elements already accepted the
+broader `type | declClass` form. That one asymmetry made the parser read
+`record` as a type name and recover over the rest of the 12,534-line unit.
+
+`declVar` now uses the same `_typeOrAnonRecord` production. Through Argot's
+actual directive-masking parser, the local mORMot corpus probe falls from one
+12,534-line error span to 13 residual error rows; the unit declaration is again
+available to import and layer analysis. The focused guard is
+`a_variable_may_use_an_anonymous_record_type`; the upstream 88-case suite still
+passes unchanged.
 
 ## Regenerating
 

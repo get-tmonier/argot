@@ -3026,6 +3026,10 @@
         "required": true,
         "types": [
           {
+            "type": "declClass",
+            "named": true
+          },
+          {
             "type": "type",
             "named": true
           }
