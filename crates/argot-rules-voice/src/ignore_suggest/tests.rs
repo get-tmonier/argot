@@ -1,12 +1,38 @@
 use super::*;
 use std::fs;
+use std::io::ErrorKind;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
+
+static NEXT_TEMP_REPO: AtomicU64 = AtomicU64::new(0);
 
 fn temp_repo(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("argot_suggest_{name}_{}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
-    fs::create_dir_all(&dir).unwrap();
-    dir
+    loop {
+        let id = NEXT_TEMP_REPO.fetch_add(1, Ordering::Relaxed);
+        let dir =
+            std::env::temp_dir().join(format!("argot_suggest_{name}_{}_{id}", std::process::id()));
+        match fs::create_dir(&dir) {
+            Ok(()) => return dir,
+            Err(error) if error.kind() == ErrorKind::AlreadyExists => continue,
+            Err(error) => panic!("create temporary repository {dir:?}: {error}"),
+        }
+    }
+}
+
+#[test]
+fn temporary_repositories_with_the_same_label_are_isolated() {
+    let first = temp_repo("isolation");
+    fs::write(first.join("sentinel"), "still here").unwrap();
+
+    let second = temp_repo("isolation");
+
+    assert_ne!(first, second);
+    assert_eq!(
+        fs::read_to_string(first.join("sentinel")).unwrap(),
+        "still here"
+    );
+    let _ = fs::remove_dir_all(&first);
+    let _ = fs::remove_dir_all(&second);
 }
 
 fn py_fn(i: usize) -> String {
