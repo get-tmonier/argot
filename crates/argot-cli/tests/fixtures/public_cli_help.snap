@@ -155,10 +155,11 @@ Arguments:
   <TARGET>  A ref or `base..head` range to summarize (e.g. `main..HEAD`)
 
 Options:
-      --repo <REPO>      Path to the repository [default: .]
-      --format <FORMAT>  Output format: human, json, markdown (a PR-comment / job-summary score card), shields (shields.io endpoint JSON for a README badge), or svg (a self-contained badge) [default: human] [possible values: human, json, markdown, shields, svg]
-      --top <N>          Hot-spots to list [default: 10]
-  -h, --help             Print help
+      --repo <REPO>            Path to the repository [default: .]
+      --argot-dir <ARGOT_DIR>  Directory containing the fitted snapshot (relative to --repo unless absolute) [default: .argot]
+      --format <FORMAT>        Output format: human, json, markdown (a PR-comment / job-summary score card), shields (shields.io endpoint JSON for a README badge), or svg (a self-contained badge) [default: human] [possible values: human, json, markdown, shields, svg]
+      --top <N>                Hot-spots to list [default: 10]
+  -h, --help                   Print help
 
 ===== inspect =====
 Report corpus composition, calibration health, and repo suitability
@@ -213,9 +214,10 @@ Show the current repository's argot state
 Usage: argot status [OPTIONS]
 
 Options:
-      --repo <REPO>      Path to the repository to report on [default: .]
-      --format <FORMAT>  Output format: human (terminal) or json (stable machine-readable) [default: human] [possible values: human, json]
-  -h, --help             Print help
+      --repo <REPO>            Path to the repository to report on [default: .]
+      --format <FORMAT>        Output format: human (terminal) or json (stable machine-readable) [default: human] [possible values: human, json]
+      --argot-dir <ARGOT_DIR>  Directory containing the fitted snapshot (relative to --repo unless absolute) [default: .argot]
+  -h, --help                   Print help
 
 ===== list =====
 List all registered repositories

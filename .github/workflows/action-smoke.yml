@@ -55,21 +55,23 @@ jobs:
           kind="${{ matrix.scenario }}"
           # `sarif` is the `finding` fixture seen through the default format.
           [ "$kind" = sarif ] && kind=finding
-          .github/fixtures/action-smoke/create-repo.sh "$fixture" "$kind"
+          cargo build --quiet -p argot
+          fixture_argot="$GITHUB_WORKSPACE/target/debug/argot"
+          [ -x "${fixture_argot}.exe" ] && fixture_argot="${fixture_argot}.exe"
+          ARGOT_FIXTURE_ARGOT="$fixture_argot" .github/fixtures/action-smoke/create-repo.sh "$fixture" "$kind"
           echo "path=$fixture" >> "$GITHUB_OUTPUT"
       - name: Run local Action
         id: action
         uses: ./
         with:
           path: ${{ steps.fixture.outputs.path }}
-          argot-version: ${{ matrix.scenario == 'clean' && '0.2.82' || 'latest' }}
+          argot-version: local
           ref: HEAD~1..HEAD
           # `github` produces workflow commands for a finding, while JSON keeps
           # the clean case a stable machine-readable result.
           # `sarif` takes the Action's own default, which is the whole point.
           format: ${{ matrix.scenario == 'finding' && 'github' || matrix.scenario == 'sarif' && 'sarif' || 'json' }}
           output-file: ${{ runner.temp }}/argot-${{ matrix.scenario }}.out
-          cache: false
           semantic: false
           upload-sarif: false
           comment-pr: false
@@ -81,7 +83,7 @@ jobs:
           SCENARIO: ${{ matrix.scenario }}
         run: |
           set -euo pipefail
-          if [ "$SCENARIO" = clean ]; then argot --version | grep -Fx 'argot 0.2.82'; fi
+          argot --version | grep -E '^argot [0-9]+'
           # A finding is reported through the Action output, but the Action
           # itself succeeds unless the caller explicitly opts into gating.
           test "$ACTION_OUTCOME" = success
@@ -137,23 +139,25 @@ jobs:
         shell: bash
         run: |
           fixture="${RUNNER_TEMP}/argot-action-clean"
-          .github/fixtures/action-smoke/create-repo.sh "$fixture" clean
+          cargo build --quiet -p argot
+          fixture_argot="$GITHUB_WORKSPACE/target/debug/argot"
+          [ -x "${fixture_argot}.exe" ] && fixture_argot="${fixture_argot}.exe"
+          ARGOT_FIXTURE_ARGOT="$fixture_argot" .github/fixtures/action-smoke/create-repo.sh "$fixture" clean
           echo "path=$fixture" >> "$GITHUB_OUTPUT"
       - name: Run local Action
         uses: ./
         with:
           path: ${{ steps.fixture.outputs.path }}
-          argot-version: 0.2.82
+          argot-version: local
           ref: HEAD~1..HEAD
           format: json
           output-file: ${{ runner.temp }}/argot-macos.json
-          cache: false
           semantic: false
           upload-sarif: false
           comment-pr: false
-      - name: Assert installed version
+      - name: Assert local test binary is available
         shell: bash
-        run: argot --version | grep -Fx 'argot 0.2.82'
+        run: argot --version | grep -E '^argot [0-9]+'
 
   windows:
     name: Windows Action install smoke
@@ -167,32 +171,27 @@ jobs:
         shell: bash
         run: |
           fixture="${RUNNER_TEMP}/argot-action-clean"
-          .github/fixtures/action-smoke/create-repo.sh "$fixture" clean
+          cargo build --quiet -p argot
+          fixture_argot="$GITHUB_WORKSPACE/target/debug/argot"
+          [ -x "${fixture_argot}.exe" ] && fixture_argot="${fixture_argot}.exe"
+          ARGOT_FIXTURE_ARGOT="$fixture_argot" .github/fixtures/action-smoke/create-repo.sh "$fixture" clean
           echo "path=$fixture" >> "$GITHUB_OUTPUT"
       - name: Run local Action
         uses: ./
         with:
           path: ${{ steps.fixture.outputs.path }}
-          argot-version: 0.2.82
+          argot-version: local
           ref: HEAD~1..HEAD
           format: json
           output-file: ${{ runner.temp }}/argot-windows.json
-          cache: false
           semantic: false
           upload-sarif: false
           comment-pr: false
-      - name: Assert installed version and temporary ownership
+      - name: Assert local test binary is available
         shell: pwsh
         run: |
           $binary = (Get-Command argot).Source
-          & $binary --version | Select-String -SimpleMatch 'argot 0.2.82'
-          if (-not $binary.StartsWith($env:RUNNER_TEMP, [StringComparison]::OrdinalIgnoreCase)) {
-            throw "Action installed outside RUNNER_TEMP: $binary"
-          }
-          Remove-Item -LiteralPath (Split-Path -Parent $binary) -Recurse -Force
-          if (Test-Path -LiteralPath $binary) {
-            throw "Action temporary install was not removable: $binary"
-          }
+          & $binary --version | Select-String -SimpleMatch 'argot '
 
   negative-install:
     name: Action ${{ matrix.mode }} failure smoke
@@ -219,7 +218,6 @@ jobs:
           ARGOT_ACTION_FIXTURE_MODE: ${{ matrix.mode }}
         with:
           argot-version: 0.2.82
-          cache: false
           semantic: false
           upload-sarif: false
           comment-pr: false

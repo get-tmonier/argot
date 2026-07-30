@@ -12,8 +12,8 @@
 //!   `error`; a rule-specific entry beats its group entry.
 //! - `[update]` — `check = false` opts this repo out of the passive
 //!   once-a-day update notice (env: `ARGOT_UPDATE_CHECK=0`).
-//! - `[fit]` — `auto-refresh = false` opts out of the background refit that
-//!   keeps the voice model fresh as the repo moves.
+//! - `[fit]` — accepted-history anchoring and an optional explicit commit
+//!   backstop for the adaptive fit-snapshot refresh policy.
 //! - `[[mute]]` — durable per-hit acceptances, a committed audit trail. Written
 //!   by `argot mute <hash>`. Replaces the old `.argot/suppressions.yaml`.
 //!
@@ -71,13 +71,8 @@ impl Default for ExcludeConfig {
 /// internal 0.80.)
 pub const DEFAULT_DATA_THRESHOLD: f64 = 0.65;
 
-/// Default `[fit].refresh-after`: accepted in-scope commits since the fit
-/// before the voice counts as stale. A backstop, not a science constant —
-/// tune it per repo in `argot.toml`.
-pub const DEFAULT_FIT_REFRESH_AFTER: usize = 10;
-
-/// `[fit].refresh-from` — which history the auto-refresh treats as the
-/// repo's accepted voice.
+/// `[fit].refresh-from` — which history freshness compares to the committed
+/// fit snapshot.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum FitRefreshFrom {
     /// Anchor at the merge-base with the auto-detected default branch
@@ -314,15 +309,12 @@ pub struct ArgotConfig {
     pub rule_locks: Vec<String>,
     /// `[update].check` — false opts out of the passive update notice.
     pub update_check: bool,
-    /// `[fit].auto-refresh` — false opts out of the background refit when the
-    /// model has drifted behind accepted history.
-    pub fit_auto_refresh: bool,
-    /// `[fit].refresh-after` — accepted in-scope commits since the fit before
-    /// the background refresh (and check's drift warning) considers the voice
-    /// stale. Clamped to ≥ 1.
-    pub fit_refresh_after: usize,
-    /// `[fit].refresh-from` — anchor the refresh on the default branch
-    /// (feature-branch commits never train the voice) or on the current one.
+    /// Optional `[fit].refresh-after` — an explicit team-chosen commit-count
+    /// backstop layered on top of adaptive, content-driven freshness. `None`
+    /// by default: commit count alone never makes a snapshot stale.
+    pub fit_refresh_after: Option<usize>,
+    /// `[fit].refresh-from` — anchor freshness on the default branch
+    /// (feature-branch commits never age the base snapshot) or on the current one.
     pub fit_refresh_from: FitRefreshFrom,
     /// Raw `[[mute]]` tables, validated on demand by [`ArgotConfig::mutes`].
     mutes: Vec<RawMute>,
@@ -353,8 +345,7 @@ impl Default for ArgotConfig {
             rule_scopes: Vec::new(),
             rule_locks: Vec::new(),
             update_check: true,
-            fit_auto_refresh: true,
-            fit_refresh_after: DEFAULT_FIT_REFRESH_AFTER,
+            fit_refresh_after: None,
             fit_refresh_from: FitRefreshFrom::default(),
             mutes: Vec::new(),
             migrations: Vec::new(),
@@ -415,7 +406,6 @@ struct RawUpdate {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 struct RawFit {
-    auto_refresh: Option<bool>,
     refresh_after: Option<u32>,
     refresh_from: Option<String>,
 }
@@ -597,17 +587,11 @@ impl ArgotConfig {
 
         // [update] / [fit]: scalars — local wins.
         let update_check = local.update.check.or(base.update.check).unwrap_or(true);
-        let fit_auto_refresh = local
-            .fit
-            .auto_refresh
-            .or(base.fit.auto_refresh)
-            .unwrap_or(true);
         let fit_refresh_after = local
             .fit
             .refresh_after
             .or(base.fit.refresh_after)
-            .map(|n| (n as usize).max(1))
-            .unwrap_or(DEFAULT_FIT_REFRESH_AFTER);
+            .map(|n| (n as usize).max(1));
         let fit_refresh_from = local
             .fit
             .refresh_from
@@ -648,7 +632,6 @@ impl ArgotConfig {
             rule_scopes,
             rule_locks,
             update_check,
-            fit_auto_refresh,
             fit_refresh_after,
             fit_refresh_from,
             mutes,
@@ -797,17 +780,14 @@ generated-markers = [
 ]
 
 [fit]
-# The background auto-refresh. When accepted history gains `refresh-after`
-# commits touching in-scope source since the last fit, `check` refits in the
-# background (committed code only, never your working tree).
-auto-refresh = true
-refresh-after = {DEFAULT_FIT_REFRESH_AFTER}
+# Freshness is adaptive by default: Argot measures how much of the learned
+# source, function, and layout surfaces changed. Commit count alone never makes a
+# snapshot stale. To add a deliberate count-based backstop, uncomment and
+# choose a value for your team: `refresh-after = 250`.
 # What counts as accepted history. \"default-branch\" auto-detects your trunk
-# (origin/HEAD, else main, else master) — nothing to fill in — and anchors the
-# refresh at the merge-base with it, so a feature branch's own commits never
-# train the voice; they stay the code under judgment. Name a branch (e.g.
-# \"develop\") if your trunk is non-standard, or set \"current-branch\" to let
-# refreshes learn whatever HEAD has.
+# (origin/HEAD, else main, else master), so a feature branch's own commits do
+# not age the baseline it is being judged against. Name a branch (e.g.
+# \"develop\") if your trunk is non-standard.
 refresh-from = \"default-branch\"
 
 [rules]
@@ -1050,8 +1030,7 @@ reason = \"adopting axios\"
     fn fit_section_defaults_and_overrides() {
         let dir = scratch("fit_defaults");
         let cfg = ArgotConfig::load(&dir);
-        assert!(cfg.fit_auto_refresh);
-        assert_eq!(cfg.fit_refresh_after, DEFAULT_FIT_REFRESH_AFTER);
+        assert_eq!(cfg.fit_refresh_after, None);
         assert_eq!(cfg.fit_refresh_from, FitRefreshFrom::DefaultBranch);
 
         std::fs::write(
@@ -1060,7 +1039,7 @@ reason = \"adopting axios\"
         )
         .unwrap();
         let cfg = ArgotConfig::load(&dir);
-        assert_eq!(cfg.fit_refresh_after, 25);
+        assert_eq!(cfg.fit_refresh_after, Some(25));
         assert_eq!(cfg.fit_refresh_from, FitRefreshFrom::CurrentBranch);
 
         // Zero clamps to 1; any other name is an explicit trunk; an empty
@@ -1071,7 +1050,7 @@ reason = \"adopting axios\"
         )
         .unwrap();
         let cfg = ArgotConfig::load(&dir);
-        assert_eq!(cfg.fit_refresh_after, 1);
+        assert_eq!(cfg.fit_refresh_after, Some(1));
         assert_eq!(
             cfg.fit_refresh_from,
             FitRefreshFrom::Branch("develop".to_string())
@@ -1086,8 +1065,7 @@ reason = \"adopting axios\"
         std::fs::write(dir.join(CONFIG_FILE), default_toml()).unwrap();
         let cfg = ArgotConfig::load(&dir);
         assert!(cfg.warnings.is_empty(), "{:?}", cfg.warnings);
-        assert!(cfg.fit_auto_refresh);
-        assert_eq!(cfg.fit_refresh_after, DEFAULT_FIT_REFRESH_AFTER);
+        assert_eq!(cfg.fit_refresh_after, None);
         assert_eq!(cfg.fit_refresh_from, FitRefreshFrom::DefaultBranch);
         let _ = std::fs::remove_dir_all(&dir);
     }

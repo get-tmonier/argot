@@ -24,8 +24,8 @@ pub mod compose;
 /// timing,json,stats,cache,par,finding,detector,corpus}` (and internal
 /// `crate::...`) caller keeps resolving unchanged.
 pub use argot_engine::{
-    cache, config, corpus, detector, finding, git_walk, health, json, output, par, rules, stats,
-    timing,
+    cache, config, corpus, detector, finding, git_walk, health, json, output, par, refresh, rules,
+    stats, timing,
 };
 
 /// `check` is a thin facade: everything rule-agnostic re-exports straight from
@@ -46,6 +46,12 @@ pub mod check {
     /// rule-agnostic `run_check` loop.
     pub fn run_check(args: CheckArgs) -> CheckOutcome {
         argot_engine::check::run_check(args, crate::compose::default_detectors())
+    }
+
+    /// The same complete check pipeline without writing the last-check mute
+    /// cache. Intended for read-only integrations such as the MCP server.
+    pub fn run_check_read_only(args: CheckArgs) -> CheckOutcome {
+        argot_engine::check::run_check_read_only(args, crate::compose::default_detectors())
     }
 }
 

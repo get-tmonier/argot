@@ -19,7 +19,7 @@ aggregation stays sequential and ordered.
 
 ## Where the time goes
 
-- **`fit`** (once, then refreshed in the background) — walk the history,
+- **`fit`** (once, then refreshed locally when the snapshot is stale) — walk the history,
   train the statistical voice model, calibrate thresholds, build the
   semantic index (embed every function), fit the architecture graph, and
   learn the test-integrity gates from a replay of accepted history. The
@@ -88,6 +88,6 @@ that split is the first thing to attach to an issue.
 
 ## CI
 
-The [GitHub Action](/docs/ci/) caches `.argot/` per base SHA. On large
-repos, also cache `~/.cache/argot` (the embedding cache) between runs — fits on
-ephemeral runners then start warm.
+The [GitHub Action](/docs/ci/) reads the committed fit snapshot from the base
+commit and never fits on an ephemeral runner. The machine-wide embedding cache
+remains a local accelerator for the maintainer who refreshes that snapshot.

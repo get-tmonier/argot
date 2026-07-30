@@ -28,9 +28,10 @@ Work through the phases in order. Any of them can be answered "skip".
   commits into the voice; a dirty tree learns files as they sit on disk. Argot
   warns about both — relay the warning, never suppress it.
 
-Say what setup will write: `argot.toml` (committed — the excludes and rule
-choices are a team decision), `.argot/` (gitignored, rebuildable), and whatever
-integrations get chosen in phase 8. `argot uninstall --dry-run` lists everything
+Say what setup will write: `argot.toml` and a **committed `.argot/` fit snapshot**
+(the learned voice, semantic index, detector artifacts, health and manifest),
+plus whatever integrations get chosen in phase 8. Caches and one-run state stay
+ignored. `argot uninstall --dry-run` lists everything
 that would be removed, if they want to know the exit before the entrance.
 
 ## 1 · Proof before configuration
@@ -115,6 +116,11 @@ argot init
 Fits the voice, writes `argot.toml` if absent, and builds the semantic index.
 The embedding model ships inside the binary, so nothing is downloaded and this
 works on a machine with no network.
+
+Before any integration, run `argot status --format json`. It must report a
+complete snapshot. Review the generated `.argot/` diff and stage the snapshot
+with `argot.toml`; do not create the commit yourself. CI must never be enabled
+against a missing or uncommitted snapshot.
 
 Then read the health **programmatically**:
 
@@ -250,8 +256,10 @@ Ask once, covering both. These are not separate projects.
   `argot-check-gate` blocks on error-severity findings. Argot must be on PATH
   (the framework will not install a static binary) and the repo must be fitted.
 
-- **MCP** — `argot mcp` serves read-only `voice_context`, `conventions`,
-  `check`, `explain`, `fit_status` to any MCP client, so an agent can ask what
+- **MCP** — `argot mcp` serves read-only `argot.get_voice_context`,
+  `argot.list_conventions`, `argot.check_hunk`, `argot.explain_hunk`,
+  `argot.check_changeset`, and `argot.get_fit_status` to any MCP client, so an
+  agent can ask what
   the repo's voice *is* before writing. Passive: connecting it never triggers a
   check.
 
@@ -262,7 +270,7 @@ name: argot
 on:
   pull_request:
   push:
-    branches: [main]   # the run that refreshes the fitted artifacts PRs reuse
+    branches: [main]
 
 permissions:
   contents: read
@@ -275,20 +283,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # argot fits on the PR's base branch
+          fetch-depth: 0   # reads the committed snapshot from the PR base
       - uses: get-tmonier/argot@main
 ```
 
-Two things must be said, or the tool gets judged on its worst run:
-
-1. **Keep both triggers.** Fitting is nearly the whole cost; the check is
-   seconds. The `push` run on the default branch is the *producer* — it fits and
-   publishes the resulting `.argot/` artifacts into a cache slot, after merge,
-   on nobody's critical path. Each `pull_request` is a *consumer* and pays
-   nothing. Drop the `push` trigger and every PR pays the fit.
-2. **The cache only exists once this workflow is on the default branch.** Until
-   it is merged, every PR run is a cold fit and looks slow. Tell them before
-   they conclude argot is slow — the first run is the slow one, by design.
+The Action is a pure consumer: it reads the committed fit snapshot from the PR
+base and never fits, caches, or rebuilds an index. Its scorecard reports the
+shared adaptive drift verdict; commit count and age are context only. When it
+recommends refresh, use the **argot-refresh** skill locally on the accepted
+branch. It re-audits scope and mutes before fitting, then shows the `.argot/`
+diff to review and commit; never ask CI to do this.
 
 Do not add `fail-on-hits: true` unless they explicitly want a merge gate.
 
@@ -306,9 +310,11 @@ demonstrate the tool.
 - what was excluded and why (the one-sentence reasons)
 - the health verdict and any remaining notes
 - which integrations were wired, and what the team sees on their next PR
-- **maintenance:** refits are automatic when the fit falls behind
-  (`[fit] auto-refresh = false` disables). *Re-scoping is not* — when a new
-  `gen/` or vendored tree appears, argot names it at the next fit; act on it.
+- **maintenance:** `status` measures material accepted source/function/layout drift;
+  commit count and age are context, not default triggers. `check`/CI speak only
+  when refresh is recommended. `refresh.next_action` distinguishes a direct fit
+  from `review_scope_then_fit`; use **argot-refresh** to re-audit paths and mutes,
+  ask once before policy edits, fit locally, then review and commit `.argot/`.
 
 Optional: `argot describe-voice --out STYLE.md` writes a committed,
 human-readable description of what argot learned.

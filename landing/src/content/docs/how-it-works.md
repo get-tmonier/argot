@@ -18,6 +18,79 @@ patterns — a dependency or API the repo has never used (rules `foreign-import`
 `unfamiliar-callee`, `rare-tokens`) — and it's why the statistical pass fits in seconds and scores in milliseconds
 on CPU.
 
+## The everyday lifecycle
+
+Argot is not a service that silently learns from every pull request. When setup or material accepted
+drift calls for it, a team reviews and commits a **fit snapshot**: the learned repository voice and the indexes
+that make checks reproducible. Think of it like updating a lockfile or a dependency: a small,
+deliberate maintenance commit, not infrastructure that has to run on every PR.
+
+<figure class="lifecycle-map" aria-label="Argot's lifecycle: learn locally, commit one reviewed baseline, use it for local and CI checks, then refresh it locally only after material accepted drift.">
+  <div class="lifecycle-map-grid">
+    <div class="lifecycle-map-step">
+      <span class="lifecycle-map-number">1</span>
+      <span class="lifecycle-map-kicker">LOCAL · ONCE</span>
+      <strong>Learn the repository</strong>
+      <code>argot init</code>
+      <small>voice · semantic index · architecture · test signals</small>
+    </div>
+    <div class="lifecycle-map-step">
+      <span class="lifecycle-map-number">2</span>
+      <span class="lifecycle-map-kicker">REVIEWED · SHARED</span>
+      <strong>Commit one baseline</strong>
+      <code>argot.toml · .argot/</code>
+      <small>repository-specific learned state; caches stay local</small>
+    </div>
+    <div class="lifecycle-map-step">
+      <span class="lifecycle-map-number">3</span>
+      <span class="lifecycle-map-kicker">LOCAL + PR</span>
+      <strong>Check against that memory</strong>
+      <code>agent · CLI · advisory CI</code>
+      <small>CI reads the base snapshot; a PR cannot teach itself</small>
+    </div>
+    <div class="lifecycle-map-step lifecycle-map-refresh">
+      <span class="lifecycle-map-number">4</span>
+      <span class="lifecycle-map-kicker">ONLY WHEN USEFUL</span>
+      <strong>Refresh deliberately</strong>
+      <code>argot-refresh</code>
+      <small>review scope + mutes · fit locally · recommit</small>
+    </div>
+  </div>
+  <div class="lifecycle-map-loop"><span aria-hidden="true">↺</span> Material accepted source, function, or layout drift returns to the reviewed baseline. Docs churn does not. There is no default time or commit cadence.</div>
+  <figcaption>One repository memory, reviewed in Git. Every check reads it; only a deliberate local refresh changes it.</figcaption>
+</figure>
+
+The snapshot is needed because it is the learned state, not a cache: it contains the calibrated
+voice, semantic index, architecture and integrity artifacts, plus provenance that lets Argot tell
+when the baseline is old. Without it, another clone — including CI — cannot make the same
+repository-grounded comparison. For the exact files and refresh command, see
+[Configure](/docs/configure/#which-files-live-where) and [CI](/docs/ci/#refreshing-it).
+
+CI itself is optional: a team can use MCP context and a local pre-commit check only. When it does
+add the Action, there is no separate service, cache, or fit runner to operate — it just reads the
+same reviewed files already in Git and posts advisory evidence on the PR.
+
+### Why commit the learned files?
+
+`argot.toml` says **what** the team wants Argot to consider. The fit snapshot says **what Argot
+learned from the repository at that point in time**. They are both inputs to a meaningful check.
+
+| Committed part | Why it matters | Typical size |
+| --- | --- | --- |
+| Voice snapshot (`scorer-config.json` + baseline) | Contains the learned vocabulary and calibrated thresholds. Without it, another machine cannot tell whether an API or idiom is foreign without fitting again. | Usually hundreds of KB to a few MB. |
+| Semantic index (`semantic-index.json`) | Contains the local map from functions to their nearest existing neighbours. Without it, `redundant` and `misplaced` cannot make the same “you already have this” comparison. | Usually the largest part: a few MB to a few tens of MB, depending on the number of functions. |
+| Layering, integrity, health, manifest | Preserve the learned dependency/test signals and prove the snapshot matches the configuration and binary model; they also make a stale snapshot visible. | Usually KBs to low MBs. |
+
+Committing them is therefore the lightweight alternative to a CI fit: every developer, agent, and
+PR starts from the **same reviewed baseline**. A pull request cannot replace that baseline with its
+own code, and CI remains a fast reader instead of a second training system. The snapshot changes
+only when a human runs `argot-refresh`, approves any scope/mute maintenance, reviews the fit diff,
+and commits the update.
+
+As one concrete scale reference, a recent full setup produced a **21 MB** snapshot, including a
+**16 MB** semantic index. Run `argot status` after fitting to see the exact size for your own
+repository before committing it; there is no hidden CI storage or download.
+
 The **supersession detector** rides the same fit: it replays up to 1,000 accepted first-parent
 commits and mines replacement pairs — an import or callee removed while its replacement is added,
 in the same file of the same commit, repeatedly, across files, in one direction. A survivor means
@@ -70,17 +143,17 @@ A hunk is suspicious when at least one of its tokens is far more likely under th
 than under your repo. High surprise means "this looks like generic open-source code, not code from
 *here*."
 
-## Two phases
+## The engine: two phases
 
-The pipeline splits into **fit** (run once per repo, and after major refactors) and **check** (run on
-every diff).
+The pipeline splits into **fit** (run locally at setup, then only through a deliberate recommended
+refresh) and **check** (run on every selected diff).
 
 <figure class="diagram">
 <svg viewBox="0 0 1080 384" role="img" aria-label="argot pipeline: a fit phase (extract, train, calibrate) producing the .argot artifacts (scorer config, semantic index, layering graph), and a check phase (diff hunk through typicality filter, import checker, BPE scorer, and the semantic and layering detectors) producing clean or flagged.">
   <defs>
     <marker id="ah" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"></path></marker>
   </defs>
-  <text x="24" y="26" class="d-phase">FIT · once per repo</text>
+  <text x="24" y="26" class="d-phase">FIT · local setup or deliberate refresh</text>
   <g class="d-node"><rect x="24" y="42" width="128" height="58" rx="11"></rect><text x="88" y="68" class="d-cmd">extract</text><text x="88" y="86" class="d-sub">git history</text></g>
   <g class="d-node"><rect x="196" y="42" width="128" height="58" rx="11"></rect><text x="260" y="68" class="d-cmd">train</text><text x="260" y="86" class="d-sub">two distributions</text></g>
   <g class="d-node"><rect x="368" y="42" width="140" height="58" rx="11"></rect><text x="438" y="68" class="d-cmd">calibrate</text><text x="438" y="86" class="d-sub">threshold t</text></g>

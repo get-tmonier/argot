@@ -16,8 +16,9 @@ use std::process::ExitCode;
 
 use serde_json::{json, Value};
 
-use argot_core::check::RepoScorers;
+use argot_core::check::{run_check_read_only, CheckArgs, RepoScorers, DEFAULT_HUNK_LINES};
 use argot_core::inspect::{inspect_model, inspect_repo};
+use argot_core::output::OutputFormat;
 use argot_core::scoring::evidence::format_evidence;
 
 /// MCP protocol revision this server implements.
@@ -56,7 +57,7 @@ pub fn run_mcp(repo: PathBuf) -> ExitCode {
 /// so a silent stdio server is visibly alive and its readiness is obvious.
 fn startup_banner(repo: &Path, fitted: bool) -> String {
     format!(
-        "argot {} · MCP server ready on stdio · repo: {} · model: {} · passive: a client must invoke tools; use `argot check` for complete changeset checking",
+        "argot {} · read-only MCP server ready on stdio · repo: {} · model: {} · tools: repository context + hunk and complete changeset checks; fitting remains an explicit local CLI/skill workflow",
         env!("CARGO_PKG_VERSION"),
         repo.display(),
         if fitted {
@@ -94,7 +95,7 @@ fn dispatch(method: &str, params: &Value, repo: &Path) -> Result<Value, RpcError
             "protocolVersion": PROTOCOL_VERSION,
             "capabilities": { "tools": {} },
             "serverInfo": { "name": "argot", "version": env!("CARGO_PKG_VERSION") },
-            "instructions": "Argot MCP tools are passive: the host must invoke them. They inspect only the supplied hunk or requested path, not a complete changeset. Before writing, call argot.voice_context for familiar imports and idioms; after writing, call argot.check for a hunk-level signal. Use the full CLI `argot check` to inspect a complete changeset.",
+            "instructions": "Argot is a read-only repository-context and checking server; the host must invoke each tool. Before writing, call argot.get_voice_context. Use argot.check_hunk for a fast voice-only snippet signal, argot.explain_hunk for deeper evidence about that snippet, and argot.check_changeset for the complete configured detector pipeline over a worktree, index, range, or commit. Call argot.get_fit_status before relying on learned state. Fitting is intentionally absent: use the argot-setup or argot-refresh workflow locally, review the snapshot diff, and commit it.",
         })),
         "tools/list" => Ok(json!({ "tools": tool_definitions() })),
         "tools/call" => tools_call(params, repo),
@@ -114,20 +115,44 @@ fn tool_definitions() -> Value {
         },
         "required": ["file_path", "hunk_content"]
     });
+    let read_only = json!({
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+    });
     json!([
         {
-            "name": "argot.check",
-            "description": "Passively score one supplied code hunk against the fitted repository model; the host must call this tool. It does not inspect a complete changeset or guarantee invocation. Use the full CLI `argot check` for complete changeset checking. Returns out_of_voice, score, threshold, rule, and evidence when available. Read-only and non-destructive; requires a fitted repo.",
-            "inputSchema": hunk_schema,
+            "name": "argot.check_changeset",
+            "description": "Run Argot's complete configured detector pipeline over one selected changeset. Use this after editing when you need the same voice, semantic, architecture, integrity, and custom-rule findings as the CLI. Returns the stable check JSON, including findings, evidence, suppressions, and result counts. Read-only: it does not fit, mute, edit files, or update the last-check cache; requires a fitted repository.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "target": { "type": "string", "enum": ["worktree", "staged", "unstaged", "range", "commit"], "default": "worktree", "description": "Changeset to inspect. worktree includes current tracked and untracked changes; staged and unstaged select one side of the index; range and commit require reference." },
+                    "reference": { "type": "string", "description": "Git range such as main..HEAD when target=range, or commit SHA/ref when target=commit." },
+                    "only": { "type": "array", "items": { "type": "string" }, "description": "Optional repo-relative glob filters; inspect only matching paths." },
+                    "exclude": { "type": "array", "items": { "type": "string" }, "description": "Optional repo-relative glob filters to omit from this invocation." },
+                    "min_confidence": { "type": "string", "enum": ["unusual", "suspicious", "foreign"], "default": "unusual", "description": "Display filter only; rule severity still determines the check result." }
+                },
+                "additionalProperties": false
+            },
+            "annotations": read_only,
         },
         {
-            "name": "argot.explain",
-            "description": "Passively inspect one supplied hunk and return its fuller repository evidence; the host must call this tool. It is not complete-changeset checking and does not guarantee invocation. Use the full CLI `argot check` for complete changeset checking. Read-only, no side effects, and requires a fitted repo.",
+            "name": "argot.check_hunk",
+            "description": "Score one supplied code hunk with Argot's fast fitted voice model. Use while drafting or for an isolated snippet when no Git changeset exists. Returns out_of_voice, score, threshold, rule, and concise evidence; it does not run semantic, architecture, integrity, or custom rules. For a real change, prefer check_changeset. Read-only; requires a fitted repository.",
             "inputSchema": hunk_schema,
+            "annotations": read_only,
         },
         {
-            "name": "argot.voice_context",
-            "description": "Passively return fitted local context for one requested path; the host must call this tool. It does not inspect a hunk or complete changeset. Use the full CLI `argot check` for complete changeset checking. Read-only, no side effects, and requires a fitted repo.",
+            "name": "argot.explain_hunk",
+            "description": "Explain one hunk-level voice result with untruncated structured evidence, including surprising identifiers and attestation counts. Use as a follow-up when check_hunk flags or nearly flags a snippet; do not use it as a second independent check. It covers the fitted voice model only. Read-only; requires a fitted repository.",
+            "inputSchema": hunk_schema,
+            "annotations": read_only,
+        },
+        {
+            "name": "argot.get_voice_context",
+            "description": "Get the repository vocabulary relevant to a file before writing: typical callees, familiar imports, and active replacement guidance for the file's language. This is generation context, not a verdict about code and not a changeset check. Read-only; requires a fitted repository.",
             "inputSchema": json!({
                 "type": "object",
                 "properties": {
@@ -136,16 +161,19 @@ fn tool_definitions() -> Value {
                 },
                 "required": ["file_path"]
             }),
+            "annotations": read_only,
         },
         {
-            "name": "argot.fit_status",
-            "description": "Passively report fitted-model suitability when the host calls it. This read-only status does not inspect code or guarantee other tool invocation. Use the full CLI `argot check` for complete changeset checking.",
+            "name": "argot.get_fit_status",
+            "description": "Get repository readiness before using learned tools: fit suitability, committed-snapshot completeness, configuration compatibility, and the adaptive refresh recommendation with structured reasons and next_action. This tool diagnoses setup and maintenance only; it never fits or writes.",
             "inputSchema": json!({ "type": "object", "properties": {} }),
+            "annotations": read_only,
         },
         {
-            "name": "argot.conventions",
-            "description": "Passively list fitted repository conventions when the host calls it. It is descriptive, not complete changeset checking, and does not guarantee invocation. Use the full CLI `argot check` for complete changeset checking. Read-only, no side effects, and requires a fitted repo.",
+            "name": "argot.list_conventions",
+            "description": "List conventions learned from the repository: internal API vocabulary, placement concentrations, and migrations still in progress. Use this to discover candidate team conventions or understand where code belongs; it does not evaluate a change. Read-only; requires a fitted repository.",
             "inputSchema": json!({ "type": "object", "properties": {} }),
+            "annotations": read_only,
         },
     ])
 }
@@ -160,11 +188,12 @@ fn tools_call(params: &Value, repo: &Path) -> Result<Value, RpcError> {
     let args = params.get("arguments").cloned().unwrap_or(Value::Null);
 
     let result = match name {
-        "argot.check" => tool_check(&args, repo, false),
-        "argot.explain" => tool_check(&args, repo, true),
-        "argot.voice_context" => tool_voice_context(&args, repo),
-        "argot.fit_status" => tool_fit_status(repo),
-        "argot.conventions" => tool_conventions(repo),
+        "argot.check_changeset" => tool_check_changeset(&args, repo),
+        "argot.check_hunk" => tool_check(&args, repo, false),
+        "argot.explain_hunk" => tool_check(&args, repo, true),
+        "argot.get_voice_context" => tool_voice_context(&args, repo),
+        "argot.get_fit_status" => tool_fit_status(repo),
+        "argot.list_conventions" => tool_conventions(repo),
         other => return Err((-32602, format!("unknown tool: {other}"))),
     };
 
@@ -189,7 +218,111 @@ fn argot_dir(repo: &Path) -> PathBuf {
     repo.join(".argot")
 }
 
-/// `argot.check` / `argot.explain`: score one hunk against the model.
+fn string_array(args: &Value, key: &str) -> Result<Vec<String>, String> {
+    let Some(value) = args.get(key) else {
+        return Ok(Vec::new());
+    };
+    let values = value
+        .as_array()
+        .ok_or_else(|| format!("{key} must be an array of strings"))?;
+    values
+        .iter()
+        .map(|value| {
+            value
+                .as_str()
+                .map(str::to_owned)
+                .ok_or_else(|| format!("{key} must contain only strings"))
+        })
+        .collect()
+}
+
+/// `argot.check_changeset`: the complete configured CLI check pipeline, minus
+/// the last-check cache write used by the interactive `argot mute` workflow.
+fn tool_check_changeset(args: &Value, repo: &Path) -> Result<Value, String> {
+    let target = args
+        .get("target")
+        .and_then(Value::as_str)
+        .unwrap_or("worktree");
+    let supplied_reference = args.get("reference").and_then(Value::as_str).unwrap_or("");
+    let (reference, staged, unstaged, commit) = match target {
+        "worktree" if supplied_reference.is_empty() => (String::new(), false, false, None),
+        "staged" if supplied_reference.is_empty() => (String::new(), true, false, None),
+        "unstaged" if supplied_reference.is_empty() => (String::new(), false, true, None),
+        "range" if !supplied_reference.is_empty() => {
+            (supplied_reference.to_owned(), false, false, None)
+        }
+        "commit" if !supplied_reference.is_empty() => (
+            String::new(),
+            false,
+            false,
+            Some(supplied_reference.to_owned()),
+        ),
+        "range" | "commit" => return Err(format!("reference is required for target={target}")),
+        "worktree" | "staged" | "unstaged" => {
+            return Err(format!("reference is not valid for target={target}"));
+        }
+        _ => {
+            return Err(
+                "target must be one of: worktree, staged, unstaged, range, commit".to_string(),
+            );
+        }
+    };
+    let min_confidence = args
+        .get("min_confidence")
+        .and_then(Value::as_str)
+        .unwrap_or("unusual");
+    if !matches!(min_confidence, "unusual" | "suspicious" | "foreign") {
+        return Err("min_confidence must be unusual, suspicious, or foreign".to_string());
+    }
+
+    let outcome = run_check_read_only(CheckArgs {
+        repo_path: repo.to_string_lossy().into_owned(),
+        reference,
+        staged,
+        unstaged,
+        commit,
+        only: string_array(args, "only")?,
+        exclude: string_array(args, "exclude")?,
+        threshold: None,
+        argot_dir: argot_dir(repo),
+        hunk_lines: DEFAULT_HUNK_LINES,
+        verbose: false,
+        min_confidence: min_confidence.to_owned(),
+        rule_overrides: Vec::new(),
+        error_on_warnings: false,
+        add_ignores: false,
+        use_color: false,
+        format: OutputFormat::Json,
+        today: crate::today_utc(),
+    });
+    if outcome.exit_code >= 2 {
+        let message = outcome.stderr.trim();
+        return Err(if message.is_empty() {
+            "changeset check could not run".to_string()
+        } else {
+            message.to_string()
+        });
+    }
+    let mut document: Value = serde_json::from_str(&outcome.stdout)
+        .map_err(|error| format!("changeset check returned invalid JSON: {error}"))?;
+    document["mcp"] = json!({
+        "target": target,
+        "read_only": true,
+        "recorded_last_check": false
+    });
+    let notes: Vec<&str> = outcome
+        .stderr
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .collect();
+    if !notes.is_empty() {
+        document["notes"] = json!(notes);
+    }
+    Ok(document)
+}
+
+/// `argot.check_hunk` / `argot.explain_hunk`: score one hunk against the model.
 fn tool_check(args: &Value, repo: &Path, explain: bool) -> Result<Value, String> {
     let file_path = args
         .get("file_path")
@@ -255,7 +388,7 @@ fn tool_check(args: &Value, repo: &Path, explain: bool) -> Result<Value, String>
     Ok(out)
 }
 
-/// `argot.voice_context`: the local voice for a file — typical callees per
+/// `argot.get_voice_context`: the local voice for a file — typical callees per
 /// cluster (from the fitted model) plus the familiar import surface.
 fn tool_voice_context(args: &Value, repo: &Path) -> Result<Value, String> {
     let file_path = args
@@ -316,13 +449,25 @@ fn tool_voice_context(args: &Value, repo: &Path) -> Result<Value, String> {
     Ok(out)
 }
 
-/// `argot.fit_status`: the repo's suitability verdict + calibration health.
+/// `argot.get_fit_status`: suitability plus the snapshot contract agents need to
+/// decide whether they may rely on this repository's learned state.
 fn tool_fit_status(repo: &Path) -> Result<Value, String> {
     let report = inspect_repo(repo).map_err(|e| e.to_string())?;
-    serde_json::to_value(&report).map_err(|e| e.to_string())
+    let mut out = serde_json::to_value(&report).map_err(|e| e.to_string())?;
+    let snapshot_dir = repo.join(".argot");
+    out["snapshot"] = crate::fit_snapshot_status_json(repo, &snapshot_dir);
+
+    let health = argot_core::health::read(&snapshot_dir);
+    let (config, _) = argot_core::compose::load_config(repo);
+    out["refresh"] = health
+        .as_ref()
+        .map(|h| argot_core::refresh::assess(repo, h, &config))
+        .map(|assessment| serde_json::to_value(assessment).unwrap_or(Value::Null))
+        .unwrap_or(Value::Null);
+    Ok(out)
 }
 
-/// `argot.conventions`: the repo's vocabulary + placement conventions.
+/// `argot.list_conventions`: the repo's vocabulary + placement conventions.
 fn tool_conventions(repo: &Path) -> Result<Value, String> {
     let catalog =
         argot_core::convention_catalog::build_catalog(repo, 10).map_err(|e| e.to_string())?;
@@ -352,16 +497,35 @@ mod tests {
             .iter()
             .map(|t| t["name"].as_str().unwrap())
             .collect();
-        assert!(names.contains(&"argot.check"));
-        assert!(names.contains(&"argot.explain"));
-        assert!(names.contains(&"argot.voice_context"));
-        assert!(names.contains(&"argot.fit_status"));
-        assert!(names.contains(&"argot.conventions"));
+        assert_eq!(
+            names,
+            [
+                "argot.check_changeset",
+                "argot.check_hunk",
+                "argot.explain_hunk",
+                "argot.get_voice_context",
+                "argot.get_fit_status",
+                "argot.list_conventions",
+            ]
+        );
         for tool in result["tools"].as_array().unwrap() {
             let description = tool["description"].as_str().unwrap();
-            assert!(description.contains("Passively"));
-            assert!(description.contains("complete changeset checking"));
+            assert!(!description.is_empty());
+            assert_eq!(tool["annotations"]["readOnlyHint"], true);
+            assert_eq!(tool["annotations"]["destructiveHint"], false);
         }
+        assert!(result["tools"][0]["description"]
+            .as_str()
+            .unwrap()
+            .contains("complete configured detector pipeline"));
+        assert!(result["tools"][1]["description"]
+            .as_str()
+            .unwrap()
+            .contains("voice model"));
+        assert!(result["tools"][2]["description"]
+            .as_str()
+            .unwrap()
+            .contains("follow-up"));
     }
 
     #[test]
@@ -394,7 +558,7 @@ mod tests {
         let tmp = std::env::temp_dir().join("argot_mcp_no_model_test");
         let _ = std::fs::create_dir_all(&tmp);
         let params = json!({
-            "name": "argot.check",
+            "name": "argot.check_hunk",
             "arguments": { "file_path": "a.py", "hunk_content": "x = 1\n" }
         });
         let result = dispatch("tools/call", &params, &tmp).unwrap();
@@ -408,8 +572,9 @@ mod tests {
         assert!(f.contains("/x"));
         assert!(f.contains("stdio"));
         assert!(f.contains("model: fitted"));
-        assert!(f.contains("passive: a client must invoke tools"));
-        assert!(f.contains("argot check` for complete changeset checking"));
+        assert!(f.contains("read-only MCP server"));
+        assert!(f.contains("complete changeset checks"));
+        assert!(f.contains("fitting remains an explicit local CLI/skill workflow"));
         let u = startup_banner(Path::new("."), false);
         assert!(u.contains("not fitted"));
         assert!(u.contains("argot init"));
@@ -420,9 +585,9 @@ mod tests {
         let repo = PathBuf::from(".");
         let initialized = dispatch("initialize", &Value::Null, &repo).unwrap();
         let instructions = initialized["instructions"].as_str().unwrap();
-        assert!(instructions.contains("passive: the host must invoke them"));
-        assert!(instructions.contains("not a complete changeset"));
-        assert!(instructions.contains("full CLI `argot check`"));
+        assert!(instructions.contains("read-only repository-context and checking server"));
+        assert!(instructions.contains("argot.check_changeset"));
+        assert!(instructions.contains("Fitting is intentionally absent"));
 
         let tools = dispatch("tools/list", &Value::Null, &repo).unwrap();
         let names: Vec<&str> = tools["tools"]
@@ -434,17 +599,33 @@ mod tests {
         assert_eq!(
             names,
             [
-                "argot.check",
-                "argot.explain",
-                "argot.voice_context",
-                "argot.fit_status",
-                "argot.conventions",
+                "argot.check_changeset",
+                "argot.check_hunk",
+                "argot.explain_hunk",
+                "argot.get_voice_context",
+                "argot.get_fit_status",
+                "argot.list_conventions",
             ]
         );
-        for tool in tools["tools"].as_array().unwrap() {
-            let description = tool["description"].as_str().unwrap();
-            assert!(description.contains("Passively"));
-            assert!(description.contains("complete changeset checking"));
+        assert!(names
+            .iter()
+            .all(|name| name.split('.').nth(1).unwrap().contains('_')));
+        assert!(!names.contains(&"argot.check"));
+        assert!(!names.contains(&"argot.voice_context"));
+    }
+
+    #[test]
+    fn changeset_tool_requires_a_reference_for_range_or_commit() {
+        let repo = PathBuf::from(".");
+        for target in ["range", "commit"] {
+            let params = json!({
+                "name": "argot.check_changeset",
+                "arguments": { "target": target }
+            });
+            let result = dispatch("tools/call", &params, &repo).unwrap();
+            assert_eq!(result["isError"], true);
+            let text = result["content"][0]["text"].as_str().unwrap();
+            assert!(text.contains("reference is required"));
         }
     }
 }

@@ -5,17 +5,18 @@ group: Configure
 order: 2
 ---
 
-This is the canonical guide for the Argot Claude Code plugin. It packages six skills, an MCP
+This is the canonical guide for the Argot Claude Code plugin. It packages seven skills, an MCP
 server, and one narrow hook. These are different capabilities:
 
 | Surface | Invocation | Coverage |
 | --- | --- | --- |
-| Skills | User or agent selects one | Six on-demand workflows; no scheduling by a skill. |
+| Skills | User or agent selects one | Seven on-demand workflows, including guided snapshot refresh; no scheduling by a skill. |
 | MCP | Agent selects a tool call | Read-only context and checks over stdio; it does not invoke itself. |
 | Pre-write hook | Automatic when plugin is enabled and repository is fitted | Asks only before a `Write`, `Edit`, or `MultiEdit` introduces a foreign import. |
 
-There is no packaged automatic end-of-turn or acceptance-time full-check lifecycle. Run
-[`argot check`](/docs/check/) when you want the full changeset scored.
+There is no packaged automatic end-of-turn or acceptance-time full-check lifecycle. Invoke
+`argot.check_changeset` through MCP or run [`argot check`](/docs/check/) when you want the full
+changeset scored.
 
 ## Install and prerequisites
 
@@ -25,12 +26,18 @@ There is no packaged automatic end-of-turn or acceptance-time full-check lifecyc
 ```
 
 The plugin requires `argot` on `PATH`. Its pre-write hook is a no-op until the repository has a
-fitted `.argot/scorer-config.json`; set that up with [Init and Fit](/docs/init-and-fit/). MCP tools
-that need the repository model also require a fitted repository.
+fitted `.argot/scorer-config.json`; set that up with [Init and Fit](/docs/init-and-fit/), then review
+and commit the complete `.argot/` snapshot so every clone uses the same baseline. MCP tools that
+need the repository model also require a fitted repository. When fit status later recommends
+maintenance, invoke `argot-refresh` locally; the plugin and CI never refresh it behind your back.
 
 The plugin declares `argot mcp --repo .`. MCP is passive: Claude Code may call a tool when it
-chooses, but the server does not initiate checks. The available tools provide voice context,
-conventions, checks, explanations, and fit status.
+chooses, but the server does not initiate checks. Its read-only API distinguishes pre-write context
+(`argot.get_voice_context`), fast snippet feedback (`argot.check_hunk` /
+`argot.explain_hunk`), the complete detector pipeline (`argot.check_changeset`), repository
+discovery (`argot.list_conventions`), and snapshot readiness (`argot.get_fit_status`). Fitting is
+deliberately absent: setup and refresh remain reviewed local
+workflows whose `.argot/` result is committed.
 
 ## The pre-write ask
 

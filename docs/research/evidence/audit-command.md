@@ -165,7 +165,8 @@ run, unedited.
   Qodo, Gemini Code Assist, copilot-pull-request-reviewer). One false
   `ai-assisted` costs more than several misses.
 - **No MCP audit tool**: `argot mcp` serves the per-diff agent loop
-  (check/explain/voice_context/fit_status); audit is a human-facing report.
+  (`check_hunk`/`explain_hunk`/`get_voice_context`/`get_fit_status`);
+  audit is a human-facing report.
   Nothing stale to rename there (verified).
 - **Cap = 1,000 commits**: past that the "base voice is still the same repo"
   premise breaks; the clamp is loud in three places (stderr, card, json).

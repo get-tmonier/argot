@@ -120,7 +120,10 @@ fn enabled() -> bool {
     if !std::io::stderr().is_terminal() {
         return false;
     }
-    if crate::auto_refit::is_ci() {
+    if ["CI", "JENKINS_URL", "TEAMCITY_VERSION", "TF_BUILD"]
+        .iter()
+        .any(|key| std::env::var_os(key).is_some())
+    {
         return false;
     }
     if std::env::var(UPDATE_CHECK_ENV).is_ok_and(|v| v == "0") {

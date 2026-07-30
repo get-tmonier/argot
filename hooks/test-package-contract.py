@@ -12,6 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 SKILLS = (
     "argot-setup",
+    "argot-refresh",
     "argot-check",
     "argot-review-pr",
     "argot-setup-ci",
@@ -57,7 +58,7 @@ def assert_skills() -> None:
     assert skill_directories == set(SKILLS)
 
     readme = (ROOT / "skills/README.md").read_text()
-    assert "Six skills" in readme
+    assert "Seven skills" in readme
     for skill in SKILLS:
         assert skill_name(ROOT / "skills" / skill / "SKILL.md") == skill
         assert f"`{skill}`" in readme
@@ -75,7 +76,7 @@ def assert_plugin_layout(plugin: dict) -> None:
         "argot": {"command": "argot", "args": ["mcp", "--repo", "."]}
     }
 
-    hook_paths = list(ROOT.glob("**/hooks.json"))
+    hook_paths = list((ROOT / "hooks").glob("**/hooks.json"))
     assert hook_paths == [ROOT / "hooks/hooks.json"]
     hooks = load_json(hook_paths[0])
     assert set(hooks["hooks"]) == {"PreToolUse"}

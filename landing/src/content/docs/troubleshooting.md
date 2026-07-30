@@ -34,23 +34,28 @@ says the semantic group was skipped. **Cause:** there is no
 fit predates the index, or the index was built by a different model version and
 was rejected rather than scored wrong. It is never a missing download: the
 embedder is compiled into the binary and works offline. **Safe command:** check
-`[rules]` in `argot.toml`, then `argot fit` to rebuild the index. **Escalate:**
+`[rules]` in `argot.toml`, then `argot fit` locally and commit the refreshed
+snapshot. **Escalate:**
 if a rebuilt index is still rejected, the binary and the artifact disagree on the
 model — reinstall argot and fit again.
 
 ## The fit is stale
 
-**Symptom:** `status` or `check` reports drift, stale artifacts, or a config
-change. **Cause:** accepted history or corpus configuration changed after the
-fit. **Safe command:** run `argot status`, then `argot fit` when a refresh is
-needed. **Escalate:** review generated/vendor/data exclusions before refitting;
+**Symptom:** `status` or `check` recommends a refresh or reports a config
+change. **Cause:** a material share of the learned source/function/layout surface changed,
+or the corpus configuration no longer matches the fit. Commit count and age alone
+do not cause this. **Safe command:** run `argot status` and read `refresh.next_action`. Prefer the
+`argot-refresh` skill on the accepted branch: it
+reviews generated/vendor/data exclusions, moved paths, corpus composition, and mutes before asking
+once for approval and fitting. Review and commit `.argot/` afterwards.
+**Escalate:** if history is unavailable, use a full clone rather than guessing;
 see [Health & freshness](/docs/health-and-freshness/).
 
 ## Action, plugin, or pre-commit integration behaves unexpectedly
 
 **Symptom:** a hosted check lacks history, semantic findings, or an expected
-prompt. **Cause:** CI may use a shallow checkout, have a stale or missing fitted
-artifact cache, or apply its own configured rule policy. **Safe command:** compare the workflow
+prompt. **Cause:** CI may use a shallow checkout, a stale or missing committed
+fit snapshot, or its own configured rule policy. **Safe command:** compare the workflow
 with [CI and pre-commit](/docs/ci/) and run the equivalent local command.
 For the Claude plugin, use [Claude Code](/docs/plugin/). **Escalate:** attach
 the command, range, `argot rules --format json`, and non-sensitive stderr to an

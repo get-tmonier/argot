@@ -6,8 +6,8 @@ strategy prose. This document is the evidence base for `ARGOT_STRATEGY.md` and
 `ARGOT_PRODUCT_GAPS.md`. When strategy prose and this file disagree, this file wins on matters of
 current fact.
 
-**Verification date:** 2026-07-22. **Binary inspected:** `target/release/argot` (built from the
-current tree, `argot --help` run directly). Shipped release features (`dist-workspace.toml`):
+**Verification date:** 2026-07-30. **Binary inspected:** `target/release/argot` plus the current
+source and public skill surfaces. Shipped release features (`dist-workspace.toml`):
 `["self-update", "semantic", "arch", "integrity", "script"]`.
 
 **Status vocabulary** (exactly one per capability):
@@ -33,10 +33,11 @@ current tree, `argot --help` run directly). Shipped release features (`dist-work
 | `argot check` | Exists and verified | `main.rs` `run_check_cmd`; scores workdir/ref/range/commit/staged | The retention interaction (manual today) | Yes | See "acceptance-moment auto-run" |
 | — requires prior fit | Exists and verified | `crates/argot-rules-voice/src/load.rs` errors exit 2 "run `argot init` first" if no `scorer-config.json` | Setup is a precondition of check | Yes, with qualification | Onboarding must make fit near-automatic |
 | Fit / setup (`init`, `fit`) | Exists and verified | `main.rs` `fit_repo` = train + calibrate; `init` adds health report + `.argot/.gitignore` | Precondition for check/review/conventions/mcp | Yes | — |
+| Adaptive snapshot maintenance | Exists and verified | `argot-engine/src/refresh.rs`; `status`, check, MCP, and the Action share `recommendation`, structured reasons, and `next_action`; `argot-refresh` performs the opt-in scope/mute review before local fit | Keeps the committed baseline representative without CI fitting | Yes, with qualification (advisory; the skill is invoked, never automatic) | — |
 | Embedded semantic model (no download) | Exists and verified | `crates/argot-rules-semantic/src/static_embedder.rs` `include_bytes!`s a 15.6M-parameter distilled table (int8, 256-d) + its tokenizer from `crates/argot-rules-semantic/model/`; nothing is fetched, cached or checksummed at runtime | Powers `redundant`/`misplaced` only | Yes (analysis needs no network at all) | Weights are Apache-2.0-derived and attributed in `NOTICE`; the ~17.5 MB in git is disclosed in `CONTRIBUTING.md` and `crates/argot-rules-semantic/model/README.md` |
 | Daily pre-acceptance auto-run | **Partially implemented** | Only automatic wiring is the **pre-write** `PreToolUse` hook (`hooks/hooks.json`, `crates/argot-cli/src/hook.rs`), Claude Code plugin only, fitted repos only, `foreign-import` only, "ask" not block. No post-generation / pre-accept auto-run. Commit-time check is manual / agent-chosen / user-wired pre-commit | The core habit the strategy is built on | **No, not yet** (do not claim Argot runs automatically at the acceptance moment) | P0 gap — see `ARGOT_PRODUCT_GAPS.md` |
 | Pre-write "ask before a foreign dep" guardrail | Exists and verified | `hook.rs::assess` returns `permissionDecision: "ask"` on `foreign-import`; never blocks; no-op until fitted | The nearest real thing to acceptance-moment awareness | Yes, with qualification (Claude Code only, pre-write, ask-only, opt-in via plugin/fit) | — |
-| Claude Code plugin | Exists and verified | `.claude-plugin/plugin.json` bundles six skills + `argot mcp` + the pre-write hook; install `/plugin marketplace add` then `/plugin install` | Primary distribution into an agent | Yes | — |
+| Claude Code plugin | Exists and verified | `.claude-plugin/plugin.json` bundles seven skills + `argot mcp` + the pre-write hook; install `/plugin marketplace add` then `/plugin install` | Primary distribution into an agent | Yes | — |
 | MCP server (`argot mcp`) | Exists with limitations | `crates/argot-cli/src/mcp.rs`: stdio JSON-RPC, five tools; **passive** — the agent must choose to call it (`agents.md` confirms) | Proactive context, agent-driven | Yes, with qualification (passive; agent must call) | — |
 | Other-agent support (Cursor, Codex, "70+") | Exists with limitations | Agent-agnostic skills + `AGENTS.md`; "70+" rides the third-party `npx skills add` installer's reach, not argot-tested integrations | Breadth of reach | Yes, with qualification (via the skills installer; not 70 argot-tested integrations) | — |
 | `foreign-import` (+ `unfamiliar-callee`, `rare-tokens`, `convention`) | Exists and verified | `argot-engine/src/rules.rs`; group `voice`, always compiled | Core retention + acquisition signal | Yes | — |
@@ -126,9 +127,6 @@ a lean pure-Rust build. Public claims about any of these detectors are safe beca
 - Whether `argot review`'s PR fetch uses the GitHub API, `gh`, or local git (not confirmed here).
 - Retention and audit-to-habit conversion (no instrumentation exists; unmeasurable today).
 
-## 6. Minor documentation inconsistencies observed (not fixed here; out of task scope)
+## 6. Minor documentation inconsistencies observed
 
-- `skills/README.md` says "Five skills" and omits `argot-suggest-rules`; the plugin manifest and docs correctly list six.
 - `README.md` architecture figure (244/252) trails the CI data file (264/272).
-
-These are recorded for the maintainer; this task does not modify README, docs, site, or code.

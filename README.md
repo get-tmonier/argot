@@ -81,6 +81,29 @@ argot init
 argot check
 ```
 
+Review and commit the generated `argot.toml` and `.argot/` fit snapshot so
+local tools and CI use the same learned baseline. CI only reads the base
+branch snapshot; it never fits. `argot status` later recommends a local
+fit-and-commit refresh only when accepted source, function, or layout surfaces
+have materially changed. Commit count and age are not refresh triggers by
+default; `[fit] refresh-after` is available only as an explicit team backstop.
+The `argot-refresh` skill re-audits exclusions, structural paths, and mutes
+before fitting, so a reorganized repository does not blindly relearn old scope.
+
+```mermaid
+flowchart LR
+    A["argot init<br/>learn locally"] --> B["review + commit<br/>argot.toml · .argot/"]
+    B --> C["local tools + CI<br/>read one baseline"]
+    C --> D{"material accepted drift?"}
+    D -- no --> C
+    D -- yes --> E["argot-refresh<br/>review scope · fit locally"]
+    E --> B
+```
+
+The embedding model itself ships inside the binary. Git stores only the
+repository-specific learned snapshot—typically a few MB to a few tens of MB—so
+every clone can reproduce the check without retraining or operating a service.
+
 `check` reports configured findings on the selected changeset; a clean result
 does not prove the change correct or fully idiomatic. Read the
 [Audit](https://argot.tmonier.com/docs/audit/),
@@ -125,8 +148,8 @@ triggers and coverage; none provides a universal acceptance-time check.
 | Route              | Execution class                                          | Prerequisites and coverage                                                                                                                                                               | Evidence status                         |
 | ------------------ | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
 | CLI                | Invoked by a user or agent                               | Run `audit`, `init`, or the full `check`; fitting is required where the command needs it.                                                                                                | CLI/source inventory, 2026-07-22        |
-| Skills             | Invoked                                                  | Six on-demand workflows for a compatible skill host; installation does not schedule commands, configure MCP, or add a hook.                                                              | Manifest/source inventory, 2026-07-22   |
-| MCP                | Passive                                                  | A configured client selects read-only context/check tools; a fitted repository is required for model-dependent tools. Use the CLI for a complete changeset check.                        | Focused test and source inspection, 2026-07-22 |
+| Skills             | Invoked                                                  | Seven on-demand workflows for a compatible skill host; installation does not schedule commands, configure MCP, or add a hook.                                                            | Manifest/source inventory, 2026-07-30   |
+| MCP                | Passive                                                  | A configured client selects read-only context, hunk, or complete-changeset tools; a fitted repository is required for model-dependent tools. Fitting remains an explicit local CLI/skill workflow. | Focused test and source inspection, 2026-07-30 |
 | Claude Code plugin | Automatic when configured, plus invoked/passive surfaces | Its opt-in pre-write hook, in a fitted repository, asks only when a `Write`, `Edit`, or `MultiEdit` introduces a foreign import. It never blocks and is not a full or end-of-turn check. | Manifest/source inspection, 2026-07-22  |
 | pre-commit         | Automatic when user-configured                           | Scores staged supported files in a fitted repository. The `argot-check` hook is advisory for findings; `argot-check-gate` is opt-in for error-severity exits.                            | Manifest inspection, 2026-07-22         |
 | GitHub Action      | Automatic when user-configured                           | Scores the configured ref/range in a workflow; it needs checkout history and release-download access. `fail-on-hits` defaults to `false`.                                                | Action manifest inspection, 2026-07-22  |

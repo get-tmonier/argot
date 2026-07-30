@@ -117,7 +117,7 @@ anything as current unless it is confirmed there.
 - CI: a non-blocking GitHub Action (score card + annotations), SARIF, JSON, GitHub annotations, live badge.
 - Distribution: shell/powershell installers, npm `@tmonier/argot`; macOS arm64/x64, Linux x64/arm64, Windows x64.
 - Privacy: **no telemetry**; the only default egress is a suppressible once-per-24h update check. The semantic detectors' embedding model ships inside the binary, so analysis needs no network at all.
-- Agent surface: Claude Code plugin (six skills + passive MCP server + a pre-write `foreign-import` "ask" guardrail); other agents via a third-party skills installer.
+- Agent surface: Claude Code plugin (seven skills + passive MCP server + a pre-write `foreign-import` "ask" guardrail); other agents via a third-party skills installer.
 
 **Not yet real (do not market as present):**
 - **Product requirement:** Argot running automatically at the acceptance moment. Today only a *pre-write* foreign-import guardrail is automatic (Claude Code only); commit-time `check` is manual, agent-chosen, or user-wired pre-commit.
@@ -354,7 +354,7 @@ Operational consequences of §10. Where a principle restates a decision, the dec
 6. **The individual local check stays free (D7).**
 7. **Cloud is never mandatory for the core check (D13).**
 8. **Local-first and neutrality are non-retrofittable trust assets (D13).**
-9. **Configuration is portable and user-owned.** *Current reality: commit the reviewed `argot.toml`; rebuildable `.argot/` fit artifacts stay local or live in CI cache. Hand-written `.argot/rules/` custom rules are the exception and are committed.*
+9. **Configuration is portable and user-owned.** *Current reality: commit the reviewed `argot.toml` and `.argot/` fit snapshot; CI reads the approved base snapshot and never fits or caches it. Refresh is adaptive to accepted source/function/layout drift; commit count is only an explicit opt-in backstop. Hand-written `.argot/rules/` custom rules remain committed source.*
 10. **Stay embeddable.** Stable CLI, JSON, SARIF, hooks, agent integrations. *Note: JSON is stable-by-intent; a versioned schema is a P2 gap.*
 11. **No generative LLM in the authoritative core (D12).**
 12. **Do not reposition as "AI governance" prematurely (D6, D9).**

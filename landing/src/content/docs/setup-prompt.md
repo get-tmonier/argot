@@ -34,9 +34,11 @@ justify in one sentence. Any phase can be skipped if I say so.
    https://argot.tmonier.com/docs/getting-started/). Confirm this is a git repo
    with real history, that I am on the default branch, and that the tree is
    clean — fitting a feature branch bakes unmerged commits into the voice.
-   Tell me setup will write argot.toml (committed) and .argot/ (gitignored,
-   rebuildable local fit artifacts). Do not add .argot/ to the repository;
-   CI caches it after default-branch fits.
+   Tell me setup will write argot.toml and a committed .argot/ fit snapshot.
+   The snapshot contains the learned voice, semantic index and other detector
+   artifacts; only caches/one-run state are gitignored. After fitting, show me
+   its size and exact Git diff, then ask me to review and commit it. CI only
+   reads this committed snapshot; it never fits or rebuilds it.
 
 1. PROOF FIRST
    Run `argot audit --format json`, SAVE IT TO A FILE, and show me a readable
@@ -121,14 +123,13 @@ justify in one sentence. Any phase can be skipped if I say so.
    Local: the pre-write guardrail hook (already included if I use the Claude
    Code plugin), pre-commit (argot-check advisory, argot-check-gate blocking),
    and the MCP server (`argot mcp`) for agent context.
-   CI: the GitHub Action, non-blocking by default. Two things you must tell me:
-     - the workflow needs BOTH `pull_request:` and `push:` to the default
-       branch. The push run fits and publishes the resulting `.argot/` artifacts
-       to a cache; pull requests read that cache and stay fast. Without it every
-       PR pays the fit.
-     - that cache does not exist until the workflow is MERGED to the default
-       branch. Until then every run is a cold fit and looks slow. Say so before
-       I judge the tool on its first PR.
+   CI: the GitHub Action, non-blocking by default. It extracts the committed
+   fit snapshot from the PR base, so a PR cannot self-certify by changing its
+   own `.argot/`. It never fits, downloads a model, or restores an Argot cache.
+   Its scorecard reports deterministic adaptive source/function/layout drift and
+   a structured next_action: fit, or review_scope_then_fit when structural paths
+   or fit-relevant config need attention. It points to argot-refresh; commit count
+   and age alone do not trigger it. Missing/incomplete snapshots are explicit setup errors.
 
 9. PROVE IT
    Give me the phase-4 fixture as a repeatable local command, so I can re-run
@@ -137,9 +138,12 @@ justify in one sentence. Any phase can be skipped if I say so.
 
 10. SUMMARIZE
     What the audit found, what we excluded and why, the health verdict, what
-    was wired, and what my team sees on their next PR. Tell me refits are
-    automatic but re-scoping is not: when a new generated or vendored tree
-    appears, argot names it at the next fit and I should act on it.
+    was wired, and what my team sees on their next PR. Explain that refresh is
+    data-driven: Argot measures material accepted source/function/layout drift, while
+    commit count and age are not triggers by default. No refit is automatic:
+    when the scorecard recommends it, use argot-refresh locally on the accepted
+    branch. It re-audits excludes, structural paths and mutes, asks once before
+    policy changes, then fits; review `.argot/` and commit the refreshed snapshot.
 
 11. OPTIONAL: EXPLORE ONLY THE CONVENTIONS ARGOT SHOULD ENFORCE
     Only after the summary, ask me exactly once whether I want a read-only,

@@ -9,7 +9,7 @@ const en: SiteContent = {
   nav: {
     demo: 'Demo',
     audit: 'Audit',
-    engine: 'Under the hood',
+    lifecycle: 'How it works',
     docs: 'Docs',
   },
   hero: {
@@ -193,9 +193,10 @@ const en: SiteContent = {
     body: 'Run [[argot init]], then choose the CLI, skills, a commit hook, or a GitHub Action. The Claude plugin adds a narrow pre-write prompt — not a full acceptance-time check.',
     installLabel: 'Install the CLI',
     skillsLabel: 'Add agent skills',
-    skillsIntro: 'six on-demand skills for compatible hosts:',
+    skillsIntro: 'seven on-demand skills for compatible hosts:',
     skillDescs: [
       'reads your tree, writes argot.toml, verifies the catch',
+      'reviews scope and mutes, then refreshes the learned snapshot',
       'scores each diff, flags what’s foreign — never blocks',
       'reviews one PR against your repo’s voice, no checkout',
       'a non-blocking voice score on every PR',
@@ -207,13 +208,47 @@ const en: SiteContent = {
     pluginCta: 'Get the plugin',
     ctaLocal: 'Or drive the CLI by hand',
     ctaCi: 'the CI guide',
-    caption: 'The fitted model stays out of your git history.',
+    caption:
+      'The learned snapshot is committed; caches stay local. CI reads the base branch copy and never fits.',
+  },
+  lifecycle: {
+    label: 'The whole model, in one glance',
+    title: 'Learn once. Share one baseline. Refresh only when the repo truly moves.',
+    body: 'Argot’s learned state is a [[reviewed snapshot in Git]], not a hosted service. Every developer, agent, and PR compares against the same repository memory.',
+    steps: [
+      {
+        kicker: 'local · once',
+        title: 'Learn the repository',
+        desc: '[[argot init]] learns the voice, semantic neighbours, architecture, and test signals on your machine.',
+        note: 'nothing uploaded · model ships in the binary',
+      },
+      {
+        kicker: 'reviewed · shared',
+        title: 'Commit the baseline',
+        desc: 'Review and commit [[argot.toml + .argot/]]. It is repository-specific learned state, like a lockfile for checks.',
+        note: 'usually a few MB to a few tens of MB',
+      },
+      {
+        kicker: 'local + PR',
+        title: 'Check against the same memory',
+        desc: 'Local tools, agents, and CI read that snapshot. A PR is judged against the [[base branch]], so it cannot teach itself.',
+        note: 'advisory by default · CI never fits',
+      },
+      {
+        kicker: 'only when useful',
+        title: 'Refresh deliberately',
+        desc: 'After material accepted drift, status recommends [[/argot-refresh]]: review changed scope and mutes, fit locally, recommit.',
+        note: 'data-driven · no fixed commit cadence',
+      },
+    ],
+    footnote: 'Docs churn stays quiet. No cron, no “every 10 commits” chore, no hidden training.',
+    cta: 'See the lifecycle in detail →',
   },
   ciScore: {
     label: 'Integrations',
     title: 'A workflow-configured PR or push signal.',
-    body: 'The GitHub Action is [[non-blocking by default]]. Intentional divergence remains a human decision, recorded as an audit trail.',
-    caption: 'Lands in the Actions summary, a sticky PR comment, and the Security tab.',
+    body: 'The GitHub Action reads the [[committed base snapshot]] and is non-blocking by default. Intentional divergence remains a human decision, recorded as an audit trail.',
+    caption: 'Findings land on the PR. Snapshot health stays visible in the same summary.',
     badge:
       'Pin it in your README — a [[live badge]] that refreshes on every push. Every visitor, every fork, sees the repo still speaks its own voice.',
   },

@@ -33,8 +33,8 @@ mod tests;
 
 pub use orchestrate::{
     accepted_anchor, accepted_source_commits_behind, commits_since_fit, freshness_anchor,
-    in_scope_commits_between, run_check, run_review_mutes, unmerged_branch_source_commits,
-    ReviewOutcome, FRESHNESS_SCAN_CAP,
+    in_scope_commits_between, run_check, run_check_read_only, run_review_mutes,
+    unmerged_branch_source_commits, ReviewOutcome, FRESHNESS_SCAN_CAP,
 };
 
 use crate::git_walk::HunkSpan;

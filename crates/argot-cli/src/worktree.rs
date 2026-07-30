@@ -1,5 +1,5 @@
 //! Throwaway `git worktree` checkouts — shared by `audit` (fit the voice as
-//! of a past commit) and the background auto-refresh (fit at the accepted
+//! of a past commit) and explicit maintenance fits (fit at the accepted
 //! anchor so unmerged or uncommitted work never trains the voice).
 
 use std::path::{Path, PathBuf};

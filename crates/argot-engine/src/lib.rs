@@ -27,6 +27,7 @@ pub mod health;
 pub mod json;
 pub mod output;
 pub mod par;
+pub mod refresh;
 pub mod rules;
 pub mod stats;
 pub mod suppress;

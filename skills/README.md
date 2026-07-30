@@ -1,8 +1,8 @@
 # argot skills
 
-Six skills that let a coding agent (Claude Code, Cursor, Codex, …) use argot
-well — set it up locally, check changes, review a PR, wire it into CI, and
-codify the repo's own conventions as custom rules.
+Seven skills that let a coding agent (Claude Code, Cursor, Codex, …) use argot
+well — set it up locally, maintain its learned snapshot, check changes, review
+a PR, wire it into CI, and codify the repo's own conventions as custom rules.
 argot watches for five kinds of problem, each with its own rules: code
 **foreign** to the repo's learned voice (`foreign-import`, `unfamiliar-callee`,
 `rare-tokens`, `convention`), functions the repo **already has** (`redundant`),
@@ -16,9 +16,16 @@ Skills are selected, on-demand workflows: installing them does not schedule an
 Argot check. The GitHub Action is separate and runs only after a repository
 adds a workflow for a GitHub event.
 
+The shared lifecycle is intentionally small: `argot-setup` learns locally and
+prepares a reviewed `argot.toml` + `.argot/` commit; local checks, agents, and CI
+read that same baseline; `argot-refresh` revisits scope and mutes only after
+material accepted drift. CI never fits, and there is no default time or commit
+cadence.
+
 | Skill | Path | When it runs |
 |---|---|---|
 | [`argot-setup`](./argot-setup/SKILL.md) | local + CI | Once per repo, one sitting — audit the history, decide what shapes the voice, fit, verify the catch, tune the rules the repo's own history says are noisy, and wire where it runs (hook, pre-commit, MCP, CI). Every decision proposed with its measurement. |
+| [`argot-refresh`](./argot-refresh/SKILL.md) | local | On recommendation — re-audit corpus scope and structural path changes, review stale mutes with one explicit approval, then fit and verify the committed snapshot. |
 | [`argot-check`](./argot-check/SKILL.md) | local | Per change — score your working diff against every configured rule — the six learned detectors plus any custom rules — and act on what fires. |
 | [`argot-review-pr`](./argot-review-pr/SKILL.md) | local | On demand — review a specific PR (or range) against the repo's local model, no checkout. |
 | [`argot-setup-ci`](./argot-setup-ci/SKILL.md) | CI | Wire the GitHub Action alone — a non-blocking score on every PR. `argot-setup` covers this as one of its phases; come here when CI is all that's wanted. |
@@ -34,7 +41,7 @@ adds a workflow for a GitHub event.
 /plugin install argot@argot
 ```
 
-Installs all six skills (as `/argot:argot-setup`, `/argot:argot-check`,
+Installs all seven skills (as `/argot:argot-setup`, `/argot:argot-refresh`, `/argot:argot-check`,
 `/argot:argot-review-pr`, `/argot:argot-setup-ci`, `/argot:argot-write-rule`,
 `/argot:argot-suggest-rules`),
 the argot MCP server, and a pre-write guardrail hook — together. The hook is
@@ -53,7 +60,7 @@ npx skills add get-tmonier/argot
 **By hand** — copy the folders into your agent's skills dir (Claude Code: `.claude/skills/`):
 
 ```sh
-mkdir -p .claude/skills && cp -R argot-setup argot-check argot-review-pr argot-setup-ci argot-write-rule argot-suggest-rules .claude/skills/
+mkdir -p .claude/skills && cp -R argot-setup argot-refresh argot-check argot-review-pr argot-setup-ci argot-write-rule argot-suggest-rules .claude/skills/
 ```
 
 Every path needs the `argot` CLI installed — see the
@@ -72,5 +79,8 @@ word. The full contract is in the repo's [`AGENTS.md`](../AGENTS.md).
 
 The [MCP server](https://argot.tmonier.com/docs/agents/) (`argot mcp`) exposes the
 repo's idioms *before* you generate code, so an agent can write in-voice from
-the first token instead of writing-then-checking. Skills and MCP compose — use
-the skill for the commit-time safety net, MCP for up-front context.
+the first token instead of writing-then-checking. It also exposes a read-only
+`argot.check_changeset` tool for the complete configured detector pipeline; fitting
+is intentionally left to the reviewed setup/refresh skills. Skills and MCP
+compose — use the skill for the human-guided workflow and MCP for context or
+an explicitly requested check.

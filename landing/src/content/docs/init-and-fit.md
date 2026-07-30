@@ -1,12 +1,12 @@
 ---
 title: Init and Fit
-description: Set up portable configuration with init; refresh only local model artifacts with fit.
+description: Set up portable configuration and a committed fit snapshot with init; refresh it locally with fit.
 group: Configure
 order: 1
 ---
 
-Use `argot init` for first-time repository setup. Use `argot fit` when you intentionally want to
-rebuild the local model after configuration or source layout changes.
+Use `argot init` for first-time repository setup. When maintenance is recommended, use the
+`argot-refresh` skill to re-audit corpus paths and mutes before it deliberately runs `argot fit`.
 
 ```bash
 argot init                 # create portable configuration, fit, and report health
@@ -25,17 +25,17 @@ committing it.
 ## What each command writes
 
 `init` fits `.argot/`, creates a commented root `argot.toml` when it is missing, and adds
-`argot.local.toml` to the root `.gitignore` for personal overrides. Commit the shared `argot.toml`
-when its exclusions and rule choices represent a team decision.
+`argot.local.toml` to the root `.gitignore` for personal overrides. It also writes a selective
+`.argot/.gitignore`: the fit snapshot is visible to Git, while caches and one-run state remain local.
 
-`fit` deliberately does **not** create `argot.toml` or edit the root `.gitignore`. It writes
-rebuildable artifacts under `.argot/`, including the fitted scorer configuration and indexes;
-`.argot/.gitignore` protects that directory from version control. `fit` can be used on detached
-checkouts, which is why configuration scaffolding belongs only to `init`.
+`fit` deliberately does **not** create `argot.toml` or edit the root `.gitignore`. It refreshes the
+reviewable artifacts under `.argot/`; inspect their diff and commit them. `fit` can be used on
+detached checkouts, which is why configuration scaffolding belongs only to `init`.
 
-For a repository using Argot, commit the reviewed `argot.toml`, not `.argot/`. The latter is a
-local snapshot of the chosen base and is regenerated locally or restored by the CI cache. The
-embedded model is different: it is a frozen build input committed only in Argot's own source tree.
+For a repository using Argot, commit the reviewed `argot.toml` **and the fit snapshot under
+`.argot/`**. The embedder itself remains compiled into Argot's binary; the committed files are your
+repository's learned voice, semantic index, layering graph, integrity model, and provenance. CI
+only reads this snapshot — it never fits or rebuilds it.
 
 ## Build a trustworthy voice
 
@@ -50,9 +50,14 @@ both commands warn if uncommitted source files or unmerged source commits would 
 manual fit still runs after that warning, so the choice remains yours. Set
 `[fit] refresh-from = "current-branch"` only when branch fitting is intentional.
 
-Each `check` can schedule a background refresh when the accepted-history fit is stale. That refresh
-uses an accepted-history anchor and avoids dirty or unmerged source changes; it can be disabled with
-`[fit] auto-refresh = false`. It does not replace a deliberate refit after you change exclusions.
+`argot status` measures final accepted source/function/layout drift from `fit_sha`; commit count and age do
+not trigger maintenance by default. Its structured `refresh.next_action` is `fit` for ordinary
+content drift and `review_scope_then_fit` when new/moved paths, a language surface, layout, or
+fit-relevant configuration should be audited first. `argot-refresh` also runs the mute review
+read-only and asks once before editing policy. Neither status, check, the skill, nor CI refits in
+the background: fitting is a deliberate local step whose `.argot/` diff is reviewed and committed.
+See [Snapshot health and refresh](/docs/health-and-freshness/) for the measured signals, structured
+reasons, and complete maintenance flow.
 
 ## Adopting on an existing codebase
 

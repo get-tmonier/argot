@@ -1416,7 +1416,7 @@ pub fn run_calibrate(
         // returns a per-file set, so this is a file-frequency (each module counts
         // once per file). The membership use (`is_foreign`) is order-independent;
         // ordering `import_modules` by frequency only sharpens the *display*
-        // surfaces (`familiar_imports` in inspect / MCP `voice_context`) so the
+        // surfaces (`familiar_imports` in inspect / MCP `get_voice_context`) so the
         // most-used imports lead instead of the alphabetically-first ones.
         let mut counts: HashMap<String, usize> = HashMap::new();
         for s in &sources {
@@ -1816,10 +1816,9 @@ pub fn run_calibrate(
         if let Ok(manifest_json) = serde_json::to_string_pretty(&manifest) {
             write_atomic(&manifest_path, manifest_json.as_bytes())?;
         }
-        // Fit-time self-diagnosis, persisted so `check`/`status` surface it
-        // without re-scanning (and so a background refit's findings survive
-        // its /dev/null stdout): calibration-drift candidates + the config
-        // fingerprint this fit reflects.
+        // Fit-time self-diagnosis persisted for `check`/`status`: calibration
+        // drift candidates, the config fingerprint, and compact denominators
+        // for adaptive refresh assessment.
         let drift_candidates = crate::ignore_suggest::suggest_ignores(repo_dir)
             .candidates
             .into_iter()
@@ -1831,6 +1830,10 @@ pub fn run_calibrate(
                 fit_sha: opts.repo_sha.clone(),
                 config_fingerprint: config_fingerprint_at_fit,
                 drift_candidates,
+                refresh_profile: Some(argot_engine::refresh::build_fit_profile(
+                    repo_dir,
+                    &corpus_files,
+                )),
             },
         );
     }

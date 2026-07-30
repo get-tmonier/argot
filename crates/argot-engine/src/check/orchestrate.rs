@@ -98,14 +98,14 @@ fn detected_locks_possible(args: &CheckArgs) -> bool {
         }
 }
 
-/// Freshness walks stop visiting commits here — far past every threshold.
-/// The stale-after threshold itself is `[fit] refresh-after` in argot.toml.
+/// Commit-context walks stop visiting here. Adaptive freshness does not use
+/// this cap; an explicit `[fit] refresh-after` backstop and status context do.
 pub const FRESHNESS_SCAN_CAP: usize = 200;
 
 /// How many commits HEAD is ahead of the fit SHA (`None` when either end
 /// cannot be resolved — shallow clones, rewritten history, detached states
-/// must never break check). Public: the CLI's auto-refresh reads the same
-/// staleness the in-check warning does.
+/// must never break check). This is context for adaptive freshness and powers
+/// an explicit commit-count backstop when a team opts into one.
 pub fn commits_since_fit(repo_path: &str, fit_sha: &str) -> Option<usize> {
     let repo = open_repo(repo_path).ok()?;
     let head = repo.head().ok()?.peel_to_commit().ok()?;
@@ -203,7 +203,10 @@ pub fn in_scope_commits_between(
     walk.push(to).ok()?;
     walk.hide(from).ok()?;
     let mut in_scope = 0usize;
-    for oid in walk.flatten().take(FRESHNESS_SCAN_CAP) {
+    // Adaptive freshness never needs this walk. The normal status context is
+    // capped, while an explicitly configured commit backstop is allowed to
+    // scan up to the value the team deliberately chose.
+    for oid in walk.flatten().take(FRESHNESS_SCAN_CAP.max(stop_at)) {
         let commit = repo.find_commit(oid).ok()?;
         let tree = commit.tree().ok()?;
         let parent_tree = commit.parent(0).ok().and_then(|p| p.tree().ok());
@@ -226,7 +229,7 @@ pub fn in_scope_commits_between(
     }
     Some(in_scope)
 }
-/// The anchor freshness is measured against — and the commit a background
+/// The anchor freshness is measured against — and the commit a deliberate
 /// refresh fits at. [`accepted_anchor`] under the default
 /// `[fit] refresh-from = "default-branch"`; plain HEAD when the repo opted
 /// into `"current-branch"`.
@@ -281,12 +284,8 @@ pub fn unmerged_branch_source_commits(
 }
 /// The shared freshness measure: commits of **accepted, in-scope** source the
 /// fit hasn't seen — [`freshness_anchor`] composed with
-/// [`in_scope_commits_between`]. Both check's drift warning and the CLI's
-/// background auto-refresh read this, so a feature branch full of its own
-/// commits reads as fresh (nothing accepted moved), and a docs-only sprint on
-/// main does too. Cost on the check path: a couple of ref lookups plus one
-/// commit-graph count; the per-commit tree diffs only run when accepted
-/// history actually moved, and stop at `stop_at`.
+/// [`in_scope_commits_between`]. Adaptive freshness reports it as context and
+/// uses it only when the team explicitly configures a commit backstop.
 pub fn accepted_source_commits_behind(
     repo_path: &str,
     fit_sha: &str,
@@ -320,6 +319,25 @@ pub fn accepted_source_commits_behind(
 /// groups, decided one layer up by `argot-core`'s `compose::default_detectors`
 /// (which rule groups a given build wires in), not by this engine.
 pub fn run_check(args: CheckArgs, detectors: Vec<RegisteredDetector<'_>>) -> CheckOutcome {
+    run_check_with_recording(args, detectors, true)
+}
+
+/// Run the complete detector pipeline without updating `.argot/last-check.json`.
+/// Read-only integrations such as MCP use this entry point: they may inspect a
+/// changeset, but must not change repository state merely because a host chose
+/// to invoke a tool.
+pub fn run_check_read_only(
+    args: CheckArgs,
+    detectors: Vec<RegisteredDetector<'_>>,
+) -> CheckOutcome {
+    run_check_with_recording(args, detectors, false)
+}
+
+fn run_check_with_recording(
+    args: CheckArgs,
+    detectors: Vec<RegisteredDetector<'_>>,
+    record_last_check: bool,
+) -> CheckOutcome {
     // Mutual-exclusion validation — fail fast with a clear message (exit 2).
     let ref_nonempty = !args.reference.is_empty();
     let commit_set = args
@@ -471,31 +489,40 @@ pub fn run_check(args: CheckArgs, detectors: Vec<RegisteredDetector<'_>>) -> Che
         stderr.push_str(&format!("[argot] model: {}\n", base.model_hash));
     }
 
-    // Freshness: a stale model turns ordinary drift into noise (a month of
-    // drift on a busy workspace measured ~14× the hit volume of a fresh
-    // fit). Warn when ACCEPTED history has moved substantially since the fit
-    // — commits touching in-scope source on the default-branch line. A
-    // feature branch's own commits don't count (they're the code under
-    // judgment, not the voice), and docs-only churn doesn't either.
-    if let Some(fit_sha) = &base.fit_sha {
-        let stale_after = config.fit_refresh_after;
-        if let Some(behind) =
-            accepted_source_commits_behind(&args.repo_path, fit_sha, &config, stale_after)
-        {
-            if behind >= stale_after {
-                // No imperative here: the CLI's auto-refresh acts on this
-                // drift itself (and says so right after this line).
-                stderr.push_str(&format!(
-                    "[argot] model fitted {behind}+ source commits ago — voice may have drifted\n"
-                ));
+    // Fit-time health and one shared, content-driven freshness assessment.
+    // `watch` remains visible in status/MCP only; ordinary checks speak only
+    // when maintenance is actually recommended.
+    if let Some(health) = crate::health::read(&args.argot_dir) {
+        let refresh = crate::refresh::assess(Path::new(&args.repo_path), &health, &config);
+        match refresh.compatibility {
+            crate::refresh::Compatibility::ConfigChanged => stderr.push_str(
+                "[argot] argot.toml changed since the last fit — use the `argot-refresh` skill to review scope and mutes before fitting, then commit the refreshed `.argot/` snapshot\n",
+            ),
+            crate::refresh::Compatibility::ProfileMissing => stderr.push_str(
+                "[argot] fit snapshot has no adaptive freshness profile — use the `argot-refresh` skill locally, then review and commit `.argot/`\n",
+            ),
+            crate::refresh::Compatibility::LineageDiverged => stderr.push_str(
+                "[argot] fit snapshot belongs to a different accepted history — use the `argot-refresh` skill on the accepted branch, then review and commit `.argot/`\n",
+            ),
+            _ => {
+                if refresh.recommendation.is_some_and(|r| r.notifies_check()) {
+                    let reason = refresh
+                        .primary_reason()
+                        .map(crate::refresh::RefreshReason::human_summary)
+                        .unwrap_or_else(|| "material learned-surface drift detected".to_string());
+                    let action = if refresh.next_action
+                        == crate::refresh::NextAction::ReviewScopeThenFit
+                    {
+                        "use the `argot-refresh` skill to review scope and mutes before fitting"
+                    } else {
+                        "use the `argot-refresh` skill, or run `argot fit` locally on the accepted branch"
+                    };
+                    stderr.push_str(&format!(
+                        "[argot] fit refresh recommended — {reason}; {action}, then review and commit `.argot/`\n"
+                    ));
+                }
             }
         }
-    }
-
-    // Fit-time health (persisted by the last fit — foreground OR background,
-    // whose stdout is detached): the "is it time to recalibrate?" answer,
-    // surfaced by the command users actually run.
-    if let Some(health) = crate::health::read(&args.argot_dir) {
         if !health.drift_candidates.is_empty() {
             let shown: Vec<&str> = health
                 .drift_candidates
@@ -519,14 +546,6 @@ pub fn run_check(args: CheckArgs, detectors: Vec<RegisteredDetector<'_>>) -> Che
                 },
                 shown.join(", "),
             ));
-        }
-        if !health.config_fingerprint.is_empty()
-            && health.config_fingerprint != crate::health::config_fingerprint(&config)
-        {
-            stderr.push_str(
-                "[argot] argot.toml changed since the last fit — the voice doesn't reflect                  your configuration yet (auto-refresh will refit, or run `argot fit`)
-",
-            );
         }
     }
 
@@ -753,7 +772,9 @@ pub fn run_check(args: CheckArgs, detectors: Vec<RegisteredDetector<'_>>) -> Che
             line_end: h.line_end,
         })
         .collect();
-    let _ = write_last_check(&args.argot_dir, &last_check);
+    if record_last_check {
+        let _ = write_last_check(&args.argot_dir, &last_check);
+    }
 
     // Machine formats: the serialized document is the entire stdout; skip
     // warnings stay on stderr. Exit semantics match the human path (rule
