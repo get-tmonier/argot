@@ -6,6 +6,12 @@ on:
       - action.yml
       - .github/workflows/action-smoke.yml
       - .github/fixtures/action-smoke/**
+      - README.md
+      - skills/argot-setup/SKILL.md
+      - skills/argot-setup-ci/SKILL.md
+      - landing/src/content/docs/setup-prompt.md
+      - landing/src/content/docs/ci.md
+      - landing/src/content/docs/getting-started.md
   workflow_dispatch:
 
 permissions:
@@ -22,13 +28,22 @@ jobs:
         run: |
           set -euo pipefail
           cargo test -p argot voice_diff::tests
-          grep -Fq 'No configured findings on {} scanned hunks.' crates/argot-cli/src/voice_diff.rs
+          grep -Fq 'No patterns requiring review' crates/argot-cli/src/voice_diff.rs
           grep -Fq 'Non-blocking by default' action.yml
           grep -Fq 'argot-configured-findings' action.yml
+          grep -Fq 'fit-recommendation:' action.yml
+          grep -Fq '<summary>${freshness_glyph} <strong>Fit snapshot: ${RECOMMENDATION//_/ }</strong> · ${action_text}</summary>' action.yml
+          grep -Fq 'none) action_text="No maintenance is needed."' action.yml
           grep -Fq '"message":"unknown","color":"lightgrey"' action.yml
           grep -Fq 'Fail the job when argot finds hunks above the calibrated threshold.' action.yml
           grep -Fq "echo '::error::The base branch has no committed Argot fit snapshot. For first setup, merge a reviewed argot.toml and .argot/ snapshot into the base branch before adding this workflow; CI never fits. Then retry.'" action.yml
           ! grep -Fq 'Run `argot init` locally' action.yml
+          grep -Fq '**Bootstrap boundary.** Do not add this workflow to the first PR' skills/argot-setup/SKILL.md
+          grep -Fq 'snapshot **already on the PR base/default branch**' skills/argot-setup-ci/SKILL.md
+          grep -Fq 'If CI is requested, its workflow comes only after that commit has been' landing/src/content/docs/setup-prompt.md
+          grep -Fq 'two-step bootstrap' landing/src/content/docs/ci.md
+          grep -Fq 'future pull requests target before enabling CI.' landing/src/content/docs/getting-started.md
+          grep -Fq 'initial snapshot PR must be separate from the' README.md
           expected_condition='if: $'
           expected_condition+='{{ inputs.fail-on-hits == '\''true'\'' && steps.check.outputs.exit-code == '\''1'\'' }}'
           grep -Fq "$expected_condition" action.yml
@@ -82,6 +97,9 @@ jobs:
         env:
           ACTION_EXIT_CODE: ${{ steps.action.outputs.exit-code }}
           ACTION_OUTCOME: ${{ steps.action.outcome }}
+          FIT_RECOMMENDATION: ${{ steps.action.outputs.fit-recommendation }}
+          FIT_NEXT_ACTION: ${{ steps.action.outputs.fit-next-action }}
+          FIT_SUMMARY: ${{ steps.action.outputs.fit-summary }}
           SCENARIO: ${{ matrix.scenario }}
         run: |
           set -euo pipefail
@@ -93,6 +111,12 @@ jobs:
             clean) test "$ACTION_EXIT_CODE" = 0 ;;
             finding|sarif) test "$ACTION_EXIT_CODE" = 1 ;;
           esac
+          # The action exposes the same base-snapshot freshness state that it
+          # puts in the job summary and sticky PR card. A PR's new code must
+          # not make the already-committed base snapshot read as stale.
+          test "$FIT_RECOMMENDATION" = fresh
+          test "$FIT_NEXT_ACTION" = none
+          test -n "$FIT_SUMMARY"
           # `voice-diff` is deliberately best-effort when semantic indexing is
           # disabled, so a missing optional card must not fail this smoke test.
       # What github/codeql-action/upload-sarif validates before it accepts a

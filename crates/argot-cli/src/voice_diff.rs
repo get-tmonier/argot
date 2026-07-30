@@ -22,6 +22,8 @@ pub struct HitScore {
     pub confidence: String,
     pub severity: String,
     pub rule: String,
+    /// Rule-owned explanation lines from the full `argot check` result.
+    pub evidence: Vec<String>,
     /// Content-based hit hash — `argot mute <hash>` accepts the hunk.
     pub hash: String,
 }
@@ -38,6 +40,8 @@ pub struct HotSpot {
     pub confidence: String,
     pub severity: String,
     pub rule: String,
+    /// The evidence that explains why this specific location was selected.
+    pub evidence: Vec<String>,
     /// Content-based hit hash — `argot mute <hash>` accepts the hunk.
     pub hash: String,
 }
@@ -82,6 +86,7 @@ pub fn summarize(hits: &[HitScore], hunks_total: usize, top_n: usize) -> VoiceDi
             confidence: h.confidence.clone(),
             severity: h.severity.clone(),
             rule: h.rule.clone(),
+            evidence: h.evidence.clone(),
             hash: h.hash.clone(),
         })
         .collect();
@@ -166,6 +171,17 @@ pub fn summary_for_ref_with_snapshot(
                         .and_then(Value::as_str)
                         .unwrap_or("unknown")
                         .to_string(),
+                    evidence: h
+                        .get("evidence")
+                        .and_then(Value::as_array)
+                        .map(|lines| {
+                            lines
+                                .iter()
+                                .filter_map(Value::as_str)
+                                .map(str::to_owned)
+                                .collect()
+                        })
+                        .unwrap_or_default(),
                     hash: h
                         .get("hash")
                         .and_then(Value::as_str)
@@ -181,41 +197,88 @@ pub fn summary_for_ref_with_snapshot(
 /// One-line headline for the human render + `argot review` header.
 pub fn one_liner(s: &VoiceDiffSummary) -> String {
     format!(
-        "observed configured findings · {} on {} scanned hunks",
-        s.configured_findings, s.scanned_hunks
+        "{} pattern{} worth reviewing · {} scanned hunks",
+        s.configured_findings,
+        if s.configured_findings == 1 { "" } else { "s" },
+        s.scanned_hunks,
     )
 }
 
+/// The concrete review decision a finding asks the author to make. This is
+/// deliberately rule-based: confidence is evidence strength, not a remedy.
+fn review_action(rule: &str) -> &'static str {
+    match rule {
+        "foreign-import" => {
+            "Compare the named dependency with the familiar imports above; use the established option unless this adoption is deliberate."
+        }
+        "unfamiliar-callee" => {
+            "Compare this call with the common callees above; use the repository's established API if it serves the same purpose."
+        }
+        "rare-tokens" | "convention" => {
+            "Read the highlighted vocabulary and rewrite it in the repository's established form if the difference is unintended."
+        }
+        "superseded" => {
+            "Follow the replacement named in the evidence; this is advisory unless the repository configured it to gate."
+        }
+        "redundant" => {
+            "Open the cited duplicate and reuse it, or explain the material difference that requires a separate implementation."
+        }
+        "misplaced" => {
+            "Move the code to the named home area, or explain why this location is the intentional exception."
+        }
+        "layering" => {
+            "Route through the intended layer or invert the dependency; do not introduce the reversed import by accident."
+        }
+        "test-deleted" | "test-disabled" | "test-weakened" => {
+            "Restore the test strength, or explain why the production behavior and its test legitimately changed together."
+        }
+        "rule-tampered" => "Restore the locked rule or its severity. This finding cannot be muted.",
+        _ => "Read the evidence and the rule's repository policy before deciding whether this is an intentional exception.",
+    }
+}
+
 /// A GitHub-flavoured observed-findings card for a PR comment or Actions job
-/// summary. It is informational and offers the `argot mute` escape hatch.
+/// summary. It keeps the full check's evidence and next decision close to each
+/// finding, rather than making reviewers reconstruct them from a count table.
 pub fn markdown_card(s: &VoiceDiffSummary) -> String {
     use std::fmt::Write as _;
     let mut out = String::new();
-    let _ = writeln!(out, "### 🎙️ argot configured findings\n");
+    let _ = writeln!(out, "### 🎙️ argot review\n");
 
     if s.configured_findings == 0 {
         let _ = writeln!(
             out,
-            "**No configured findings on {} scanned hunks.**\n",
+            "> 🟢 **No patterns requiring review** across {} scanned hunks.\n",
             s.scanned_hunks
         );
-        let _ = writeln!(out, "<sub>Non-blocking by default: argot findings are prompts for review, not proof of defects.</sub>");
+        let _ = writeln!(out, "<sub>Non-blocking by default: this scan found no configured foreignness signal. It does not prove the change is correct or fully idiomatic.</sub>");
         return out;
     }
 
+    let review_glyph = if s.findings_by_severity.contains_key("error") {
+        "🔴"
+    } else {
+        "🟡"
+    };
     let _ = writeln!(
         out,
-        "**{} observed configured findings on {} scanned hunks.**",
-        s.configured_findings, s.scanned_hunks
+        "> {review_glyph} **{} review decision{}** across {} scanned hunk{}.\n",
+        s.configured_findings,
+        if s.configured_findings == 1 { "" } else { "s" },
+        s.scanned_hunks,
+        if s.scanned_hunks == 1 { "" } else { "s" },
     );
     let _ = writeln!(
         out,
-        "> **Non-blocking by default.** argot is probabilistic and can be wrong; treat findings as prompts to review, not errors.\n"
+        "> **Start here:** open each row in the review queue. Argot is advisory — not a merge gate.\n"
     );
     let severity_counts = s
         .findings_by_severity
         .iter()
-        .map(|(severity, count)| format!("{count} {severity}"))
+        .map(|(severity, count)| {
+            let glyph = if severity == "error" { "🔴" } else { "🟡" };
+            format!("{glyph} {count} {severity}")
+        })
         .collect::<Vec<_>>()
         .join(", ");
     let rule_counts = s
@@ -224,46 +287,58 @@ pub fn markdown_card(s: &VoiceDiffSummary) -> String {
         .map(|(rule, count)| format!("{count} {rule}"))
         .collect::<Vec<_>>()
         .join(", ");
-    let _ = writeln!(out, "**Severity counts:** {severity_counts}");
-    let _ = writeln!(out, "**Rule counts:** {rule_counts}\n");
+    let _ = writeln!(out, "### 🔎 Review queue\n");
+    let _ = writeln!(out, "**Signals:** {severity_counts} · {rule_counts}\n");
 
-    let _ = writeln!(out, "| | Location | Rule | Severity | Signal | Accept |");
-    let _ = writeln!(out, "|---|---|---|---|---|---|");
-    for h in &s.locations {
-        let glyph = match h.confidence.as_str() {
-            "foreign" => "🔴",
-            "suspicious" => "🟡",
-            _ => "⚪",
+    for (index, h) in s.locations.iter().enumerate() {
+        let glyph = match h.severity.as_str() {
+            "error" => "🔴",
+            _ => "🟡",
         };
         let loc = if h.line_start == h.line_end {
             format!("{}:{}", h.file, h.line_start)
         } else {
             format!("{}:{}-{}", h.file, h.line_start, h.line_end)
         };
-        let accept = if h.hash.is_empty() {
-            String::new()
-        } else {
-            format!("`argot mute {}`", h.hash)
-        };
+        let label = h.rule.replace('-', " ");
+        let _ = writeln!(out, "<details>");
         let _ = writeln!(
             out,
-            "| {glyph} | `{loc}` | {} | {} | {} | {accept} |",
-            h.rule, h.severity, h.confidence
+            "<summary><strong>{}. {glyph} {label}</strong> · <code>{loc}</code> · {} severity</summary>\n",
+            index + 1,
+            h.severity,
         );
+        let _ = writeln!(out, "**Evidence signal:** `{}`\n", h.confidence);
+        if h.evidence.is_empty() {
+            let _ = writeln!(
+                out,
+                "**Evidence:** no additional rule evidence was available.\n"
+            );
+        } else {
+            let _ = writeln!(out, "**Evidence**");
+            for line in &h.evidence {
+                let _ = writeln!(out, "> {line}");
+            }
+            let _ = writeln!(out);
+        }
+        let _ = writeln!(out, "**Review:** {}", review_action(&h.rule));
+        if h.rule == "rule-tampered" {
+            let _ = writeln!(out);
+        } else if h.hash.is_empty() {
+            let _ = writeln!(
+                out,
+                "\n**If intentional:** explain the exception in the PR or commit.\n"
+            );
+        } else {
+            let _ = writeln!(
+                out,
+                "\n**If intentional:** `argot mute {} --reason \"why this is on purpose\"`\n",
+                h.hash
+            );
+        }
+        let _ = writeln!(out, "</details>\n");
     }
-    let _ = writeln!(out);
-    let _ = writeln!(
-        out,
-        "**Intentional?** Accept a hit so it stops flagging (and leaves an audit trail):\n"
-    );
-    let _ = writeln!(
-        out,
-        "```\nargot mute <hash> --reason \"why this is on purpose\"\n```"
-    );
-    let _ = writeln!(
-        out,
-        "<sub>Non-blocking by default — the reviewer has the last word. · [What this means](https://argot.tmonier.com/docs/reading-the-output/)</sub>"
-    );
+    let _ = writeln!(out, "> 💬 Argot is probabilistic: findings are prompts to review, not proof of defects. · [What this means](https://argot.tmonier.com/docs/reading-the-output/)");
     out
 }
 
@@ -359,7 +434,7 @@ pub fn run_voice_diff(
     }
     println!("{}", one_liner(&summary));
     if summary.locations.is_empty() {
-        println!("  no configured findings.");
+        println!("  no patterns requiring review.");
     } else {
         println!("  selected locations:");
         for h in &summary.locations {
@@ -387,6 +462,10 @@ mod tests {
             confidence: confidence.to_string(),
             severity: "error".to_string(),
             rule: "foreign-import".to_string(),
+            evidence: vec![
+                "↳ axios — 0 of 47 module specifiers in repo".to_string(),
+                "common here: fetch (12×), request (8×)".to_string(),
+            ],
             hash: "deadbeef".to_string(),
         }
     }
@@ -412,14 +491,18 @@ mod tests {
     }
 
     #[test]
-    fn markdown_card_is_informational_and_offers_mute() {
+    fn markdown_card_keeps_evidence_and_a_rule_aware_next_step() {
         let hits = vec![hit("src/http.ts", 42, 8.2, "foreign")];
         let card = markdown_card(&summarize(&hits, 40, 10));
-        assert!(card.contains("1 observed configured findings"));
-        assert!(card.contains("**Severity counts:** 1 error"));
-        assert!(card.contains("**Rule counts:** 1 foreign-import"));
+        assert!(card.contains("🔴 **1 review decision** across 40 scanned hunks"));
+        assert!(card.contains("### 🔎 Review queue"));
+        assert!(card.contains("**Signals:** 🔴 1 error · 1 foreign-import"));
+        assert!(card.contains("<details>"));
+        assert!(card.contains("<summary><strong>1. 🔴 foreign import</strong> · <code>src/http.ts:42</code> · error severity</summary>"));
+        assert!(card.contains("↳ axios — 0 of 47 module specifiers in repo"));
+        assert!(card.contains("Compare the named dependency"));
         assert!(
-            card.contains("Non-blocking by default"),
+            card.contains("Argot is advisory — not a merge gate"),
             "framed informational"
         );
         assert!(
@@ -436,16 +519,27 @@ mod tests {
         warning.rule = "convention".to_string();
         let error = hit("src/http.rs", 42, 8.2, "foreign");
         let card = markdown_card(&summarize(&[warning, error], 40, 10));
-        assert!(card.contains("**Severity counts:** 1 error, 1 warn"));
-        assert!(card.contains("**Rule counts:** 1 convention, 1 foreign-import"));
+        assert!(
+            card.contains("**Signals:** 🔴 1 error, 🟡 1 warn · 1 convention, 1 foreign-import")
+        );
     }
 
     #[test]
     fn markdown_card_clean_diff_uses_the_bounded_clean_claim() {
         let card = markdown_card(&summarize(&[], 30, 10));
-        assert!(card.contains("No configured findings on 30 scanned hunks."));
+        assert!(card.contains("🟢 **No patterns requiring review** across 30 scanned hunks."));
         assert!(card.contains("Non-blocking by default"));
         assert!(!card.contains("in-voice"));
+    }
+
+    #[test]
+    fn locked_rule_tampering_never_offers_a_mute() {
+        let mut tampered = hit("argot.toml", 4, 1.0, "suspicious");
+        tampered.rule = "rule-tampered".to_string();
+        tampered.hash = "lockedhash".to_string();
+        let card = markdown_card(&summarize(&[tampered], 1, 10));
+        assert!(card.contains("Restore the locked rule or its severity"));
+        assert!(!card.contains("argot mute lockedhash"));
     }
 
     #[test]
