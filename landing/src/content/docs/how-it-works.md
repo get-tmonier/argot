@@ -30,7 +30,6 @@ deliberate maintenance commit, not infrastructure that has to run on every PR.
   <defs>
     <marker id="lifecycle-arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"></path></marker>
   </defs>
-
   <text x="26" y="29" class="d-phase">1 · SET UP ON AN ACCEPTED BRANCH</text>
   <g class="d-node"><rect x="26" y="47" width="170" height="72" rx="11"></rect><text x="111" y="76" class="d-stage">audit the history</text><text x="111" y="96" class="d-sub">choose exclusions · scope</text></g>
   <g class="d-node d-accent"><rect x="242" y="47" width="170" height="72" rx="11"></rect><text x="327" y="75" class="d-cmd">argot init</text><text x="327" y="96" class="d-sub">fit voice · index · graph</text></g>
@@ -42,7 +41,6 @@ deliberate maintenance commit, not infrastructure that has to run on every PR.
   <line class="d-flow d-flow-1" x1="196" y1="83" x2="242" y2="83"></line>
   <line class="d-flow d-flow-2" x1="412" y1="83" x2="458" y2="83"></line>
   <line class="d-flow d-flow-3" x1="636" y1="83" x2="682" y2="83"></line>
-
   <text x="26" y="183" class="d-phase">2 · WRITE WITH CONTEXT, THEN OPEN A PR</text>
   <g class="d-node"><rect x="26" y="201" width="202" height="72" rx="11"></rect><text x="127" y="229" class="d-stage">before writing</text><text x="127" y="249" class="d-sub">MCP shares familiar APIs</text><text x="127" y="263" class="d-sub">and migrations with the agent</text></g>
   <g class="d-node"><rect x="274" y="201" width="186" height="72" rx="11"></rect><text x="367" y="229" class="d-stage">while developing</text><text x="367" y="249" class="d-sub">optional pre-commit check</text><text x="367" y="263" class="d-sub">surfaces, never decides</text></g>
@@ -56,7 +54,6 @@ deliberate maintenance commit, not infrastructure that has to run on every PR.
   <line class="d-flow d-flow-3" x1="662" y1="237" x2="708" y2="237"></line>
   <path class="d-thread" d="M862,119 L862,201" marker-end="url(#lifecycle-arrow)"></path>
   <text x="875" y="162" class="d-thread-label">same approved baseline</text>
-
   <text x="26" y="338" class="d-phase">3 · REFRESH DELIBERATELY, NOT IN CI</text>
   <g class="d-node d-merge"><rect x="26" y="356" width="202" height="72" rx="11"></rect><text x="127" y="384" class="d-stage">accepted code merges</text><text x="127" y="404" class="d-sub">the repository keeps moving</text></g>
   <g class="d-node d-warn"><rect x="294" y="356" width="252" height="72" rx="11"></rect><text x="420" y="383" class="d-stage">status / CI says “refresh due”</text><text x="420" y="404" class="d-sub">after ~10 accepted source commits*</text></g>
