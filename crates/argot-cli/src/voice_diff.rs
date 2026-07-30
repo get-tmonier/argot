@@ -197,8 +197,10 @@ pub fn summary_for_ref_with_snapshot(
 /// One-line headline for the human render + `argot review` header.
 pub fn one_liner(s: &VoiceDiffSummary) -> String {
     format!(
-        "observed configured findings · {} on {} scanned hunks",
-        s.configured_findings, s.scanned_hunks
+        "{} pattern{} worth reviewing · {} scanned hunks",
+        s.configured_findings,
+        if s.configured_findings == 1 { "" } else { "s" },
+        s.scanned_hunks,
     )
 }
 
@@ -246,7 +248,7 @@ pub fn markdown_card(s: &VoiceDiffSummary) -> String {
     if s.configured_findings == 0 {
         let _ = writeln!(
             out,
-            "> 🟢 **No configured findings** across {} scanned hunks.\n",
+            "> 🟢 **No patterns requiring review** across {} scanned hunks.\n",
             s.scanned_hunks
         );
         let _ = writeln!(out, "<sub>Non-blocking by default: this scan found no configured foreignness signal. It does not prove the change is correct or fully idiomatic.</sub>");
@@ -432,7 +434,7 @@ pub fn run_voice_diff(
     }
     println!("{}", one_liner(&summary));
     if summary.locations.is_empty() {
-        println!("  no configured findings.");
+        println!("  no patterns requiring review.");
     } else {
         println!("  selected locations:");
         for h in &summary.locations {
@@ -525,7 +527,7 @@ mod tests {
     #[test]
     fn markdown_card_clean_diff_uses_the_bounded_clean_claim() {
         let card = markdown_card(&summarize(&[], 30, 10));
-        assert!(card.contains("🟢 **No configured findings** across 30 scanned hunks."));
+        assert!(card.contains("🟢 **No patterns requiring review** across 30 scanned hunks."));
         assert!(card.contains("Non-blocking by default"));
         assert!(!card.contains("in-voice"));
     }
