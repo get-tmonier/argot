@@ -119,8 +119,10 @@ works on a machine with no network.
 
 Before any integration, run `argot status --format json`. It must report a
 complete snapshot. Review the generated `.argot/` diff and stage the snapshot
-with `argot.toml`; do not create the commit yourself. CI must never be enabled
-against a missing or uncommitted snapshot.
+with `argot.toml`; do not create the commit yourself. For CI, **committed means
+committed on the branch that will be the PR base (normally the accepted/default
+branch)**, not merely in the setup branch. CI must never be enabled against a
+missing or uncommitted snapshot.
 
 Then read the health **programmatically**:
 
@@ -264,6 +266,12 @@ Ask once, covering both. These are not separate projects.
   check.
 
 **CI** — the GitHub Action, non-blocking by default:
+
+**Bootstrap boundary.** Do not add this workflow to the first PR that adds the
+fit snapshot. The Action deliberately reads the PR base's snapshot, so that PR
+cannot supply its own baseline. First review, commit, and merge `argot.toml`
+and `.argot/` into the accepted/default branch; only then add the workflow in a
+follow-up commit or PR. Confirm this before writing `.github/workflows/argot.yml`.
 
 ```yaml
 name: argot

@@ -81,9 +81,11 @@ argot init
 argot check
 ```
 
-Review and commit the generated `argot.toml` and `.argot/` fit snapshot so
-local tools and CI use the same learned baseline. CI only reads the base
-branch snapshot; it never fits. `argot status` later recommends a local
+Review and commit the generated `argot.toml` and `.argot/` fit snapshot, then
+merge it into the branch future PRs target before adding a CI workflow. Local
+tools and CI then use the same learned baseline. CI only reads the base branch
+snapshot; it never fits, so the initial snapshot PR must be separate from the
+CI-workflow PR. `argot status` later recommends a local
 fit-and-commit refresh only when accepted source, function, or layout surfaces
 have materially changed. Commit count and age are not refresh triggers by
 default; `[fit] refresh-after` is available only as an explicit team backstop.

@@ -1,0 +1,11 @@
+# argot.toml — the reviewed baseline for Argot's own repository.
+#
+# Personal, uncommitted overrides go in argot.local.toml.
+
+[exclude]
+paths = [
+  "vendor/tree-sitter-pascal/", # bundled third-party parser, not Argot-authored voice
+]
+
+[rules]
+redundant = { severity = "error", exclude = ["**/tests.rs"] } # test helpers intentionally repeat focused scenarios

@@ -231,7 +231,7 @@ runs:
         fi
         snapshot="${runner_temp}/argot-fit-snapshot"
         if ! git -C "$ARGOT_PATH" cat-file -e "$BASE_SHA:.argot/scorer-config.json" 2>/dev/null; then
-          echo "::error::The base branch has no committed Argot fit snapshot. Run `argot init` locally on the accepted branch, review and commit argot.toml and .argot/, then retry."
+          echo '::error::The base branch has no committed Argot fit snapshot. For first setup, merge a reviewed argot.toml and .argot/ snapshot into the base branch before adding this workflow; CI never fits. Then retry.'
           exit 2
         fi
         rm -rf "$snapshot"

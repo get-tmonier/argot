@@ -1,0 +1,14 @@
+# Argot's fitted snapshot is reviewed and committed with this repository.
+# `argot fit` refreshes it locally; CI only consumes it.
+# Everything else below is runtime/cache state and stays local.
+*
+!.gitignore
+!generic-baseline.json
+!scorer-config.json
+!semantic-index.json
+!layering.json
+!integrity.json
+!health.json
+!manifest.json
+!rules/
+!rules/**

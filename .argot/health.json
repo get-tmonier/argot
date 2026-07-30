@@ -1,0 +1,101 @@
+{
+  "fit_sha": "8093bc2c668b8a33b389628c06ac8b8baa1ad5d9",
+  "config_fingerprint": "41ad21f4989930a3",
+  "drift_candidates": [],
+  "refresh_profile": {
+    "schema": 1,
+    "source": {
+      "files": 259,
+      "lines": 75238,
+      "functions": 2892,
+      "languages": {
+        "python": {
+          "files": 7,
+          "lines": 368
+        },
+        "rust": {
+          "files": 237,
+          "lines": 73707
+        },
+        "typescript": {
+          "files": 15,
+          "lines": 1163
+        }
+      },
+      "areas": {
+        ".github/fixtures": {
+          "files": 1,
+          "lines": 5
+        },
+        "crates/argot-bench": {
+          "files": 16,
+          "lines": 6386
+        },
+        "crates/argot-cli": {
+          "files": 19,
+          "lines": 10174
+        },
+        "crates/argot-core": {
+          "files": 2,
+          "lines": 273
+        },
+        "crates/argot-engine": {
+          "files": 35,
+          "lines": 11757
+        },
+        "crates/argot-lang": {
+          "files": 44,
+          "lines": 13501
+        },
+        "crates/argot-rules-arch": {
+          "files": 4,
+          "lines": 2787
+        },
+        "crates/argot-rules-integrity": {
+          "files": 17,
+          "lines": 5166
+        },
+        "crates/argot-rules-script": {
+          "files": 13,
+          "lines": 2306
+        },
+        "crates/argot-rules-semantic": {
+          "files": 14,
+          "lines": 4555
+        },
+        "crates/argot-rules-voice": {
+          "files": 71,
+          "lines": 16735
+        },
+        "docs/demo": {
+          "files": 1,
+          "lines": 10
+        },
+        "fuzz/fuzz_targets": {
+          "files": 2,
+          "lines": 67
+        },
+        "hooks": {
+          "files": 1,
+          "lines": 169
+        },
+        "integrations": {
+          "files": 1,
+          "lines": 60
+        },
+        "landing": {
+          "files": 1,
+          "lines": 21
+        },
+        "landing/src": {
+          "files": 14,
+          "lines": 1142
+        },
+        "scripts": {
+          "files": 3,
+          "lines": 124
+        }
+      }
+    }
+  }
+}

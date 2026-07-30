@@ -71,10 +71,11 @@ on disk. The [Init and Fit guide](/docs/init-and-fit/) explains the artifacts an
 The model to keep in mind is deliberately small:
 
 1. **Learn locally.** `init` builds the repository-specific voice and indexes; nothing is uploaded.
-2. **Review and commit the baseline.** Commit `argot.toml` and the generated `.argot/` snapshot so
-   every clone sees the same learned repository. The embedding model itself is already in the binary.
+2. **Review, commit, and merge the baseline.** Commit `argot.toml` and the generated `.argot/`
+   snapshot so every clone sees the same learned repository; merge that baseline into the branch
+   future pull requests target before enabling CI. The embedding model itself is already in the binary.
 3. **Check everywhere.** Local tools and CI read that snapshot. Pull requests are judged against the
-   base branch copy, and CI never fits.
+   base branch copy, so add CI only after that branch carries the baseline; CI never fits.
 4. **Refresh only after material accepted drift.** `status`, checks, MCP, and CI explain when the
    learned source/function/layout surface has moved enough. Run `argot-refresh` locally to review
    corpus paths and mutes before fitting and recommitting; there is no default time or commit cadence.

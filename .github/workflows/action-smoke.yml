@@ -27,6 +27,8 @@ jobs:
           grep -Fq 'argot-configured-findings' action.yml
           grep -Fq '"message":"unknown","color":"lightgrey"' action.yml
           grep -Fq 'Fail the job when argot finds hunks above the calibrated threshold.' action.yml
+          grep -Fq "echo '::error::The base branch has no committed Argot fit snapshot. For first setup, merge a reviewed argot.toml and .argot/ snapshot into the base branch before adding this workflow; CI never fits. Then retry.'" action.yml
+          ! grep -Fq 'Run `argot init` locally' action.yml
           expected_condition='if: $'
           expected_condition+='{{ inputs.fail-on-hits == '\''true'\'' && steps.check.outputs.exit-code == '\''1'\'' }}'
           grep -Fq "$expected_condition" action.yml
@@ -232,3 +234,40 @@ jobs:
             missing) echo "Missing release asset stopped installation." ;;
             checksum-mismatch) echo "Checksum mismatch stopped installation." ;;
           esac
+
+  missing-snapshot:
+    name: Action missing snapshot never fits
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Create an unfitted fixture repository
+        id: fixture
+        shell: bash
+        run: |
+          fixture="${RUNNER_TEMP}/argot-action-unfitted"
+          .github/fixtures/action-smoke/create-repo.sh "$fixture" clean
+          echo "path=$fixture" >> "$GITHUB_OUTPUT"
+      - name: Build the local Action binary
+        shell: bash
+        run: cargo build --quiet -p argot
+      - name: Run the Action against the unfitted fixture
+        id: action
+        continue-on-error: true
+        uses: ./
+        with:
+          path: ${{ steps.fixture.outputs.path }}
+          argot-version: local
+          ref: HEAD
+          semantic: false
+          upload-sarif: false
+          comment-pr: false
+      - name: Assert the setup error did not fit
+        shell: bash
+        env:
+          ACTION_OUTCOME: ${{ steps.action.outcome }}
+          FIXTURE: ${{ steps.fixture.outputs.path }}
+        run: |
+          set -euo pipefail
+          test "$ACTION_OUTCOME" = failure
+          test ! -e "$FIXTURE/argot.toml"
+          test ! -e "$FIXTURE/.argot"
