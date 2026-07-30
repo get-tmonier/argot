@@ -362,6 +362,13 @@ runs:
           inspect_history) action_text="Inspect the accepted history locally before deciding whether to refresh." ;;
           *) action_text="Inspect the fit status locally before deciding whether to refresh." ;;
         esac
+        case "$RECOMMENDATION" in
+          fresh) freshness_glyph="🟢" ;;
+          watch) freshness_glyph="🟡" ;;
+          recommended) freshness_glyph="🟠" ;;
+          strongly_recommended) freshness_glyph="🔴" ;;
+          *) freshness_glyph="⚪" ;;
+        esac
         if [ "$RECOMMENDATION" = "strongly_recommended" ]; then
           echo "::warning::Argot fit refresh strongly recommended (advisory). ${action_text} Review and commit .argot/."
         elif [ "$RECOMMENDATION" = "recommended" ]; then
@@ -369,8 +376,10 @@ runs:
         fi
         {
           echo
+          echo "### 🧭 Fit health"
+          echo
           echo "<details>"
-          echo "<summary><strong>Fit snapshot: ${RECOMMENDATION//_/ }</strong> · ${action_text}</summary>"
+          echo "<summary>${freshness_glyph} <strong>Fit snapshot: ${RECOMMENDATION//_/ }</strong> · ${action_text}</summary>"
           echo
           echo "${REFRESH_SUMMARY}. Adaptive drift score: ${SCORE}/100. Accepted source commits are context only: ${ACCEPTED_COMMITS}."
           echo
@@ -416,10 +425,19 @@ runs:
             inspect_history) action_text="Inspect the accepted history locally before deciding whether to refresh." ;;
             *) action_text="Inspect the fit status locally before deciding whether to refresh." ;;
           esac
+          case "$RECOMMENDATION" in
+            fresh) freshness_glyph="🟢" ;;
+            watch) freshness_glyph="🟡" ;;
+            recommended) freshness_glyph="🟠" ;;
+            strongly_recommended) freshness_glyph="🔴" ;;
+            *) freshness_glyph="⚪" ;;
+          esac
           {
             echo
+            echo "### 🧭 Fit health"
+            echo
             echo "<details>"
-            echo "<summary><strong>Fit snapshot: ${RECOMMENDATION//_/ }</strong> · ${action_text}</summary>"
+            echo "<summary>${freshness_glyph} <strong>Fit snapshot: ${RECOMMENDATION//_/ }</strong> · ${action_text}</summary>"
             echo
             echo "${REFRESH_SUMMARY}. Adaptive drift score: ${SCORE}/100. Accepted source commits are context only: ${ACCEPTED_COMMITS}."
             echo
