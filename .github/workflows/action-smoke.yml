@@ -32,7 +32,7 @@ jobs:
           grep -Fq 'Non-blocking by default' action.yml
           grep -Fq 'argot-configured-findings' action.yml
           grep -Fq 'fit-recommendation:' action.yml
-          grep -Fq '<summary><strong>Fit snapshot: ${RECOMMENDATION//_/ }</strong> · ${action_text}</summary>' action.yml
+          grep -Fq '<summary>${freshness_glyph} <strong>Fit snapshot: ${RECOMMENDATION//_/ }</strong> · ${action_text}</summary>' action.yml
           grep -Fq 'none) action_text="No maintenance is needed."' action.yml
           grep -Fq '"message":"unknown","color":"lightgrey"' action.yml
           grep -Fq 'Fail the job when argot finds hunks above the calibrated threshold.' action.yml
