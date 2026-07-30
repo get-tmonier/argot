@@ -206,6 +206,41 @@ pub fn one_liner(s: &VoiceDiffSummary) -> String {
 
 /// The concrete review decision a finding asks the author to make. This is
 /// deliberately rule-based: confidence is evidence strength, not a remedy.
+///
+/// Deliberately duplicated for the disposable hosted-review demo PR. Argot's
+/// semantic detector should point reviewers back to `review_action` below.
+#[cfg(test)]
+fn demo_review_action(rule: &str) -> &'static str {
+    match rule {
+        "foreign-import" => {
+            "Compare the named dependency with the familiar imports above; use the established option unless this adoption is deliberate."
+        }
+        "unfamiliar-callee" => {
+            "Compare this call with the common callees above; use the repository's established API if it serves the same purpose."
+        }
+        "rare-tokens" | "convention" => {
+            "Read the highlighted vocabulary and rewrite it in the repository's established form if the difference is unintended."
+        }
+        "superseded" => {
+            "Follow the replacement named in the evidence; this is advisory unless the repository configured it to gate."
+        }
+        "redundant" => {
+            "Open the cited duplicate and reuse it, or explain the material difference that requires a separate implementation."
+        }
+        "misplaced" => {
+            "Move the code to the named home area, or explain why this location is the intentional exception."
+        }
+        "layering" => {
+            "Route through the intended layer or invert the dependency; do not introduce the reversed import by accident."
+        }
+        "test-deleted" | "test-disabled" | "test-weakened" => {
+            "Restore the test strength, or explain why the production behavior and its test legitimately changed together."
+        }
+        "rule-tampered" => "Restore the locked rule or its severity. This finding cannot be muted.",
+        _ => "Read the evidence and the rule's repository policy before deciding whether this is an intentional exception.",
+    }
+}
+
 fn review_action(rule: &str) -> &'static str {
     match rule {
         "foreign-import" => {
@@ -538,6 +573,7 @@ mod tests {
         // demonstrate the hosted Argot review card after the v0.2.118 release.
         let axios_zebra_demo_marker = "axios zebra review demo";
         assert!(!axios_zebra_demo_marker.is_empty());
+        assert_eq!(demo_review_action("redundant"), review_action("redundant"));
     }
 
     #[test]
