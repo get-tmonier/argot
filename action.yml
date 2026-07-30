@@ -369,7 +369,8 @@ runs:
         fi
         {
           echo
-          echo "### Fit snapshot: ${RECOMMENDATION//_/ }"
+          echo "<details>"
+          echo "<summary><strong>Fit snapshot: ${RECOMMENDATION//_/ }</strong> · ${action_text}</summary>"
           echo
           echo "${REFRESH_SUMMARY}. Adaptive drift score: ${SCORE}/100. Accepted source commits are context only: ${ACCEPTED_COMMITS}."
           echo
@@ -379,6 +380,7 @@ runs:
           if [ -n "${UNAVAILABLE:-}" ]; then
             echo "<sub>Coverage unavailable for: ${UNAVAILABLE}. This fit legitimately abstained because no artifact was produced.</sub>"
           fi
+          echo "</details>"
         } >> "$GITHUB_STEP_SUMMARY"
 
     - name: Configured findings card
@@ -416,13 +418,15 @@ runs:
           esac
           {
             echo
-            echo "#### Fit snapshot: ${RECOMMENDATION//_/ }"
+            echo "<details>"
+            echo "<summary><strong>Fit snapshot: ${RECOMMENDATION//_/ }</strong> · ${action_text}</summary>"
             echo
             echo "${REFRESH_SUMMARY}. Adaptive drift score: ${SCORE}/100. Accepted source commits are context only: ${ACCEPTED_COMMITS}."
             echo
             echo "Next action: \`${NEXT_ACTION}\`. ${action_text}"
             echo
             echo "<sub>Scored against the committed fit snapshot from base \`${BASE_SHA:0:12}\`. CI never fits or rebuilds this snapshot.</sub>"
+            echo "</details>"
           } >> "$card"
           # Findings card in the Actions run UI — no extra permissions, fork-safe.
           cat "$card" >> "$GITHUB_STEP_SUMMARY"
