@@ -2,7 +2,7 @@
 # from git history. See https://argot.tmonier.com/docs/ci/ for copy-paste workflows.
 #
 # Non-blocking by default: argot is a probabilistic guardrail, so it
-# informs the PR with observed configured findings and inline annotations without gating the
+# informs the PR with patterns worth reviewing and inline annotations without gating the
 # merge. The reviewer has the last word (opt into `fail-on-hits` for a hard gate).
 #
 # What it does:
@@ -13,10 +13,10 @@
 #      cannot certify itself by changing its own baseline. The Action never
 #      fits, rebuilds an index, or restores an artifact cache.
 #   3. Runs `argot check --format <format>` on base..HEAD and writes it to a file.
-#   4. Renders a non-blocking configured-findings card into the Actions job summary,
+#   4. Renders a non-blocking review card into the Actions job summary,
 #      and (on pull requests) into a single sticky PR comment.
 #   5. Optionally uploads the SARIF file to GitHub code scanning.
-#   6. Optionally publishes a shields.io configured-findings badge to a `badges`
+#   6. Optionally publishes a shields.io review-count badge to a `badges`
 #      branch (publish-badge: true; needs `contents: write`) so a README badge
 #      stays fresh — see https://argot.tmonier.com/docs/ci/ for the snippet.
 #
@@ -27,7 +27,7 @@
 # Use `actions/checkout` with `fetch-depth: 0`.
 
 name: "argot"
-description: "Summarize configured findings on a PR — non-blocking by default, with a job summary, PR comment, and SARIF code-scanning annotations."
+description: "Surface patterns worth reviewing on a PR — non-blocking by default, with a job summary, PR comment, and SARIF code-scanning annotations."
 branding:
   icon: "mic"
   color: "purple"
@@ -60,7 +60,7 @@ inputs:
     required: false
     default: "true"
   comment-pr:
-    description: "Post/update a non-blocking configured-findings comment on the pull request (requires `pull-requests: write`)."
+    description: "Post/update a non-blocking Argot review comment on the pull request (requires `pull-requests: write`)."
     required: false
     default: "true"
   rules:
@@ -83,7 +83,7 @@ inputs:
     description: >-
       Fail the job when argot finds hunks above the calibrated threshold.
       Off by default: argot is a statistical guardrail, so it informs the PR
-      (configured-findings card + code-scanning annotations) without gating the merge. Opt in
+      (Argot review card + code-scanning annotations) without gating the merge. Opt in
       only if you deliberately want a hard gate.
     required: false
     default: "false"
@@ -103,6 +103,15 @@ outputs:
   results-file:
     description: "Path to the written results file."
     value: ${{ steps.check.outputs.results-file }}
+  fit-recommendation:
+    description: "Adaptive freshness verdict for the committed base fit snapshot."
+    value: ${{ steps.snapshot.outputs.recommendation }}
+  fit-next-action:
+    description: "Reviewed local maintenance action suggested for the committed base fit snapshot."
+    value: ${{ steps.snapshot.outputs.next_action }}
+  fit-summary:
+    description: "Human-readable adaptive freshness summary for the committed base fit snapshot."
+    value: ${{ steps.snapshot.outputs.summary }}
 
 runs:
   using: "composite"
@@ -345,11 +354,21 @@ runs:
         BASE_SHA: ${{ steps.base.outputs.base_sha }}
       run: |
         set -euo pipefail
-        if [ "$NEXT_ACTION" = review_scope_then_fit ]; then
-          action_text="Use the argot-refresh skill to review scope and mutes before fitting locally."
-        else
-          action_text="Use the argot-refresh skill, or run argot fit locally."
-        fi
+        case "$NEXT_ACTION" in
+          none) action_text="No maintenance is needed." ;;
+          monitor) action_text="Monitor this advisory; do not fit from CI." ;;
+          review_scope_then_fit) action_text="Use the argot-refresh skill to review scope and mutes before fitting locally." ;;
+          fit) action_text="Use the argot-refresh skill, or run argot fit locally." ;;
+          inspect_history) action_text="Inspect the accepted history locally before deciding whether to refresh." ;;
+          *) action_text="Inspect the fit status locally before deciding whether to refresh." ;;
+        esac
+        case "$RECOMMENDATION" in
+          fresh) freshness_glyph="🟢" ;;
+          watch) freshness_glyph="🟡" ;;
+          recommended) freshness_glyph="🟠" ;;
+          strongly_recommended) freshness_glyph="🔴" ;;
+          *) freshness_glyph="⚪" ;;
+        esac
         if [ "$RECOMMENDATION" = "strongly_recommended" ]; then
           echo "::warning::Argot fit refresh strongly recommended (advisory). ${action_text} Review and commit .argot/."
         elif [ "$RECOMMENDATION" = "recommended" ]; then
@@ -357,7 +376,10 @@ runs:
         fi
         {
           echo
-          echo "### Fit snapshot: ${RECOMMENDATION//_/ }"
+          echo "### 🧭 Fit health"
+          echo
+          echo "<details>"
+          echo "<summary>${freshness_glyph} <strong>Fit snapshot: ${RECOMMENDATION//_/ }</strong> · ${action_text}</summary>"
           echo
           echo "${REFRESH_SUMMARY}. Adaptive drift score: ${SCORE}/100. Accepted source commits are context only: ${ACCEPTED_COMMITS}."
           echo
@@ -367,27 +389,63 @@ runs:
           if [ -n "${UNAVAILABLE:-}" ]; then
             echo "<sub>Coverage unavailable for: ${UNAVAILABLE}. This fit legitimately abstained because no artifact was produced.</sub>"
           fi
+          echo "</details>"
         } >> "$GITHUB_STEP_SUMMARY"
 
-    - name: Configured findings card
+    - name: Argot review card
       id: card
       shell: bash
       env:
         ARGOT_PATH: ${{ inputs.path }}
         ARGOT_RANGE: ${{ steps.base.outputs.range }}
         ARGOT_SNAPSHOT: ${{ steps.snapshot.outputs.dir }}
+        RECOMMENDATION: ${{ steps.snapshot.outputs.recommendation }}
+        NEXT_ACTION: ${{ steps.snapshot.outputs.next_action }}
+        SCORE: ${{ steps.snapshot.outputs.score }}
+        REFRESH_SUMMARY: ${{ steps.snapshot.outputs.summary }}
+        ACCEPTED_COMMITS: ${{ steps.snapshot.outputs.commits }}
+        BASE_SHA: ${{ steps.base.outputs.base_sha }}
       run: |
         set -euo pipefail
         # Same range the check scored, summarized against the base-fit model.
         range="$ARGOT_RANGE"
         if [ -z "$range" ]; then
-          echo "No diff range to summarize — skipping the configured-findings card."
+          echo "No diff range to summarize — skipping the Argot review card."
           echo "card=" >> "$GITHUB_OUTPUT"
           exit 0
         fi
         card="${RUNNER_TEMP}/argot-findings-card.md"
         # Informational: never let card rendering fail the job.
         if argot voice-diff "$range" --repo "$ARGOT_PATH" --argot-dir "$ARGOT_SNAPSHOT" --format markdown > "$card" 2>/dev/null; then
+          case "$NEXT_ACTION" in
+            none) action_text="No maintenance is needed." ;;
+            monitor) action_text="Monitor this advisory; do not fit from CI." ;;
+            review_scope_then_fit) action_text="Use the argot-refresh skill to review scope and mutes before fitting locally." ;;
+            fit) action_text="Use the argot-refresh skill, or run argot fit locally." ;;
+            inspect_history) action_text="Inspect the accepted history locally before deciding whether to refresh." ;;
+            *) action_text="Inspect the fit status locally before deciding whether to refresh." ;;
+          esac
+          case "$RECOMMENDATION" in
+            fresh) freshness_glyph="🟢" ;;
+            watch) freshness_glyph="🟡" ;;
+            recommended) freshness_glyph="🟠" ;;
+            strongly_recommended) freshness_glyph="🔴" ;;
+            *) freshness_glyph="⚪" ;;
+          esac
+          {
+            echo
+            echo "### 🧭 Fit health"
+            echo
+            echo "<details>"
+            echo "<summary>${freshness_glyph} <strong>Fit snapshot: ${RECOMMENDATION//_/ }</strong> · ${action_text}</summary>"
+            echo
+            echo "${REFRESH_SUMMARY}. Adaptive drift score: ${SCORE}/100. Accepted source commits are context only: ${ACCEPTED_COMMITS}."
+            echo
+            echo "Next action: \`${NEXT_ACTION}\`. ${action_text}"
+            echo
+            echo "<sub>Scored against the committed fit snapshot from base \`${BASE_SHA:0:12}\`. CI never fits or rebuilds this snapshot.</sub>"
+            echo "</details>"
+          } >> "$card"
           # Findings card in the Actions run UI — no extra permissions, fork-safe.
           cat "$card" >> "$GITHUB_STEP_SUMMARY"
           echo "card=$card" >> "$GITHUB_OUTPUT"
@@ -396,7 +454,7 @@ runs:
           echo "card=" >> "$GITHUB_OUTPUT"
         fi
 
-    - name: Comment configured findings on the PR
+    - name: Comment Argot review on the PR
       if: ${{ inputs.comment-pr == 'true' && github.event_name == 'pull_request' && steps.card.outputs.card != '' }}
       uses: actions/github-script@v9
       env:
@@ -420,7 +478,7 @@ runs:
             await github.rest.issues.createComment({ owner, repo, issue_number, body });
           }
 
-    - name: Generate configured-findings badge
+    - name: Generate review-count badge
       id: badge
       if: ${{ inputs.publish-badge == 'true' && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && steps.base.outputs.range != '' }}
       shell: bash
@@ -439,7 +497,7 @@ runs:
         fi
         printf 'json=%s\n' "$json" >> "$GITHUB_OUTPUT"
 
-    - name: Publish configured-findings badge to the badges branch
+    - name: Publish review-count badge to the badges branch
       if: ${{ steps.badge.outputs.json != '' }}
       uses: actions/github-script@v9
       env:
