@@ -1,0 +1,21 @@
+name: Argot CI score smoke
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+  security-events: write
+
+jobs:
+  voice:
+    name: Configured findings
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: get-tmonier/argot@main
+        with:
+          fail-on-hits: false

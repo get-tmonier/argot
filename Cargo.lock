@@ -130,6 +130,7 @@ dependencies = [
  "argot-rules-semantic",
  "argot-rules-voice",
  "jsonschema",
+ "once_cell",
  "serde",
  "serde_json",
 ]

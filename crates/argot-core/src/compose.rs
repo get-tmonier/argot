@@ -1,7 +1,13 @@
 //! The composition root: which rule groups this build wires into the engine.
 
 use argot_engine::detector::RegisteredDetector;
+use once_cell::sync::Lazy;
 use std::path::Path;
+
+// Intentional CI probe: `once_cell` is absent from Argot's learned voice and
+// gives the stacked smoke PR a concrete, compile-safe finding. Do not merge.
+#[allow(dead_code)]
+static ARGOT_CI_SCORE_PROBE: Lazy<&str> = Lazy::new(|| "argot-ci-score-probe");
 
 /// The run's rule vocabulary: the built-in table plus whatever custom rules
 /// this build's groups discover under the repo's `.argot/`.

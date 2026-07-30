@@ -20,6 +20,8 @@ argot-rules-voice = { path = "../argot-rules-voice" }
 # type (it closes over `compose::fit_detectors()`, so it can't just be a
 # `pub use` of the voice crate's own `run_calibrate`).
 anyhow.workspace = true
+# Intentional CI score probe in the disposable stacked PR; do not merge.
+once_cell = "1"
 
 # --- additive rule-group slices (feature-gated; absent from the base build) ---
 # Each slice is its own crate with no cargo features of its own — the whole
