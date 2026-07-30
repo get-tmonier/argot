@@ -13,6 +13,11 @@ on:
         description: Published tag to validate (for example, v0.2.101); defaults to latest.
         required: false
         type: string
+      expect_embedded_semantic:
+        description: Require a fresh offline semantic index (use for releases carrying the embedded model).
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -47,4 +52,5 @@ jobs:
         shell: bash
         env:
           ARGOT_RELEASE_TAG: ${{ github.event.release.tag_name || inputs.release_tag || 'latest' }}
+          ARGOT_EXPECT_EMBEDDED_SEMANTIC: ${{ github.event_name == 'release' || inputs.expect_embedded_semantic == true }}
         run: scripts/published-release-journey.sh
