@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "repo_sha": "8093bc2c668b8a33b389628c06ac8b8baa1ad5d9",
+  "observed_commits": 19,
+  "gates": {
+    "assertions_removed": {
+      "rate": 0.0,
+      "enabled": true
+    },
+    "body_gutted": {
+      "rate": 0.0,
+      "enabled": true
+    },
+    "comparison_widened": {
+      "rate": 0.0,
+      "enabled": true
+    },
+    "expected_retarget": {
+      "rate": 0.0,
+      "enabled": true
+    },
+    "skip_added": {
+      "rate": 0.0,
+      "enabled": true
+    },
+    "tautology": {
+      "rate": 0.0,
+      "enabled": true
+    },
+    "test_deleted": {
+      "rate": 0.21052631578947367,
+      "enabled": false
+    },
+    "test_file_deleted": {
+      "rate": 0.0,
+      "enabled": true
+    }
+  }
+}

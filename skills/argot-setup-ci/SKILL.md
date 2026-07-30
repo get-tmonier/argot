@@ -13,8 +13,9 @@ end-of-turn or acceptance lifecycle.
 
 The Action installs Argot but **never fits in CI**. CI and local setup are one
 decision: a committed `argot.toml` plus a complete committed `.argot/` fit
-snapshot — the excludes and learned detector data that keep every check
-reproducible. A repository without that snapshot must run the full
+snapshot **already on the PR base/default branch** — the excludes and learned
+detector data that keep every check reproducible. A repository without that
+snapshot must run the full
 **argot-setup** flow first. The excludes
 that keep vendored, generated and demo trees out of the voice — makes the CI
 voice sharper, and argot is only as good as that scoping. **If the repository
@@ -26,7 +27,22 @@ wants CI specifically, or already has a configured repo.
 
 1. Confirm the repo is on GitHub. (Forks: enable Actions in Settings first.)
 
-2. Write `.github/workflows/argot.yml`:
+2. **Check the bootstrap boundary before writing a workflow.** On the branch
+   that future pull requests will target (normally the default branch), `argot
+   status --format json` must show `snapshot.complete: true` and
+   `snapshot.committed: true`. Verify the tracked artifact is available from
+   that branch, for example:
+
+   ```sh
+   git show HEAD:.argot/scorer-config.json > /dev/null
+   ```
+
+   A snapshot committed only in the PR adding the workflow does not satisfy
+   this: the Action reads the PR base so a change cannot certify itself. If it
+   is absent, finish, review, commit, and merge the baseline first; add CI in a
+   follow-up PR or commit. **Do not use CI fitting as a workaround.**
+
+3. Write `.github/workflows/argot.yml`:
 
    ```yaml
    name: argot
@@ -56,38 +72,34 @@ wants CI specifically, or already has a configured repo.
    There is no model to fetch: the embedder ships inside the binary, so an
    air-gapped runner needs no special handling.
 
-3. If the repo already has an `argot.toml` (from local setup or by hand), leave
+4. If the repo already has an `argot.toml` (from local setup or by hand), leave
    it — the Action respects it. It's optional; for a monorepo with peripheral
    packages, running the **argot-setup** flow first to commit a good `argot.toml`
    (excludes + any project-specific generated-file markers) makes the CI voice
    sharper, but isn't required.
 
-4. Commit and push the workflow. Pushing a `.github/workflows/*.yml` needs the
+5. Commit and push the workflow. Pushing a `.github/workflows/*.yml` needs the
    `workflow` token scope — if `git push` is rejected with *"refusing to allow an
    OAuth App to … workflow … without 'workflow' scope"*, run
    `gh auth refresh -s workflow` (or push over SSH).
 
-5. **Validate the precondition before committing the workflow:** `argot status
-   --format json` must show `snapshot.complete: true` and `snapshot.committed:
-   true`. If no initial snapshot exists, finish **argot-setup** locally first;
-   if artifacts are only uncommitted, ask for their review and commit. Read
-   `refresh.compatibility` and `refresh.recommendation`: commit count
-   and age do not make it stale by default. If refresh is recommended, use
+6. Read `refresh.compatibility` and `refresh.recommendation`: commit count and
+   age do not make a snapshot stale by default. If refresh is recommended, use
    **argot-refresh** locally on the accepted branch: respect
    `refresh.next_action`, review scope and mutes, then fit and commit `.argot/`;
    never add a CI fit as a workaround.
 
-6. Explain the scorecard: adaptive refresh recommendations are advisory, but a
+7. Explain the scorecard: adaptive refresh recommendations are advisory, but a
    missing/incomplete/config-mismatched base snapshot is an explicit setup error
    because a partial check must not pretend to cover semantic, layering, or
    integrity rules.
 
-7. Tell the user what they'll get on each configured PR workflow: a
+8. Tell the user what they'll get on each configured PR workflow: a
    **non-blocking** job summary, optional sticky PR comment, and inline
    code-scanning annotations. Findings do not fail the Action by default;
    operational workflow failures can still fail it.
 
-8. **Offer a live README badge.** If the user wants one, add `contents: write`
+9. **Offer a live README badge.** If the user wants one, add `contents: write`
    to `permissions` and `publish-badge: true` under the action's `with:`. On
    each push to the default branch the Action publishes the in-voice score to a
    `badges` branch; give the user the snippet to paste in their README:
@@ -99,7 +111,7 @@ wants CI specifically, or already has a configured repo.
    It renders `argot | N% in-voice`, green when in voice. (For a static badge
    with no shields.io round-trip: `argot voice-diff <range> --format svg`.)
 
-9. For a hand-rolled workflow, install Argot, extract the base commit's tracked
+10. For a hand-rolled workflow, install Argot, extract the base commit's tracked
    `.argot/` snapshot into a temporary directory, then run `argot check
    --argot-dir <snapshot> --format github`. Do not cache or run `argot fit` in
    CI. For a strict findings policy, `--error-on-warnings` makes warn-severity

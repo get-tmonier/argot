@@ -46,13 +46,11 @@ __pycache__/
 *.egg-info/
 
 # argot output
-.argot/
+# The root fit is the repository's reviewed baseline. Nested snapshots from
+# fixtures and benchmark clones remain local.
 **/.argot/
-# argot dogfoods itself with the built-in defaults (its tests/docs/benchmarks
-# are the recommended set), so a root config written by `just dogfood` is
-# throwaway. Anchored to root so the tracked benchmarks/catalogs/*/argot.toml
-# corpus configs are unaffected.
-/argot.toml
+!/.argot/
+!/.argot/**
 /argot.local.toml
 
 # claude-code worktrees (parallel-agent fan-out)

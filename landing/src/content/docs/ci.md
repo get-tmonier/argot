@@ -54,6 +54,13 @@ and the fit snapshot under `.argot/`. The snapshot includes the voice scorer, ge
 semantic index, layering/integrity artifacts, health record, and manifest; transient caches are
 ignored. The Action never runs `argot fit`, restores no cache, and never writes a snapshot.
 
+For a repository's **first** Argot setup, this is a two-step bootstrap: merge the reviewed baseline
+into the default branch first, then add the Action workflow in a follow-up commit or PR. A workflow
+added in the same PR as its first `.argot/` snapshot cannot use that snapshot, because the Action
+intentionally reads the PR base. It fails with a setup error and must never fit as a fallback. Before
+adding the workflow, check out the future PR base and confirm `argot status --format json` reports a
+complete, committed snapshot (or that `git show HEAD:.argot/scorer-config.json` succeeds).
+
 On every PR it extracts the base commit’s snapshot into a temporary directory. That prevents a PR
 from self-certifying by changing `.argot/`. Its summary reports the same adaptive freshness verdict
 as local `status`: source/function/layout drift is measured against `fit_sha`, while accepted commits are

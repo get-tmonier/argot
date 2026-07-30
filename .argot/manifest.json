@@ -1,0 +1,34 @@
+{
+  "manifest_version": 1,
+  "config_version": 3,
+  "model_hash": "161674418dcb",
+  "scorer_config_hash": "47fda6ab4c02",
+  "fit_commit_sha": "8093bc2c668b8a33b389628c06ac8b8baa1ad5d9",
+  "fit_timestamp": "2026-07-30T09:55:04+00:00",
+  "corpus": {
+    "files": 259,
+    "lines": 73723
+  },
+  "languages": [
+    {
+      "language": "rust",
+      "threshold": 7.373205321984541,
+      "model_hash": "ee90bdba8188de8835fcbf93cb70bcdc",
+      "n_cal": 100,
+      "files": 235
+    },
+    {
+      "language": "typescript",
+      "threshold": 11.630474502154406,
+      "model_hash": "a8fa308e01ba125adcf944cf6175066b",
+      "n_cal": 100,
+      "files": 13
+    }
+  ],
+  "unlearnable_languages": [
+    {
+      "language": "python",
+      "files": 7
+    }
+  ]
+}

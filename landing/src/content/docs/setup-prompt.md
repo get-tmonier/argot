@@ -39,6 +39,9 @@ justify in one sentence. Any phase can be skipped if I say so.
    artifacts; only caches/one-run state are gitignored. After fitting, show me
    its size and exact Git diff, then ask me to review and commit it. CI only
    reads this committed snapshot; it never fits or rebuilds it.
+   If CI is requested, its workflow comes only after that commit has been
+   merged into the branch future PRs target (normally the default branch). A
+   snapshot committed only in the setup PR cannot bootstrap its own CI run.
 
 1. PROOF FIRST
    Run `argot audit --format json`, SAVE IT TO A FILE, and show me a readable
@@ -126,6 +129,11 @@ justify in one sentence. Any phase can be skipped if I say so.
    CI: the GitHub Action, non-blocking by default. It extracts the committed
    fit snapshot from the PR base, so a PR cannot self-certify by changing its
    own `.argot/`. It never fits, downloads a model, or restores an Argot cache.
+   Therefore, if this is the first setup PR, do NOT add the CI workflow yet:
+   first review, commit, and merge argot.toml plus .argot/ into the PR base;
+   add the workflow in a follow-up PR or commit. Verify that base branch's
+   `argot status --format json` reports `snapshot.complete` and
+   `snapshot.committed` before enabling CI.
    Its scorecard reports deterministic adaptive source/function/layout drift and
    a structured next_action: fit, or review_scope_then_fit when structural paths
    or fit-relevant config need attention. It points to argot-refresh; commit count
