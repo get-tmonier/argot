@@ -25,8 +25,10 @@ There is no packaged automatic end-of-turn or acceptance-time full-check lifecyc
 ```
 
 The plugin requires `argot` on `PATH`. Its pre-write hook is a no-op until the repository has a
-fitted `.argot/scorer-config.json`; set that up with [Init and Fit](/docs/init-and-fit/). MCP tools
-that need the repository model also require a fitted repository.
+fitted `.argot/scorer-config.json`; set that up with [Init and Fit](/docs/init-and-fit/), then review
+and commit the complete `.argot/` snapshot so every clone uses the same baseline. MCP tools that
+need the repository model also require a fitted repository. When fit status later recommends
+maintenance, invoke `argot-refresh` locally; the plugin and CI never refresh it behind your back.
 
 The plugin declares `argot mcp --repo .`. MCP is passive: Claude Code may call a tool when it
 chooses, but the server does not initiate checks. The available tools provide voice context,

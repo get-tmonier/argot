@@ -16,6 +16,12 @@ Skills are selected, on-demand workflows: installing them does not schedule an
 Argot check. The GitHub Action is separate and runs only after a repository
 adds a workflow for a GitHub event.
 
+The shared lifecycle is intentionally small: `argot-setup` learns locally and
+prepares a reviewed `argot.toml` + `.argot/` commit; local checks, agents, and CI
+read that same baseline; `argot-refresh` revisits scope and mutes only after
+material accepted drift. CI never fits, and there is no default time or commit
+cadence.
+
 | Skill | Path | When it runs |
 |---|---|---|
 | [`argot-setup`](./argot-setup/SKILL.md) | local + CI | Once per repo, one sitting — audit the history, decide what shapes the voice, fit, verify the catch, tune the rules the repo's own history says are noisy, and wire where it runs (hook, pre-commit, MCP, CI). Every decision proposed with its measurement. |

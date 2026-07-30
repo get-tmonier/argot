@@ -8,6 +8,7 @@ import Engine from '#components/Engine.astro';
 import Film from '#components/Film.astro';
 import Footer from '#components/Footer.astro';
 import Hero from '#components/Hero.astro';
+import Lifecycle from '#components/Lifecycle.astro';
 import Nav from '#components/Nav.astro';
 import Proof from '#components/Proof.astro';
 import Setup from '#components/Setup.astro';
@@ -32,6 +33,7 @@ const { content, locale } = Astro.props;
     <Audit content={content} />
     <Proof content={content} />
     <Setup content={content} />
+    <Lifecycle content={content} />
     <CiScore content={content} />
     <Engine content={content} />
     <CustomRules content={content} />

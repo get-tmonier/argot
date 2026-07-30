@@ -56,6 +56,8 @@ content drift and `review_scope_then_fit` when new/moved paths, a language surfa
 fit-relevant configuration should be audited first. `argot-refresh` also runs the mute review
 read-only and asks once before editing policy. Neither status, check, the skill, nor CI refits in
 the background: fitting is a deliberate local step whose `.argot/` diff is reviewed and committed.
+See [Snapshot health and refresh](/docs/health-and-freshness/) for the measured signals, structured
+reasons, and complete maintenance flow.
 
 ## Adopting on an existing codebase
 

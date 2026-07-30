@@ -14,8 +14,9 @@ not the confidence glyph — tells you what to do. The human has the last word.
 1. `argot --version` — if missing, tell the user how to install it (see
    <https://argot.tmonier.com/docs/getting-started/>) and stop.
 2. The repo must have a complete fit snapshot. Run `argot status --format json`:
-   it must report `snapshot.complete: true`. If it reports uncommitted files, ask
-   the user to review and commit the listed `.argot/` artifacts; if refresh is
+   it must report `snapshot.complete: true`. If there is no initial fit, hand
+   off to **argot-setup**. If it reports uncommitted files, ask the user to
+   review and commit the listed `.argot/` artifacts; if refresh is
    `recommended`/`strongly_recommended`, or config is incompatible, hand off to
    **argot-refresh**. It reads `refresh.next_action`, reviews scope and mutes,
    then fits locally only after confirmation. `watch` is informational. Never

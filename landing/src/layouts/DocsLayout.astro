@@ -28,7 +28,7 @@ const LEGACY_GROUPS: Record<string, string> = {
   'the-commands': 'Understand',
   'the-scoring-model': 'Understand',
   'what-it-catches': 'Understand',
-  'health-and-freshness': 'Help',
+  'health-and-freshness': 'Configure',
 };
 const LEGACY_NAV_ONLY = new Set(['setup']);
 const groupFor = (doc: (typeof all)[number]): string => {
@@ -306,6 +306,121 @@ const next = idx >= 0 && idx < flat.length - 1 ? flat[idx + 1] : null;
     font-size: 0.86em;
     color: var(--ember-bright);
   }
+  .lifecycle-map {
+    margin: 1.8rem 0;
+    padding: 1rem;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background:
+      radial-gradient(32rem 13rem at 12% 8%, rgba(230, 126, 69, 0.07), transparent 72%),
+      color-mix(in srgb, var(--panel) 60%, #000);
+  }
+  .lifecycle-map-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.7rem;
+  }
+  .lifecycle-map-step {
+    position: relative;
+    min-width: 0;
+    padding: 0.9rem;
+    border: 1px solid var(--line);
+    border-radius: 11px;
+    background: color-mix(in srgb, var(--panel-2) 72%, transparent);
+  }
+  .lifecycle-map-step:not(:last-child)::after {
+    content: '→';
+    position: absolute;
+    z-index: 2;
+    top: 0.95rem;
+    right: -0.7rem;
+    display: grid;
+    width: 1rem;
+    height: 1rem;
+    place-items: center;
+    border-radius: 999px;
+    background: var(--panel);
+    color: var(--ember);
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+  }
+  .lifecycle-map-refresh {
+    border-color: color-mix(in srgb, var(--amber) 42%, var(--line));
+    background: color-mix(in srgb, var(--amber) 6%, var(--panel-2));
+  }
+  .lifecycle-map-number {
+    display: inline-grid;
+    width: 1.45rem;
+    height: 1.45rem;
+    place-items: center;
+    margin-right: 0.35rem;
+    border: 1px solid color-mix(in srgb, var(--ember) 48%, var(--line));
+    border-radius: 999px;
+    color: var(--ember-bright);
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    font-weight: 700;
+  }
+  .lifecycle-map-kicker {
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 0.55rem;
+    letter-spacing: 0.06em;
+  }
+  .lifecycle-map-step strong,
+  .lifecycle-map-step code,
+  .lifecycle-map-step small {
+    display: block;
+  }
+  .lifecycle-map-step strong {
+    margin-top: 0.8rem;
+    color: var(--ink);
+    font-size: 0.82rem;
+    line-height: 1.3;
+  }
+  .lifecycle-map-step code {
+    margin-top: 0.45rem;
+    padding: 0;
+    color: var(--ember-bright);
+    background: transparent;
+    font-size: 0.64rem;
+    white-space: normal;
+  }
+  .lifecycle-map-step small {
+    margin-top: 0.45rem;
+    color: var(--muted);
+    font-size: 0.65rem;
+    line-height: 1.45;
+  }
+  .lifecycle-map-loop {
+    margin-top: 0.75rem;
+    color: var(--muted);
+    font-size: 0.7rem;
+    line-height: 1.5;
+    text-align: center;
+  }
+  .lifecycle-map-loop span {
+    margin-right: 0.3rem;
+    color: var(--ember-bright);
+    font-family: var(--font-mono);
+  }
+  .lifecycle-map figcaption {
+    margin-top: 0.7rem;
+    color: var(--ink-dim);
+    font-size: 0.72rem;
+    text-align: center;
+  }
+  @media (max-width: 760px) {
+    .lifecycle-map-grid {
+      grid-template-columns: 1fr;
+    }
+    .lifecycle-map-step:not(:last-child)::after {
+      content: '↓';
+      top: auto;
+      right: 1rem;
+      bottom: -0.68rem;
+    }
+  }
   .d-phase {
     fill: var(--ember);
     font-family: var(--font-mono);
@@ -393,18 +508,6 @@ const next = idx >= 0 && idx < flat.length - 1 ? flat[idx + 1] : null;
     font-family: var(--font-mono);
     font-size: 10px;
   }
-  .lifecycle-diagram .d-flow {
-    animation: lifecycle-flow 1.5s linear infinite;
-  }
-  .lifecycle-diagram .d-flow-2 {
-    animation-delay: 0.22s;
-  }
-  .lifecycle-diagram .d-flow-3 {
-    animation-delay: 0.44s;
-  }
-  @keyframes lifecycle-flow {
-    to { stroke-dashoffset: -23; }
-  }
   .d-out rect {
     stroke-width: 1.5;
   }
@@ -431,9 +534,6 @@ const next = idx >= 0 && idx < flat.length - 1 ? flat[idx + 1] : null;
   @media (prefers-reduced-motion: reduce) {
     .d-flow {
       display: none;
-    }
-    .lifecycle-diagram .d-flow {
-      animation: none;
     }
   }
   .doc-pager {

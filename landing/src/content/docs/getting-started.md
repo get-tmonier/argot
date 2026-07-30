@@ -68,6 +68,17 @@ Use a clean default-branch checkout for a manual fit whenever possible. A dirty 
 source commits on a feature branch are warned about because manual fitting learns files as they are
 on disk. The [Init and Fit guide](/docs/init-and-fit/) explains the artifacts and refresh behavior.
 
+The model to keep in mind is deliberately small:
+
+1. **Learn locally.** `init` builds the repository-specific voice and indexes; nothing is uploaded.
+2. **Review and commit the baseline.** Commit `argot.toml` and the generated `.argot/` snapshot so
+   every clone sees the same learned repository. The embedding model itself is already in the binary.
+3. **Check everywhere.** Local tools and CI read that snapshot. Pull requests are judged against the
+   base branch copy, and CI never fits.
+4. **Refresh only after material accepted drift.** `status`, checks, MCP, and CI explain when the
+   learned source/function/layout surface has moved enough. Run `argot-refresh` locally to review
+   corpus paths and mutes before fitting and recommitting; there is no default time or commit cadence.
+
 `check` scores the change you select. Its exit code is command-specific: 0 means no error-severity
 findings, 1 means review findings, and 2 is a setup or usage error. Read the [Check guide](/docs/check/)
 before configuring any local or CI response to those results.

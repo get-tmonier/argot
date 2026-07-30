@@ -69,7 +69,9 @@ wants CI specifically, or already has a configured repo.
 
 5. **Validate the precondition before committing the workflow:** `argot status
    --format json` must show `snapshot.complete: true` and `snapshot.committed:
-   true`. Read `refresh.compatibility` and `refresh.recommendation`: commit count
+   true`. If no initial snapshot exists, finish **argot-setup** locally first;
+   if artifacts are only uncommitted, ask for their review and commit. Read
+   `refresh.compatibility` and `refresh.recommendation`: commit count
    and age do not make it stale by default. If refresh is recommended, use
    **argot-refresh** locally on the accepted branch: respect
    `refresh.next_action`, review scope and mutes, then fit and commit `.argot/`;

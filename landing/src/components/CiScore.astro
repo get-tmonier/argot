@@ -59,6 +59,13 @@ const score = 92;
           <code class="pr-mute">argot mute a1b2c3d4</code>
         </div>
 
+        <div class="pr-snapshot">
+          <span class="snapshot-dot" aria-hidden="true"></span>
+          <span>base snapshot</span>
+          <code>main · fresh</code>
+          <span class="snapshot-rule">CI never fits</span>
+        </div>
+
         <p class="pr-footer">
           Job summary · sticky PR comment · code-scanning annotations — all non-blocking.
         </p>
@@ -227,6 +234,31 @@ const score = 92;
   .pr-card:hover .pr-mute {
     color: var(--ink);
     border-color: var(--muted);
+  }
+
+  .pr-snapshot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.45rem 0.6rem;
+    margin-top: 0.85rem;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+  }
+  .snapshot-dot {
+    width: 7px;
+    height: 7px;
+    flex: none;
+    border-radius: 999px;
+    background: var(--jade);
+    box-shadow: 0 0 9px color-mix(in srgb, var(--jade) 45%, transparent);
+  }
+  .pr-snapshot code {
+    color: var(--jade);
+  }
+  .snapshot-rule {
+    margin-left: auto;
   }
 
   .pr-footer {

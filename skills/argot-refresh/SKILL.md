@@ -23,6 +23,9 @@ Keep three concerns separate:
 
 - Work on the accepted/default branch with a clean source tree. If either is
   false, show the evidence and stop before fitting.
+- If the repository has never been fitted, stop and hand off to
+  **argot-setup**. Refresh maintains a reviewed baseline; it does not replace
+  first-time corpus selection and setup verification.
 - Never fit in CI, in the background, or merely because a commit count or age
   is high.
 - Run every audit below read-only first. Do not edit `argot.toml`, prune a mute,

@@ -11,7 +11,7 @@ export interface SiteContent {
   readonly nav: {
     readonly demo: string;
     readonly audit: string;
-    readonly engine: string;
+    readonly lifecycle: string;
     readonly docs: string;
   };
   readonly hero: {
@@ -100,6 +100,19 @@ export interface SiteContent {
     readonly pluginCta: string;
     readonly ctaLocal: string;
     readonly ctaCi: string;
+  };
+  readonly lifecycle: {
+    readonly label: string;
+    readonly title: string;
+    readonly body: string;
+    readonly steps: readonly {
+      readonly kicker: string;
+      readonly title: string;
+      readonly desc: string;
+      readonly note: string;
+    }[];
+    readonly footnote: string;
+    readonly cta: string;
   };
   readonly ciScore: {
     readonly label: string;

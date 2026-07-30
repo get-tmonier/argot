@@ -20,54 +20,44 @@ on CPU.
 
 ## The everyday lifecycle
 
-Argot is not a service that silently learns from every pull request. A team periodically
-reviews and commits a small **fit snapshot**: the learned repository voice and the indexes
+Argot is not a service that silently learns from every pull request. When setup or material accepted
+drift calls for it, a team reviews and commits a **fit snapshot**: the learned repository voice and the indexes
 that make checks reproducible. Think of it like updating a lockfile or a dependency: a small,
 deliberate maintenance commit, not infrastructure that has to run on every PR.
 
-<figure class="diagram lifecycle-diagram">
-<svg viewBox="0 0 1080 538" role="img" aria-label="Argot's lifecycle: initial local fit and commit, optional custom rules, local MCP and pre-commit help, advisory pull-request CI using the base snapshot, then a local refresh after accepted changes.">
-  <defs>
-    <marker id="lifecycle-arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"></path></marker>
-  </defs>
-  <text x="26" y="29" class="d-phase">1 · SET UP ON AN ACCEPTED BRANCH</text>
-  <g class="d-node"><rect x="26" y="47" width="170" height="72" rx="11"></rect><text x="111" y="76" class="d-stage">audit the history</text><text x="111" y="96" class="d-sub">choose exclusions · scope</text></g>
-  <g class="d-node d-accent"><rect x="242" y="47" width="170" height="72" rx="11"></rect><text x="327" y="75" class="d-cmd">argot init</text><text x="327" y="96" class="d-sub">fit voice · index · graph</text></g>
-  <g class="d-node d-optional"><rect x="458" y="47" width="178" height="72" rx="11"></rect><text x="547" y="74" class="d-stage">optional: custom rules</text><text x="547" y="95" class="d-sub">only high-value conventions</text><text x="547" y="109" class="d-sub">fixtures prove no false positives</text></g>
-  <g class="d-node d-artifact"><rect x="682" y="47" width="358" height="72" rx="11"></rect><text x="861" y="73" class="d-file">review + commit</text><text x="861" y="95" class="d-sub">argot.toml · .argot/ snapshot · optional rules</text></g>
-  <line class="d-link" x1="196" y1="83" x2="242" y2="83" marker-end="url(#lifecycle-arrow)"></line>
-  <line class="d-link" x1="412" y1="83" x2="458" y2="83" marker-end="url(#lifecycle-arrow)"></line>
-  <line class="d-link" x1="636" y1="83" x2="682" y2="83" marker-end="url(#lifecycle-arrow)"></line>
-  <line class="d-flow d-flow-1" x1="196" y1="83" x2="242" y2="83"></line>
-  <line class="d-flow d-flow-2" x1="412" y1="83" x2="458" y2="83"></line>
-  <line class="d-flow d-flow-3" x1="636" y1="83" x2="682" y2="83"></line>
-  <text x="26" y="183" class="d-phase">2 · WRITE WITH CONTEXT, THEN OPEN A PR</text>
-  <g class="d-node"><rect x="26" y="201" width="202" height="72" rx="11"></rect><text x="127" y="229" class="d-stage">before writing</text><text x="127" y="249" class="d-sub">MCP shares familiar APIs</text><text x="127" y="263" class="d-sub">and migrations with the agent</text></g>
-  <g class="d-node"><rect x="274" y="201" width="186" height="72" rx="11"></rect><text x="367" y="229" class="d-stage">while developing</text><text x="367" y="249" class="d-sub">optional pre-commit check</text><text x="367" y="263" class="d-sub">surfaces, never decides</text></g>
-  <g class="d-node d-accent"><rect x="506" y="201" width="156" height="72" rx="11"></rect><text x="584" y="229" class="d-stage">pull request</text><text x="584" y="249" class="d-sub">code under review</text></g>
-  <g class="d-node d-ci"><rect x="708" y="201" width="332" height="72" rx="11"></rect><text x="874" y="226" class="d-stage">advisory CI · ArgoScore</text><text x="874" y="247" class="d-sub">reads the committed base snapshot</text><text x="874" y="262" class="d-sub">findings explain; default is not a merge gate</text></g>
-  <line class="d-link" x1="228" y1="237" x2="274" y2="237" marker-end="url(#lifecycle-arrow)"></line>
-  <line class="d-link" x1="460" y1="237" x2="506" y2="237" marker-end="url(#lifecycle-arrow)"></line>
-  <line class="d-link" x1="662" y1="237" x2="708" y2="237" marker-end="url(#lifecycle-arrow)"></line>
-  <line class="d-flow d-flow-1" x1="228" y1="237" x2="274" y2="237"></line>
-  <line class="d-flow d-flow-2" x1="460" y1="237" x2="506" y2="237"></line>
-  <line class="d-flow d-flow-3" x1="662" y1="237" x2="708" y2="237"></line>
-  <path class="d-thread" d="M862,119 L862,201" marker-end="url(#lifecycle-arrow)"></path>
-  <text x="875" y="162" class="d-thread-label">same approved baseline</text>
-  <text x="26" y="338" class="d-phase">3 · REFRESH DELIBERATELY, NOT IN CI</text>
-  <g class="d-node d-merge"><rect x="26" y="356" width="202" height="72" rx="11"></rect><text x="127" y="384" class="d-stage">accepted code merges</text><text x="127" y="404" class="d-sub">the repository keeps moving</text></g>
-  <g class="d-node d-warn"><rect x="294" y="356" width="252" height="72" rx="11"></rect><text x="420" y="383" class="d-stage">status / CI recommends refresh</text><text x="420" y="404" class="d-sub">when learned surfaces materially drift*</text></g>
-  <g class="d-node d-accent"><rect x="612" y="356" width="188" height="72" rx="11"></rect><text x="706" y="382" class="d-cmd">argot-refresh</text><text x="706" y="402" class="d-sub">scope + mutes, then local fit</text><text x="706" y="416" class="d-sub">one approval before changes</text></g>
-  <g class="d-node d-artifact"><rect x="846" y="356" width="194" height="72" rx="11"></rect><text x="943" y="383" class="d-stage">review + recommit</text><text x="943" y="404" class="d-sub">the refreshed snapshot</text><text x="943" y="418" class="d-sub">next PRs read it</text></g>
-  <line class="d-link" x1="228" y1="392" x2="294" y2="392" marker-end="url(#lifecycle-arrow)"></line>
-  <line class="d-link" x1="546" y1="392" x2="612" y2="392" marker-end="url(#lifecycle-arrow)"></line>
-  <line class="d-link" x1="800" y1="392" x2="846" y2="392" marker-end="url(#lifecycle-arrow)"></line>
-  <line class="d-flow d-flow-1" x1="228" y1="392" x2="294" y2="392"></line>
-  <line class="d-flow d-flow-2" x1="546" y1="392" x2="612" y2="392"></line>
-  <line class="d-flow d-flow-3" x1="800" y1="392" x2="846" y2="392"></line>
-  <text x="580" y="514" class="d-thread-label">* adaptive source + function + layout drift · CI never runs the fit</text>
-</svg>
-<figcaption>One deliberate snapshot gives local tools and CI the same learned baseline. Custom rules are opt-in source code; CI is advisory by default; a refresh rechecks scope and mutes before a reviewed local fit-and-commit update.</figcaption>
+<figure class="lifecycle-map" aria-label="Argot's lifecycle: learn locally, commit one reviewed baseline, use it for local and CI checks, then refresh it locally only after material accepted drift.">
+  <div class="lifecycle-map-grid">
+    <div class="lifecycle-map-step">
+      <span class="lifecycle-map-number">1</span>
+      <span class="lifecycle-map-kicker">LOCAL · ONCE</span>
+      <strong>Learn the repository</strong>
+      <code>argot init</code>
+      <small>voice · semantic index · architecture · test signals</small>
+    </div>
+    <div class="lifecycle-map-step">
+      <span class="lifecycle-map-number">2</span>
+      <span class="lifecycle-map-kicker">REVIEWED · SHARED</span>
+      <strong>Commit one baseline</strong>
+      <code>argot.toml · .argot/</code>
+      <small>repository-specific learned state; caches stay local</small>
+    </div>
+    <div class="lifecycle-map-step">
+      <span class="lifecycle-map-number">3</span>
+      <span class="lifecycle-map-kicker">LOCAL + PR</span>
+      <strong>Check against that memory</strong>
+      <code>agent · CLI · advisory CI</code>
+      <small>CI reads the base snapshot; a PR cannot teach itself</small>
+    </div>
+    <div class="lifecycle-map-step lifecycle-map-refresh">
+      <span class="lifecycle-map-number">4</span>
+      <span class="lifecycle-map-kicker">ONLY WHEN USEFUL</span>
+      <strong>Refresh deliberately</strong>
+      <code>argot-refresh</code>
+      <small>review scope + mutes · fit locally · recommit</small>
+    </div>
+  </div>
+  <div class="lifecycle-map-loop"><span aria-hidden="true">↺</span> Material accepted source, function, or layout drift returns to the reviewed baseline. Docs churn does not. There is no default time or commit cadence.</div>
+  <figcaption>One repository memory, reviewed in Git. Every check reads it; only a deliberate local refresh changes it.</figcaption>
 </figure>
 
 The snapshot is needed because it is the learned state, not a cache: it contains the calibrated
@@ -155,15 +145,15 @@ than under your repo. High surprise means "this looks like generic open-source c
 
 ## The engine: two phases
 
-The pipeline splits into **fit** (run once per repo, and after major refactors) and **check** (run on
-every diff).
+The pipeline splits into **fit** (run locally at setup, then only through a deliberate recommended
+refresh) and **check** (run on every selected diff).
 
 <figure class="diagram">
 <svg viewBox="0 0 1080 384" role="img" aria-label="argot pipeline: a fit phase (extract, train, calibrate) producing the .argot artifacts (scorer config, semantic index, layering graph), and a check phase (diff hunk through typicality filter, import checker, BPE scorer, and the semantic and layering detectors) producing clean or flagged.">
   <defs>
     <marker id="ah" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"></path></marker>
   </defs>
-  <text x="24" y="26" class="d-phase">FIT · once per repo</text>
+  <text x="24" y="26" class="d-phase">FIT · local setup or deliberate refresh</text>
   <g class="d-node"><rect x="24" y="42" width="128" height="58" rx="11"></rect><text x="88" y="68" class="d-cmd">extract</text><text x="88" y="86" class="d-sub">git history</text></g>
   <g class="d-node"><rect x="196" y="42" width="128" height="58" rx="11"></rect><text x="260" y="68" class="d-cmd">train</text><text x="260" y="86" class="d-sub">two distributions</text></g>
   <g class="d-node"><rect x="368" y="42" width="140" height="58" rx="11"></rect><text x="438" y="68" class="d-cmd">calibrate</text><text x="438" y="86" class="d-sub">threshold t</text></g>

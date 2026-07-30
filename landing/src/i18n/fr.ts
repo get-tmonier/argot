@@ -9,7 +9,7 @@ const fr: SiteContent = {
   nav: {
     demo: 'Démo',
     audit: 'Audit',
-    engine: 'Sous le capot',
+    lifecycle: 'Comment ça marche',
     docs: 'Docs',
   },
   hero: {
@@ -207,13 +207,50 @@ const fr: SiteContent = {
     pluginCta: 'Obtenir le plugin',
     ctaLocal: 'Ou pilotez le CLI à la main',
     ctaCi: 'le guide CI',
-    caption: 'Le modèle calibré reste hors de votre historique git.',
+    caption:
+      'Le snapshot appris est commité ; les caches restent locaux. La CI lit la copie de la branche de base et ne fait jamais de fit.',
+  },
+  lifecycle: {
+    label: 'Tout le modèle, en un regard',
+    title:
+      'Apprenez une fois. Partagez une référence. Rafraîchissez seulement quand le dépôt bouge vraiment.',
+    body: 'L’état appris par Argot est un [[snapshot relu dans Git]], pas un service hébergé. Chaque développeur, agent et PR se compare à la même mémoire du dépôt.',
+    steps: [
+      {
+        kicker: 'local · une fois',
+        title: 'Apprendre le dépôt',
+        desc: '[[argot init]] apprend la voix, les voisins sémantiques, l’architecture et les signaux de tests sur votre machine.',
+        note: 'rien n’est envoyé · le modèle est dans le binaire',
+      },
+      {
+        kicker: 'revu · partagé',
+        title: 'Commiter la référence',
+        desc: 'Relisez et commitez [[argot.toml + .argot/]]. C’est l’état appris du dépôt, comme un lockfile pour les checks.',
+        note: 'souvent de quelques Mo à quelques dizaines de Mo',
+      },
+      {
+        kicker: 'local + PR',
+        title: 'Vérifier avec la même mémoire',
+        desc: 'Les outils locaux, agents et la CI lisent ce snapshot. Une PR est jugée selon la [[branche de base]] : elle ne peut pas s’enseigner elle-même.',
+        note: 'consultatif par défaut · la CI ne fait jamais de fit',
+      },
+      {
+        kicker: 'seulement si utile',
+        title: 'Rafraîchir délibérément',
+        desc: 'Après une évolution matérielle du code accepté, status propose [[/argot-refresh]] : revoir le scope et les mutes, relancer le fit localement, puis recommiter.',
+        note: 'piloté par les données · aucune cadence fixe',
+      },
+    ],
+    footnote:
+      'La doc seule reste silencieuse. Aucun cron, aucune corvée « tous les 10 commits », aucun entraînement caché.',
+    cta: 'Voir le cycle de vie en détail →',
   },
   ciScore: {
     label: 'Intégrations',
     title: 'Un signal PR ou push configuré dans le workflow.',
-    body: 'L’Action GitHub est [[non bloquante par défaut]]. Une divergence intentionnelle reste une décision humaine, enregistrée comme piste d’audit.',
-    caption: 'Atterrit dans le résumé Actions, un commentaire de PR épinglé, et l’onglet Security.',
+    body: 'L’Action GitHub lit le [[snapshot commité de la branche de base]] et reste non bloquante par défaut. Une divergence intentionnelle demeure une décision humaine, enregistrée comme piste d’audit.',
+    caption:
+      'Les résultats arrivent sur la PR. La santé du snapshot reste visible dans le même résumé.',
     badge:
       'Épinglez-le dans votre README — un [[badge en direct]] rafraîchi à chaque push. Chaque visiteur, chaque fork, voit que le dépôt parle toujours sa propre voix.',
   },

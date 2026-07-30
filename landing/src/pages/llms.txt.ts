@@ -9,7 +9,7 @@ import { claimValue } from '../data/claims/claims';
  * points agents at each page's plain-markdown twin (`/docs/*.md`, see
  * `docs/[...slug].md.ts`).
  */
-const GROUP_ORDER = ['Start', 'Guide', 'Reference'];
+const GROUP_ORDER = ['Start', 'Use', 'Configure', 'Understand', 'Help'];
 
 const docHref = (id: string): string =>
   id === 'getting-started' ? `${SITE.domain}/docs/` : `${SITE.domain}/docs/${id}/`;
@@ -43,6 +43,17 @@ export const GET: APIRoute = async () => {
       'page below has a plain-markdown twin at the same path with a `.md` suffix ' +
       '(e.g. `/docs/configure.md`) — fetch that to read the source without ' +
       'scraping HTML.',
+    '',
+    '## Lifecycle',
+    '',
+    'Argot learns locally; it is not a service that retrains on every pull request. ' +
+      'Run `argot init` on the accepted branch, review and commit `argot.toml` plus the ' +
+      'repository-specific `.argot/` snapshot, then let local tools and CI read that same ' +
+      'baseline. CI reads the pull request base snapshot and never fits, so a PR cannot ' +
+      'teach or certify itself. After material accepted source/function/layout drift, ' +
+      '`refresh.next_action` explains whether maintenance is useful; invoke `argot-refresh` ' +
+      'locally to review scope and mutes before fitting and recommitting. Commit count and ' +
+      'age are not default triggers.',
     '',
     '## What it catches',
     '',

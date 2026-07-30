@@ -1,0 +1,171 @@
+---
+import { emphasize } from '#lib/text';
+import type { SiteContent } from '#i18n/types';
+
+interface Props {
+  content: SiteContent;
+}
+const { lifecycle } = Astro.props.content;
+---
+
+<section
+  id="lifecycle"
+  class="relative overflow-hidden border-y border-line bg-bg-2/35"
+  aria-labelledby="lifecycle-title"
+>
+  <div class="lifecycle-glow" aria-hidden="true"></div>
+  <div class="mx-auto w-full max-w-6xl px-5 py-16 md:py-24">
+    <div class="reveal mx-auto max-w-3xl text-center">
+      <p class="mb-3 font-mono text-xs tracking-widest text-ember uppercase">{lifecycle.label}</p>
+      <h2 id="lifecycle-title" class="text-3xl font-bold tracking-tight text-balance sm:text-4xl">
+        {lifecycle.title}
+      </h2>
+      <p
+        class="mx-auto mt-4 max-w-2xl leading-relaxed text-ink-dim text-pretty"
+        set:html={emphasize(lifecycle.body)}
+      />
+    </div>
+
+    <div class="lifecycle-track mt-11 grid grid-cols-1 gap-4 md:grid-cols-4 md:gap-3">
+      {
+        lifecycle.steps.map((step, index) => (
+          <article
+            class:list={['reveal lifecycle-step', { 'lifecycle-step-refresh': index === 3 }]}
+            style={`--reveal-delay: ${index * 100}ms`}
+          >
+            <div class="step-head">
+              <span class="step-number">{index + 1}</span>
+              <span class="step-kicker">{step.kicker}</span>
+            </div>
+            <h3>{step.title}</h3>
+            <p set:html={emphasize(step.desc)} />
+            <div class="step-note" set:html={emphasize(step.note)} />
+          </article>
+        ))
+      }
+    </div>
+
+    <div class="reveal lifecycle-return" style="--reveal-delay: 420ms">
+      <span class="return-mark" aria-hidden="true">↺</span>
+      <span set:html={emphasize(lifecycle.footnote)} />
+      <a href="/docs/how-it-works/">{lifecycle.cta}</a>
+    </div>
+  </div>
+</section>
+
+<style>
+  .lifecycle-glow {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(34rem 18rem at 8% 35%, rgba(230, 126, 69, 0.08), transparent 72%),
+      radial-gradient(30rem 16rem at 92% 68%, rgba(95, 179, 137, 0.06), transparent 72%);
+  }
+  .lifecycle-track {
+    position: relative;
+  }
+  .lifecycle-step {
+    position: relative;
+    min-width: 0;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--panel) 68%, var(--bg) 32%);
+    padding: 1.15rem;
+    box-shadow: 0 18px 42px -34px rgba(0, 0, 0, 0.9);
+  }
+  .lifecycle-step-refresh {
+    border-color: color-mix(in srgb, var(--amber) 38%, var(--line));
+    background: color-mix(in srgb, var(--amber) 5%, var(--panel));
+  }
+  .step-head {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+  }
+  .step-number {
+    display: grid;
+    width: 1.8rem;
+    height: 1.8rem;
+    flex: none;
+    place-items: center;
+    border: 1px solid color-mix(in srgb, var(--ember) 48%, var(--line));
+    border-radius: 999px;
+    color: var(--ember-bright);
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    font-weight: 700;
+  }
+  .step-kicker {
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 0.66rem;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+  }
+  .lifecycle-step h3 {
+    margin-top: 1rem;
+    color: var(--ink);
+    font-size: 1rem;
+    font-weight: 650;
+    letter-spacing: -0.015em;
+  }
+  .lifecycle-step > p {
+    margin-top: 0.55rem;
+    color: var(--ink-dim);
+    font-size: 0.82rem;
+    line-height: 1.55;
+  }
+  .step-note {
+    margin-top: 1rem;
+    border-top: 1px solid var(--line);
+    padding-top: 0.75rem;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    line-height: 1.45;
+  }
+  .lifecycle-return {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem 0.7rem;
+    margin: 1.2rem auto 0;
+    color: var(--muted);
+    font-size: 0.78rem;
+    text-align: center;
+  }
+  .return-mark {
+    color: var(--ember-bright);
+    font-family: var(--font-mono);
+    font-size: 1rem;
+  }
+  .lifecycle-return a {
+    color: var(--ember);
+    font-weight: 600;
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+  .lifecycle-return a:hover {
+    color: var(--ember-bright);
+  }
+  @media (min-width: 768px) {
+    .lifecycle-step:not(:last-child)::after {
+      content: '→';
+      position: absolute;
+      z-index: 2;
+      top: 1.3rem;
+      right: -0.72rem;
+      display: grid;
+      width: 1.15rem;
+      height: 1.15rem;
+      place-items: center;
+      border-radius: 999px;
+      background: var(--bg-2);
+      color: var(--ember);
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+    }
+  }
+</style>

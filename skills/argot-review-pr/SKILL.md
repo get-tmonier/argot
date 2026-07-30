@@ -21,10 +21,11 @@ fit the PR head and let the change certify itself.
 1. `argot --version` — if missing, tell the user how to install it (see
    <https://argot.tmonier.com/docs/getting-started/>) and stop.
 2. Run `argot status --format json`. The snapshot must report
-   `snapshot.complete: true` and `snapshot.committed: true`. If it is missing,
-   uncommitted, config-incompatible, or refresh is recommended, hand off to
-   **argot-refresh** on the accepted branch, followed by review and commit of
-   `.argot/`. Never fit the PR head. `watch` remains usable and informational.
+   `snapshot.complete: true` and `snapshot.committed: true`. If there is no
+   initial fit, hand off to **argot-setup**; if artifacts are merely
+   uncommitted, ask for their review and commit. For config incompatibility or
+   a refresh recommendation, hand off to **argot-refresh** on the accepted
+   branch. Never fit the PR head. `watch` remains usable and informational.
 3. For a PR by number/URL, the `gh` CLI must be authenticated and network access
    is required because argot fetches the PR diff through it. A locally available
    `base..head` range or commit SHA needs no network; fetch the refs first if

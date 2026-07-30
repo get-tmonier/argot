@@ -90,6 +90,20 @@ default; `[fit] refresh-after` is available only as an explicit team backstop.
 The `argot-refresh` skill re-audits exclusions, structural paths, and mutes
 before fitting, so a reorganized repository does not blindly relearn old scope.
 
+```mermaid
+flowchart LR
+    A["argot init<br/>learn locally"] --> B["review + commit<br/>argot.toml · .argot/"]
+    B --> C["local tools + CI<br/>read one baseline"]
+    C --> D{"material accepted drift?"}
+    D -- no --> C
+    D -- yes --> E["argot-refresh<br/>review scope · fit locally"]
+    E --> B
+```
+
+The embedding model itself ships inside the binary. Git stores only the
+repository-specific learned snapshot—typically a few MB to a few tens of MB—so
+every clone can reproduce the check without retraining or operating a service.
+
 `check` reports configured findings on the selected changeset; a clean result
 does not prove the change correct or fully idiomatic. Read the
 [Audit](https://argot.tmonier.com/docs/audit/),

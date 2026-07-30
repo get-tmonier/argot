@@ -1,6 +1,6 @@
 ---
 name: argot-suggest-rules
-description: Turn a convention argot has already *discovered* into a scripted custom rule. Runs `argot conventions`, surfaces the repo's mined placement conventions (where a kind of code lives — "validation in schema files", "DB access only in migrations", "business logic in the service layer, not views") and internal-API vocabulary, then codifies a chosen one as a `.argot/rules/<name>/` rule gated on a green fixture suite. Use when the user asks to "codify our conventions", "what conventions does argot see", "make a rule from that placement", or wants argot to propose rules from the repo instead of stating one by hand. Distinct from argot-write-rule (which starts from a convention the *user* states) and argot-check (which runs the existing rules).
+description: Turn a convention argot has already *discovered* into a scripted custom rule. Runs `argot conventions`, surfaces the repo's mined placement conventions (where a kind of code lives — "validation in schema files", "DB access only in migrations", "business logic in the service layer, not views") and internal-API vocabulary, then codifies a chosen one under `.argot/rules/NAME/`, gated on a green fixture suite. Use when the user asks to "codify our conventions", "what conventions does argot see", "make a rule from that placement", or wants argot to propose rules from the repo instead of stating one by hand. Distinct from argot-write-rule (which starts from a convention the *user* states) and argot-check (which runs the existing rules).
 ---
 
 # argot-suggest-rules
@@ -34,10 +34,12 @@ it.
    (<https://argot.tmonier.com/docs/getting-started/>) and stop.
 2. `argot conventions` needs a **complete, committed, fresh fit snapshot**.
    Run `argot status --format json`; if `snapshot.complete` or
-   `snapshot.committed` is false, or the config is out of sync, stop and ask
-   for an explicit local `argot fit` on the accepted branch followed by review
-   and commit of `.argot/`. Do not fit implicitly: mixing fitted vocabulary with
-   a newer live placement catalog would codify an incoherent convention.
+   `snapshot.committed` is false, stop and finish **argot-setup** first. If the
+   config is out of sync or refresh is recommended, hand off to
+   **argot-refresh** on the accepted branch; it reviews scope and mutes before
+   the local fit and committed `.argot/` update. Do not fit implicitly: mixing
+   fitted vocabulary with a newer live placement catalog would codify an
+   incoherent convention.
 
 ## Workflow
 
