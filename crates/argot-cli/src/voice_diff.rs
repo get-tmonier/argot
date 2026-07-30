@@ -246,16 +246,21 @@ pub fn markdown_card(s: &VoiceDiffSummary) -> String {
     if s.configured_findings == 0 {
         let _ = writeln!(
             out,
-            "**No configured findings on {} scanned hunks.**\n",
+            "> 🟢 **No configured findings** across {} scanned hunks.\n",
             s.scanned_hunks
         );
         let _ = writeln!(out, "<sub>Non-blocking by default: this scan found no configured foreignness signal. It does not prove the change is correct or fully idiomatic.</sub>");
         return out;
     }
 
+    let review_glyph = if s.findings_by_severity.contains_key("error") {
+        "🔴"
+    } else {
+        "🟡"
+    };
     let _ = writeln!(
         out,
-        "**{} configured finding{} across {} scanned hunk{}.**",
+        "> {review_glyph} **{} review decision{}** across {} scanned hunk{}.\n",
         s.configured_findings,
         if s.configured_findings == 1 { "" } else { "s" },
         s.scanned_hunks,
@@ -263,12 +268,15 @@ pub fn markdown_card(s: &VoiceDiffSummary) -> String {
     );
     let _ = writeln!(
         out,
-        "> **Advisory — not a merge gate.** Review the evidence and decide whether to change the code or record a deliberate exception.\n"
+        "> **Start here:** open each row in the review queue. Argot is advisory — not a merge gate.\n"
     );
     let severity_counts = s
         .findings_by_severity
         .iter()
-        .map(|(severity, count)| format!("{count} {severity}"))
+        .map(|(severity, count)| {
+            let glyph = if severity == "error" { "🔴" } else { "🟡" };
+            format!("{glyph} {count} {severity}")
+        })
         .collect::<Vec<_>>()
         .join(", ");
     let rule_counts = s
@@ -277,13 +285,13 @@ pub fn markdown_card(s: &VoiceDiffSummary) -> String {
         .map(|(rule, count)| format!("{count} {rule}"))
         .collect::<Vec<_>>()
         .join(", ");
-    let _ = writeln!(out, "**Summary:** {severity_counts} · {rule_counts}\n");
+    let _ = writeln!(out, "### 🔎 Review queue\n");
+    let _ = writeln!(out, "**Signals:** {severity_counts} · {rule_counts}\n");
 
     for (index, h) in s.locations.iter().enumerate() {
-        let glyph = match h.confidence.as_str() {
-            "foreign" => "🔴",
-            "suspicious" => "🟡",
-            _ => "⚪",
+        let glyph = match h.severity.as_str() {
+            "error" => "🔴",
+            _ => "🟡",
         };
         let loc = if h.line_start == h.line_end {
             format!("{}:{}", h.file, h.line_start)
@@ -298,7 +306,7 @@ pub fn markdown_card(s: &VoiceDiffSummary) -> String {
             index + 1,
             h.severity,
         );
-        let _ = writeln!(out, "`{}` signal\n", h.confidence);
+        let _ = writeln!(out, "**Evidence signal:** `{}`\n", h.confidence);
         if h.evidence.is_empty() {
             let _ = writeln!(
                 out,
@@ -328,10 +336,7 @@ pub fn markdown_card(s: &VoiceDiffSummary) -> String {
         }
         let _ = writeln!(out, "</details>\n");
     }
-    let _ = writeln!(
-        out,
-        "<sub>Argot is probabilistic: findings are prompts to review, not proof of defects. · [What this means](https://argot.tmonier.com/docs/reading-the-output/)</sub>"
-    );
+    let _ = writeln!(out, "> 💬 Argot is probabilistic: findings are prompts to review, not proof of defects. · [What this means](https://argot.tmonier.com/docs/reading-the-output/)");
     out
 }
 
@@ -487,14 +492,15 @@ mod tests {
     fn markdown_card_keeps_evidence_and_a_rule_aware_next_step() {
         let hits = vec![hit("src/http.ts", 42, 8.2, "foreign")];
         let card = markdown_card(&summarize(&hits, 40, 10));
-        assert!(card.contains("1 configured finding across 40 scanned hunks"));
-        assert!(card.contains("**Summary:** 1 error · 1 foreign-import"));
+        assert!(card.contains("🔴 **1 review decision** across 40 scanned hunks"));
+        assert!(card.contains("### 🔎 Review queue"));
+        assert!(card.contains("**Signals:** 🔴 1 error · 1 foreign-import"));
         assert!(card.contains("<details>"));
         assert!(card.contains("<summary><strong>1. 🔴 foreign import</strong> · <code>src/http.ts:42</code> · error severity</summary>"));
         assert!(card.contains("↳ axios — 0 of 47 module specifiers in repo"));
         assert!(card.contains("Compare the named dependency"));
         assert!(
-            card.contains("Advisory — not a merge gate"),
+            card.contains("Argot is advisory — not a merge gate"),
             "framed informational"
         );
         assert!(
@@ -511,13 +517,15 @@ mod tests {
         warning.rule = "convention".to_string();
         let error = hit("src/http.rs", 42, 8.2, "foreign");
         let card = markdown_card(&summarize(&[warning, error], 40, 10));
-        assert!(card.contains("**Summary:** 1 error, 1 warn · 1 convention, 1 foreign-import"));
+        assert!(
+            card.contains("**Signals:** 🔴 1 error, 🟡 1 warn · 1 convention, 1 foreign-import")
+        );
     }
 
     #[test]
     fn markdown_card_clean_diff_uses_the_bounded_clean_claim() {
         let card = markdown_card(&summarize(&[], 30, 10));
-        assert!(card.contains("No configured findings on 30 scanned hunks."));
+        assert!(card.contains("🟢 **No configured findings** across 30 scanned hunks."));
         assert!(card.contains("Non-blocking by default"));
         assert!(!card.contains("in-voice"));
     }
