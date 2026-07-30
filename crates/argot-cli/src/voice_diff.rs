@@ -533,6 +533,14 @@ mod tests {
     }
 
     #[test]
+    fn dummy_pr_intentionally_exercises_the_review_queue() {
+        // Deliberately unusual vocabulary: this disposable PR exists only to
+        // demonstrate the hosted Argot review card after the v0.2.118 release.
+        let axios_zebra_demo_marker = "axios zebra review demo";
+        assert!(!axios_zebra_demo_marker.is_empty());
+    }
+
+    #[test]
     fn locked_rule_tampering_never_offers_a_mute() {
         let mut tampered = hit("argot.toml", 4, 1.0, "suspicious");
         tampered.rule = "rule-tampered".to_string();
