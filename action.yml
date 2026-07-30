@@ -2,7 +2,7 @@
 # from git history. See https://argot.tmonier.com/docs/ci/ for copy-paste workflows.
 #
 # Non-blocking by default: argot is a probabilistic guardrail, so it
-# informs the PR with observed configured findings and inline annotations without gating the
+# informs the PR with patterns worth reviewing and inline annotations without gating the
 # merge. The reviewer has the last word (opt into `fail-on-hits` for a hard gate).
 #
 # What it does:
@@ -13,10 +13,10 @@
 #      cannot certify itself by changing its own baseline. The Action never
 #      fits, rebuilds an index, or restores an artifact cache.
 #   3. Runs `argot check --format <format>` on base..HEAD and writes it to a file.
-#   4. Renders a non-blocking configured-findings card into the Actions job summary,
+#   4. Renders a non-blocking review card into the Actions job summary,
 #      and (on pull requests) into a single sticky PR comment.
 #   5. Optionally uploads the SARIF file to GitHub code scanning.
-#   6. Optionally publishes a shields.io configured-findings badge to a `badges`
+#   6. Optionally publishes a shields.io review-count badge to a `badges`
 #      branch (publish-badge: true; needs `contents: write`) so a README badge
 #      stays fresh — see https://argot.tmonier.com/docs/ci/ for the snippet.
 #
@@ -27,7 +27,7 @@
 # Use `actions/checkout` with `fetch-depth: 0`.
 
 name: "argot"
-description: "Summarize configured findings on a PR — non-blocking by default, with a job summary, PR comment, and SARIF code-scanning annotations."
+description: "Surface patterns worth reviewing on a PR — non-blocking by default, with a job summary, PR comment, and SARIF code-scanning annotations."
 branding:
   icon: "mic"
   color: "purple"
@@ -60,7 +60,7 @@ inputs:
     required: false
     default: "true"
   comment-pr:
-    description: "Post/update a non-blocking configured-findings comment on the pull request (requires `pull-requests: write`)."
+    description: "Post/update a non-blocking Argot review comment on the pull request (requires `pull-requests: write`)."
     required: false
     default: "true"
   rules:
@@ -83,7 +83,7 @@ inputs:
     description: >-
       Fail the job when argot finds hunks above the calibrated threshold.
       Off by default: argot is a statistical guardrail, so it informs the PR
-      (configured-findings card + code-scanning annotations) without gating the merge. Opt in
+      (Argot review card + code-scanning annotations) without gating the merge. Opt in
       only if you deliberately want a hard gate.
     required: false
     default: "false"
@@ -392,7 +392,7 @@ runs:
           echo "</details>"
         } >> "$GITHUB_STEP_SUMMARY"
 
-    - name: Configured findings card
+    - name: Argot review card
       id: card
       shell: bash
       env:
@@ -410,7 +410,7 @@ runs:
         # Same range the check scored, summarized against the base-fit model.
         range="$ARGOT_RANGE"
         if [ -z "$range" ]; then
-          echo "No diff range to summarize — skipping the configured-findings card."
+          echo "No diff range to summarize — skipping the Argot review card."
           echo "card=" >> "$GITHUB_OUTPUT"
           exit 0
         fi
@@ -454,7 +454,7 @@ runs:
           echo "card=" >> "$GITHUB_OUTPUT"
         fi
 
-    - name: Comment configured findings on the PR
+    - name: Comment Argot review on the PR
       if: ${{ inputs.comment-pr == 'true' && github.event_name == 'pull_request' && steps.card.outputs.card != '' }}
       uses: actions/github-script@v9
       env:
@@ -478,7 +478,7 @@ runs:
             await github.rest.issues.createComment({ owner, repo, issue_number, body });
           }
 
-    - name: Generate configured-findings badge
+    - name: Generate review-count badge
       id: badge
       if: ${{ inputs.publish-badge == 'true' && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && steps.base.outputs.range != '' }}
       shell: bash
@@ -497,7 +497,7 @@ runs:
         fi
         printf 'json=%s\n' "$json" >> "$GITHUB_OUTPUT"
 
-    - name: Publish configured-findings badge to the badges branch
+    - name: Publish review-count badge to the badges branch
       if: ${{ steps.badge.outputs.json != '' }}
       uses: actions/github-script@v9
       env:
