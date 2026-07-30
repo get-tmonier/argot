@@ -10,6 +10,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent.parent
+MCP_REGISTRY_DESCRIPTION_LIMIT = 100
 SKILLS = (
     "argot-setup",
     "argot-refresh",
@@ -48,6 +49,12 @@ def assert_versions(plugin: dict) -> None:
 
     assert plugin["version"] == expected
     assert server["version"] == expected
+    description = server["description"]
+    assert 0 < len(description) <= MCP_REGISTRY_DESCRIPTION_LIMIT, (
+        "server.json description must be non-empty and at most "
+        f"{MCP_REGISTRY_DESCRIPTION_LIMIT} characters for the MCP registry; "
+        f"got {len(description)}"
+    )
     assert len(server["packages"]) == 1
     assert server["packages"][0]["version"] == expected
     assert release["version"] == expected
