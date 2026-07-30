@@ -5,6 +5,9 @@
 //! the suppression commands) runs in-process against `argot-core`.
 
 mod audit;
+// Kept only for backwards-compatible invocation of the hidden legacy command;
+// checks no longer schedule a background fit because snapshots are committed.
+#[allow(dead_code)]
 mod auto_refit;
 mod cache_cmd;
 mod describe;
@@ -105,6 +108,32 @@ fn date_days_from_now(days: u64) -> String {
 /// affects exit codes or the verdict; it's a nudge for the "fit once, forgot"
 /// case. Internal, not a user knob.
 const STALE_FIT_DAYS: i64 = 90;
+
+/// The reviewable fit snapshot. These files cover every persisted learned
+/// detector; transient extraction/check state intentionally stays outside this
+/// list. Some detectors legitimately abstain on a small or unsupported corpus.
+/// Keep this single list in sync with the selective `.argot/.gitignore` written
+/// below and with the Action's validation.
+const FIT_SNAPSHOT_FILES: &[&str] = &[
+    "generic-baseline.json",
+    "scorer-config.json",
+    "semantic-index.json",
+    "layering.json",
+    "integrity.json",
+    "health.json",
+    "manifest.json",
+];
+
+/// A voice check cannot run without these. The other detector artifacts are
+/// committed whenever a repository is rich enough to produce them; a tiny or
+/// unsupported corpus may legitimately abstain, which status reports rather
+/// than misclassifying as a broken snapshot.
+const REQUIRED_FIT_SNAPSHOT_FILES: &[&str] = &[
+    "generic-baseline.json",
+    "scorer-config.json",
+    "health.json",
+    "manifest.json",
+];
 
 /// Days since the Unix epoch for a civil date — inverse of `civil_from_days`
 /// (Howard Hinnant's `days_from_civil`).
@@ -565,6 +594,105 @@ fn format_bytes(bytes: u64) -> String {
     }
 }
 
+#[derive(Debug, Default)]
+struct FitSnapshotStatus {
+    present: Vec<String>,
+    missing: Vec<String>,
+    unavailable: Vec<String>,
+    uncommitted: Vec<String>,
+    bytes: u64,
+}
+
+impl FitSnapshotStatus {
+    fn complete(&self) -> bool {
+        self.missing.is_empty()
+    }
+
+    fn committed(&self) -> bool {
+        self.complete() && self.uncommitted.is_empty()
+    }
+}
+
+fn snapshot_file_matches_head(repo: &git2::Repository, rel: &Path, path: &Path) -> bool {
+    let Ok(head) = repo.head() else { return false };
+    let Ok(tree) = head.peel_to_tree() else {
+        return false;
+    };
+    let Ok(entry) = tree.get_path(rel) else {
+        return false;
+    };
+    let Ok(blob) = repo.find_blob(entry.id()) else {
+        return false;
+    };
+    fs::read(path).is_ok_and(|bytes| bytes == blob.content())
+}
+
+/// Inspect the portable, reviewable half of `.argot/`.  This deliberately
+/// compares the files with `HEAD`, not Git's index: a staged-but-uncommitted
+/// snapshot still cannot be present in another clone or in CI.
+fn fit_snapshot_status(repo: &Path, argot_dir: &Path) -> FitSnapshotStatus {
+    let git_repo = git2::Repository::open(repo).ok();
+    let mut status = FitSnapshotStatus::default();
+    for name in FIT_SNAPSHOT_FILES {
+        let path = argot_dir.join(name);
+        if let Ok(meta) = fs::metadata(&path) {
+            status.bytes += meta.len();
+            status.present.push((*name).to_string());
+            let rel = Path::new(".argot").join(name);
+            if !git_repo
+                .as_ref()
+                .is_some_and(|repo| snapshot_file_matches_head(repo, &rel, &path))
+            {
+                status.uncommitted.push((*name).to_string());
+            }
+        } else if REQUIRED_FIT_SNAPSHOT_FILES.contains(name) {
+            status.missing.push((*name).to_string());
+        } else {
+            status.unavailable.push((*name).to_string());
+        }
+    }
+    status
+}
+
+pub(crate) fn fit_snapshot_status_json(repo: &Path, argot_dir: &Path) -> serde_json::Value {
+    let snapshot = fit_snapshot_status(repo, argot_dir);
+    serde_json::json!({
+        "complete": snapshot.complete(),
+        "committed": snapshot.committed(),
+        "present": snapshot.present,
+        "missing": snapshot.missing,
+        "unavailable": snapshot.unavailable,
+        "uncommitted": snapshot.uncommitted,
+        "bytes": snapshot.bytes,
+    })
+}
+
+fn snapshot_commit_note(repo: &Path) {
+    let status = fit_snapshot_status(repo, &repo.join(".argot"));
+    if !status.complete() {
+        println!(
+            "note: fit snapshot is incomplete (missing: {}) — do not enable CI until `argot status` reports it complete.",
+            status.missing.join(", ")
+        );
+        return;
+    }
+    println!(
+        "Fit snapshot: {} files · {}. Review and commit it so every clone and CI run score the same voice.",
+        status.present.len(),
+        format_bytes(status.bytes),
+    );
+    if status.uncommitted.is_empty() {
+        println!(
+            "Snapshot is already committed; inspect its diff before committing another refresh."
+        );
+    } else {
+        println!(
+            "Stage: git add argot.toml .argot/.gitignore .argot/{{{}}}",
+            status.uncommitted.join(",")
+        );
+    }
+}
+
 #[derive(Args)]
 struct StatusCmd {
     /// Path to the repository to report on.
@@ -573,10 +701,14 @@ struct StatusCmd {
     /// Output format: human (terminal) or json (stable machine-readable).
     #[arg(long, default_value = "human", value_parser = ["human", "json"])]
     format: String,
+    /// Directory containing the fitted snapshot (relative to --repo unless absolute).
+    #[arg(long = "argot-dir", default_value = ".argot")]
+    argot_dir: PathBuf,
 }
 
 fn run_status(c: StatusCmd) -> ExitCode {
     let ctx = resolve_context_at(&c.repo);
+    let snapshot_dir = resolve_argot_dir(Path::new(&ctx.git_root), c.argot_dir);
     let dataset = fs::metadata(&ctx.dataset_path).ok().map(|m| {
         let count = fs::read_to_string(&ctx.dataset_path)
             .map(|s| s.lines().filter(|l| !l.trim().is_empty()).count())
@@ -584,12 +716,13 @@ fn run_status(c: StatusCmd) -> ExitCode {
         (count, m.len())
     });
     let model_bytes = fs::metadata(&ctx.repo_corpus_path).ok().map(|m| m.len());
-    let calibrated = ctx.argot_dir.join("scorer-config.json").exists();
+    let calibrated = snapshot_dir.join("scorer-config.json").exists();
+    let snapshot = fit_snapshot_status(Path::new(&ctx.git_root), &snapshot_dir);
 
     // The one-stop "is my setup healthy / is it time to recalibrate?" answer:
     // freshness (commits behind), config sync, and calibration drift — all
     // read from what the last fit persisted, no tree walk here.
-    let health = argot_core::health::read(&ctx.argot_dir);
+    let health = argot_core::health::read(&snapshot_dir);
     let (status_config, _) = argot_core::compose::load_config(Path::new(&ctx.git_root));
     let behind = health.as_ref().and_then(|h| {
         (!h.fit_sha.is_empty())
@@ -616,7 +749,7 @@ fn run_status(c: StatusCmd) -> ExitCode {
     // declared [[migration]] entries — the freshness surface's "the repo is
     // moving on" counterpart.
     let (mined_migrations, leftover_files) = if calibrated {
-        fs::read(ctx.argot_dir.join("scorer-config.json"))
+        fs::read(snapshot_dir.join("scorer-config.json"))
             .ok()
             .and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).ok())
             .and_then(|v| {
@@ -649,6 +782,15 @@ fn run_status(c: StatusCmd) -> ExitCode {
             })),
             "model": { "trained": model_bytes.is_some(), "bytes": model_bytes },
             "calibrated": calibrated,
+            "snapshot": {
+                "complete": snapshot.complete(),
+                "committed": snapshot.committed(),
+                "present": snapshot.present,
+                "missing": snapshot.missing,
+                "unavailable": snapshot.unavailable,
+                "uncommitted": snapshot.uncommitted,
+                "bytes": snapshot.bytes,
+            },
             "health": health.as_ref().map(|h| serde_json::json!({
                 "fit_sha": h.fit_sha,
                 "commits_behind": behind,
@@ -679,6 +821,35 @@ fn run_status(c: StatusCmd) -> ExitCode {
     } else {
         println!("Calibrated: not calibrated — run `argot fit`");
     }
+    if snapshot.complete() {
+        let tracked = if snapshot.uncommitted.is_empty() {
+            "committed"
+        } else {
+            "not yet committed"
+        };
+        println!(
+            "Snapshot: {} files · {} · {tracked}",
+            snapshot.present.len(),
+            format_bytes(snapshot.bytes)
+        );
+        if !snapshot.uncommitted.is_empty() {
+            println!(
+                "          review, stage, and commit .argot/{{{}}}",
+                snapshot.uncommitted.join(",")
+            );
+        }
+        if !snapshot.unavailable.is_empty() {
+            println!(
+                "Coverage: unavailable for {} (this fit had no artifact to commit)",
+                snapshot.unavailable.join(", ")
+            );
+        }
+    } else {
+        println!(
+            "Snapshot: incomplete — missing {}",
+            snapshot.missing.join(", ")
+        );
+    }
     if let Some(h) = &health {
         let fresh = match behind {
             Some(0) => "fresh (nothing accepted since the fit)".to_string(),
@@ -688,7 +859,7 @@ fn run_status(c: StatusCmd) -> ExitCode {
                 } else {
                     ""
                 };
-                format!("{n}{plus} accepted source commit(s) behind — auto-refresh will refit")
+                format!("{n}{plus} accepted source commit(s) behind — refresh locally and commit the fit snapshot")
             }
             None => "unknown".to_string(),
         };
@@ -699,7 +870,7 @@ fn run_status(c: StatusCmd) -> ExitCode {
         match config_in_sync {
             Some(true) => println!("Config:   in sync with the fit"),
             Some(false) => {
-                println!("Config:   argot.toml changed since the fit — auto-refresh will refit")
+                println!("Config:   argot.toml changed since the fit — run `argot fit`, then commit `.argot/`")
             }
             None => {}
         }
@@ -980,14 +1151,13 @@ fn warn_uncommitted(paths: &[String]) {
     eprintln!("         check gets baked into the baseline it's checked against.");
 }
 
-/// Train + calibrate the repo's voice model into `.argot/`, printing the
-/// two-step progress and protecting the (rebuildable, heavy) model dir from
-/// version control. Returns the scorer-config path on success. Shared by `fit`
-/// and `init`; failures are always setup errors (exit 2).
+/// Train + calibrate the repo's voice model into the reviewable `.argot/` fit
+/// snapshot. Returns the scorer-config path on success. Shared by `fit` and
+/// `init`; failures are always setup errors (exit 2).
 fn fit_repo(repo: &Path, slices: &[String]) -> Result<PathBuf, ()> {
     // Every fitted repo lands in the global registry so `argot list`/`status`
-    // — and `argot uninstall` — know where artifacts live. argot's own
-    // throwaway worktrees (audit, the background refresh) live under the OS
+    // — and `argot uninstall` — know where artifacts live. Argot's own
+    // throwaway audit worktrees live under the OS
     // temp dir and are not user repos.
     let canon = |p: &Path| fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
     let repo_canon = canon(repo);
@@ -1002,10 +1172,10 @@ fn fit_repo(repo: &Path, slices: &[String]) -> Result<PathBuf, ()> {
         );
     }
     // NB: `fit` is deliberately side-effect-free on the user's tracked tree —
-    // it writes only inside the gitignored `.argot/`. Scaffolding `argot.toml`
+    // it writes only inside `.argot/`. Scaffolding `argot.toml`
     // and gitignoring the local override is `init`'s job (see `run_init_cmd`).
-    // `fit` runs non-interactively on arbitrary detached checkouts (CI fits on
-    // the PR base, then restores the head), so writing an untracked `argot.toml`
+    // `fit` runs non-interactively on arbitrary detached checkouts, so writing
+    // an untracked `argot.toml`
     // or editing the root `.gitignore` here would make the follow-up checkout
     // abort — a bootstrap-only failure the first time a repo adds argot.toml.
     // When `argot.toml` is absent, `config::load` already returns the default
@@ -1082,6 +1252,7 @@ fn run_fit_cmd(c: FitCmd) -> ExitCode {
             println!("Done. Scorer config: {}", scorer_config.display());
             drift_suggestions_note(&c.repo);
             config_in_voice_note(&c.repo);
+            snapshot_commit_note(&c.repo);
             freshness_hook();
             ExitCode::SUCCESS
         }
@@ -1187,6 +1358,7 @@ fn run_init_cmd(c: InitCmd) -> ExitCode {
         }
         Err(e) => eprintln!("warning: could not write argot.toml: {e}"),
     }
+    snapshot_commit_note(&c.repo);
 
     let report = match inspect_repo(&c.repo) {
         Ok(r) => r,
@@ -1329,25 +1501,37 @@ fn render_suggestions_human(s: &IgnoreSuggestions) -> String {
     out
 }
 
-/// Keep the rebuildable model directory — and the heavy `argot extract`
-/// dataset — out of version control. Everything under `.argot/` is now a build
-/// artifact (the human-authored config and mutes moved to the committed
-/// `argot.toml` at the repo root), so the whole directory is ignored. Never
-/// clobbers an existing `.gitignore`, so a user who wants to commit their model
-/// can delete it and stay in control.
+/// Keep transient extraction/check state out of version control while making
+/// the fitted snapshot itself reviewable.  A check in CI must consume the same
+/// voice, semantic index and learned architecture that a developer reviewed;
+/// only caches and one-run state are safe to discard.  We also migrate the old
+/// Argot-generated blanket file, but never overwrite a custom ignore policy.
 fn ensure_model_gitignored(argot_dir: &Path) -> std::io::Result<()> {
     fs::create_dir_all(argot_dir)?;
     let gitignore = argot_dir.join(".gitignore");
-    if gitignore.exists() {
+    let legacy = gitignore.is_file()
+        && fs::read_to_string(&gitignore)
+            .map(|body| body.contains("argot writes a rebuildable voice model here"))
+            .unwrap_or(false);
+    if gitignore.exists() && !legacy {
         return Ok(());
     }
     fs::write(
         &gitignore,
-        "# argot writes a rebuildable voice model here — regenerate any time with `argot fit`.\n\
-         # The model and the heavy `argot extract` dataset are build artifacts, not source;\n\
-         # CI restores them from cache or re-fits. Delete this file to commit them yourself.\n\
-         # (Your excludes and mutes live in argot.toml at the repo root — that one is committed.)\n\
-         *\n",
+        "# Argot's fitted snapshot is reviewed and committed with this repository.\n\
+         # `argot fit` refreshes it locally; CI only consumes it.\n\
+         # Everything else below is runtime/cache state and stays local.\n\
+         *\n\
+         !.gitignore\n\
+         !generic-baseline.json\n\
+         !scorer-config.json\n\
+         !semantic-index.json\n\
+         !layering.json\n\
+         !integrity.json\n\
+         !health.json\n\
+         !manifest.json\n\
+         !rules/\n\
+         !rules/**\n",
     )
 }
 
@@ -1510,11 +1694,6 @@ fn run_check_cmd(c: CheckCmd) -> ExitCode {
             }
         }
         freshness_hook();
-    }
-    // Drifted model? Refresh it in the background so the next check is sharp
-    // (detached, throttled, opt-out via [fit] auto-refresh = false).
-    if outcome.exit_code < 2 {
-        auto_refit::maybe_refit(&c.repo, &argot_dir, &today, quiet || !human);
     }
     ExitCode::from(outcome.exit_code as u8)
 }
@@ -1760,6 +1939,9 @@ struct VoiceDiffCmd {
     /// Path to the repository.
     #[arg(long, default_value = ".")]
     repo: PathBuf,
+    /// Directory containing the fitted snapshot (relative to --repo unless absolute).
+    #[arg(long = "argot-dir", default_value = ".argot")]
+    argot_dir: PathBuf,
     /// Output format: human, json, markdown (a PR-comment / job-summary score
     /// card), shields (shields.io endpoint JSON for a README badge), or svg (a
     /// self-contained badge).
@@ -2723,9 +2905,13 @@ fn main() -> ExitCode {
                 std::env::var_os("NO_COLOR").is_none() && std::io::stdout().is_terminal();
             review::run_review(&c.target, c.repo, &c.format, use_color)
         }
-        Some(Command::VoiceDiff(c)) => {
-            voice_diff::run_voice_diff(&c.target, c.repo, &c.format, c.top)
-        }
+        Some(Command::VoiceDiff(c)) => voice_diff::run_voice_diff(
+            &c.target,
+            c.repo.clone(),
+            resolve_argot_dir(&c.repo, c.argot_dir),
+            &c.format,
+            c.top,
+        ),
         Some(Command::Inspect(c)) => run_inspect_cmd(c),
         Some(Command::Mute(c)) => run_mute_cmd(c),
         Some(Command::ListMutes) => run_list_mutes(),
@@ -2758,12 +2944,12 @@ mod tests {
     use super::{
         days_since_fit, ensure_local_config_gitignored, ensure_model_gitignored, fit_repo,
         init_recurring_actions, is_npm_install, resolve_argot_dir, root_help, wants_json, Cli,
-        Verdict,
+        Verdict, FIT_SNAPSHOT_FILES,
     };
     use clap::CommandFactory;
 
     /// `argot fit` must be side-effect-free on the user's tracked tree — it may
-    /// write only inside the gitignored `.argot/`. Scaffolding `argot.toml` or
+    /// write only inside `.argot/`. Scaffolding `argot.toml` or
     /// editing the root `.gitignore` during fit breaks the CI Action's
     /// fit-on-base → restore-head checkout (get-tmonier/vigie#39): the first PR
     /// to introduce argot.toml aborts the restore and fails a non-blocking check.
@@ -2808,16 +2994,19 @@ mod tests {
     }
 
     #[test]
-    fn model_gitignore_hides_the_whole_model_dir() {
+    fn model_gitignore_tracks_the_fit_snapshot_and_hides_runtime_state() {
         let dir = std::env::temp_dir().join(format!("argot_gitignore_test_{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         let argot_dir = dir.join(".argot");
         ensure_model_gitignored(&argot_dir).expect("write .gitignore");
         let body = std::fs::read_to_string(argot_dir.join(".gitignore")).unwrap();
-        // The whole `.argot/` dir is rebuildable now — config and mutes moved to
-        // the committed argot.toml at the repo root, so nothing is re-included.
+        // A CI check consumes the same fitted snapshot developers reviewed;
+        // only runtime/cache files stay ignored.
         assert!(body.contains("*\n"), "blanket * ignore present");
-        assert!(!body.contains('!'), "nothing re-included from .argot/");
+        for file in FIT_SNAPSHOT_FILES {
+            assert!(body.contains(&format!("!{file}")), "{file} is tracked");
+        }
+        assert!(body.contains("!rules/**"), "custom rules are tracked");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

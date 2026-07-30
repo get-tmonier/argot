@@ -17,7 +17,7 @@ name: argot
 on:
   pull_request:
   push:
-    branches: [main]   # the run that refreshes the fitted artifacts PRs reuse
+    branches: [main]
 
 permissions:
   contents: read
@@ -35,49 +35,43 @@ jobs:
 ```
 
 The composite Action needs checkout history, release-download access, and the permissions needed
-for whichever optional outputs you enable. It fits the base ref for a pull request and scores the
-selected base-to-HEAD range, so the pull request’s code is not learned as the baseline. Its default
+for whichever optional outputs you enable. It reads the **committed fit snapshot** from the base ref
+for a pull request and scores the selected base-to-HEAD range, so the pull request’s code — or a
+snapshot it edits — is not learned as the baseline. Its default
 `fail-on-hits` is `false`: findings are reported without failing the job. When a team deliberately
 sets it to `true`, error-severity results mark that Action job as failed; the team's review policy
 still determines the response.
 
-`format`, `ref`, `cache`, `semantic`, `upload-sarif`, and `comment-pr` are configurable Action
+`format`, `ref`, `semantic`, `upload-sarif`, and `comment-pr` are configurable Action
 inputs. The semantic layer needs no network — its embedder ships in the binary — so a locked-down
 runner needs no special handling; `semantic: false` is there to trade its cost away, not to work
-around a download. The Action caches fitted artifacts by base commit when caching is enabled.
+around a download.
 
-### Why a run took minutes
+### The committed snapshot contract
 
-Fitting the base is almost the whole cost of an Action run — the check itself is seconds. On a cache
-hit there is no fit at all, so the job is fast; on a miss it refits from scratch. The job summary says
-which of the two happened, and how long the fit took.
+Before enabling CI, run `argot init` locally on the accepted branch, review and commit `argot.toml`
+and the fit snapshot under `.argot/`. The snapshot includes the voice scorer, generic baseline,
+semantic index, layering/integrity artifacts, health record, and manifest; transient caches are
+ignored. The Action never runs `argot fit`, restores no cache, and never writes a snapshot.
 
-### What a run costs
+On every PR it extracts the base commit’s snapshot into a temporary directory. That prevents a PR
+from self-certifying by changing `.argot/`. Its summary reports how many accepted source commits the
+snapshot is behind and tells the team to refresh it locally when due. A missing, incomplete, or
+configuration-mismatched base snapshot is a clear setup error rather than a silent partial check.
 
-Fitting the voice model is almost the whole cost of a run; the check itself takes seconds. So the
-Action splits the two:
+### Refreshing it
 
-- **A run on your default branch is the producer.** It fits and publishes the resulting `.argot/`
-  artifacts into a cache slot. This is the run that costs the fit, after a merge, on nobody's
-  critical path.
-- **A pull request is a consumer.** It reads that slot and **does not fit** — the check is seconds.
-  The job summary reports how many accepted commits the model is behind, which is the same drift
-  argot tolerates locally between background refreshes (`[fit] refresh-after`).
+When the scorecard says the fit is behind, update the accepted branch locally:
 
-That is why the workflow above triggers on `push` to the default branch as well as on
-`pull_request`. Drop the `push` trigger and every pull request pays the fit instead.
+```sh
+argot fit
+argot status
+git add .argot/ argot.toml
+git commit -m "chore(argot): refresh fit snapshot"
+```
 
-**The cache does not exist until this workflow is merged.** The producer is a `push` to the default
-branch, so while the pull request that *adds* the workflow is still open there is no slot to read:
-that run, and any pull request opened before it lands, pays a cold fit rather than only the check.
-This is the expected shape of the first day, not a sign the check is slow. Merge the
-workflow, let the next default-branch push fill the slot, and pull requests drop to seconds.
-
-A pull request refits in only two cases: no model exists yet — the first run on a repository, or the
-slot expired after seven idle days, and the summary says it seeded the cache — or the base's
-`argot.toml` changed since the model was fitted, which is a scope change rather than staleness.
-`cache: false` disables the slot entirely and fits every run, if you want the base's exact model and
-are willing to pay for it.
+Do this after accepted code or a scope/configuration change, not on a feature branch whose code the
+fit should still judge. The Action remains fast because a check only reads committed files.
 
 ## pre-commit
 
@@ -98,6 +92,6 @@ or command failure still fails. `argot-check-gate` preserves normal `argot check
 semantics, so an error-severity result makes the hook fail. Remove the hook from
 `.pre-commit-config.yaml` and run `pre-commit uninstall` when you no longer want it installed.
 
-For another CI provider, explicitly run `argot fit` against the chosen baseline and then
-[`argot check`](/docs/check/) against the chosen range. Decide and document your own exit-code
-policy; no host runs this command unless its workflow is configured to do so.
+For another CI provider, install Argot, read the committed base snapshot, then run
+[`argot check`](/docs/check/) against the chosen range. Do not run `argot fit` in CI; refresh and
+commit the snapshot locally instead. Decide and document your own exit-code policy.

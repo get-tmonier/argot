@@ -12,8 +12,7 @@
 //!   `error`; a rule-specific entry beats its group entry.
 //! - `[update]` — `check = false` opts this repo out of the passive
 //!   once-a-day update notice (env: `ARGOT_UPDATE_CHECK=0`).
-//! - `[fit]` — `auto-refresh = false` opts out of the background refit that
-//!   keeps the voice model fresh as the repo moves.
+//! - `[fit]` — freshness thresholds for the committed fit snapshot.
 //! - `[[mute]]` — durable per-hit acceptances, a committed audit trail. Written
 //!   by `argot mute <hash>`. Replaces the old `.argot/suppressions.yaml`.
 //!
@@ -76,8 +75,8 @@ pub const DEFAULT_DATA_THRESHOLD: f64 = 0.65;
 /// tune it per repo in `argot.toml`.
 pub const DEFAULT_FIT_REFRESH_AFTER: usize = 10;
 
-/// `[fit].refresh-from` — which history the auto-refresh treats as the
-/// repo's accepted voice.
+/// `[fit].refresh-from` — which history freshness compares to the committed
+/// fit snapshot.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum FitRefreshFrom {
     /// Anchor at the merge-base with the auto-detected default branch
@@ -314,15 +313,14 @@ pub struct ArgotConfig {
     pub rule_locks: Vec<String>,
     /// `[update].check` — false opts out of the passive update notice.
     pub update_check: bool,
-    /// `[fit].auto-refresh` — false opts out of the background refit when the
-    /// model has drifted behind accepted history.
+    /// Legacy `[fit].auto-refresh` compatibility field. Checks no longer start
+    /// a background fit: a shared snapshot is refreshed and committed locally.
     pub fit_auto_refresh: bool,
     /// `[fit].refresh-after` — accepted in-scope commits since the fit before
-    /// the background refresh (and check's drift warning) considers the voice
-    /// stale. Clamped to ≥ 1.
+    /// freshness warning considers the snapshot stale. Clamped to ≥ 1.
     pub fit_refresh_after: usize,
-    /// `[fit].refresh-from` — anchor the refresh on the default branch
-    /// (feature-branch commits never train the voice) or on the current one.
+    /// `[fit].refresh-from` — anchor freshness on the default branch
+    /// (feature-branch commits never age the base snapshot) or on the current one.
     pub fit_refresh_from: FitRefreshFrom,
     /// Raw `[[mute]]` tables, validated on demand by [`ArgotConfig::mutes`].
     mutes: Vec<RawMute>,
@@ -797,17 +795,14 @@ generated-markers = [
 ]
 
 [fit]
-# The background auto-refresh. When accepted history gains `refresh-after`
-# commits touching in-scope source since the last fit, `check` refits in the
-# background (committed code only, never your working tree).
-auto-refresh = true
+# A committed fit snapshot becomes due for a local refresh after this many
+# accepted source commits. `argot check` and CI only warn: run `argot fit`,
+# review its `.argot/` diff, and commit it yourself.
 refresh-after = {DEFAULT_FIT_REFRESH_AFTER}
 # What counts as accepted history. \"default-branch\" auto-detects your trunk
-# (origin/HEAD, else main, else master) — nothing to fill in — and anchors the
-# refresh at the merge-base with it, so a feature branch's own commits never
-# train the voice; they stay the code under judgment. Name a branch (e.g.
-# \"develop\") if your trunk is non-standard, or set \"current-branch\" to let
-# refreshes learn whatever HEAD has.
+# (origin/HEAD, else main, else master), so a feature branch's own commits do
+# not age the baseline it is being judged against. Name a branch (e.g.
+# \"develop\") if your trunk is non-standard.
 refresh-from = \"default-branch\"
 
 [rules]

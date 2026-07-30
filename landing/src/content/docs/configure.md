@@ -1,13 +1,14 @@
 ---
 title: Configure
-description: One committed argot.toml controls everything — what argot excludes ([exclude]), how it spots generated/data files ([detect]), each rule's severity ([rules]), and the hits you've accepted ([[mute]]) — plus inline comments and a gitignored argot.local.toml for personal overrides.
+description: A committed argot.toml configures Argot, while a committed fit snapshot carries its learned voice — excludes, generated/data detection, rule severity, accepted hits, and local overrides.
 group: Guide
 order: 5
 ---
 
 argot is a statistical linter: it will sometimes learn from the wrong files, or
-flag a line you meant to write. Every one of those is fixable, and every fix is
-plain text you commit alongside your code — in **one file, `argot.toml`**.
+flag a line you meant to write. The team-owned configuration lives in
+**`argot.toml`**; its reviewed learned baseline lives alongside it in the
+committed **`.argot/` fit snapshot**.
 
 `argot init` writes an `argot.toml` at your repo root with the effective
 defaults spelled out, so nothing is hidden. It has four sections:
@@ -472,8 +473,8 @@ reason = "Q2 date-handling refactor"
 - **Effective immediately, no refit needed.** A declared migration is read at check
   time, not baked into the fitted model: `to` stops reading as foreign and `from`
   starts raising `superseded` from the very next `check`. Declaring one doesn't even
-  trigger the background auto-refresh — `[[migration]]` isn't part of the config
-  fingerprint `[fit]` freshness watches (see [`[fit]`](#fit--the-background-auto-refresh)).
+  require a refit — `[[migration]]` isn't part of the config fingerprint that
+  fit-snapshot freshness watches (see [`[fit]`](#fit-snapshot-freshness)).
 - **Scoping reuses the existing per-rule path scopes** — no separate mechanism:
   `[rules] superseded = { severity = "warn", include = ["src/**"] }` limits where the
   rule fires (mined or declared alike), exactly like
@@ -499,41 +500,36 @@ beats both).
 paths = ["scratch/", "experiments/"]   # appended to the committed excludes
 ```
 
-## `[fit]` — the background auto-refresh
+## `[fit]` — snapshot freshness
 
 *This is the config surface; the full mechanism — verdict, health record,
 drift, staleness — is one page:
 [Health & freshness](/docs/health-and-freshness/).*
 
-A fit is a snapshot: as the repo merges new dependencies and modules, a stale
-model starts reading your own accepted code as foreign. argot keeps itself
-fresh — when **accepted history** gains `refresh-after` commits touching
-in-scope source since the fit (or the fit is more than a week old with any
-such drift), a `check` refits **in the background**, detached, at most once a
-day, and says so in one dim line. The check you just ran used the old model
-(zero added latency); the next one scores against the fresh voice.
+A fit is a committed snapshot: as the repo merges new dependencies and modules,
+a stale model starts reading accepted code as foreign. When **accepted history**
+gains `refresh-after` commits touching in-scope source since the fit, `check`,
+`status`, and the CI scorecard tell you to refresh it. They never refit in the
+background or in CI: run `argot fit` locally, review the `.argot/` diff, and
+commit it deliberately.
 
-"Accepted" is the load-bearing word: staleness is measured — and the refit
-fitted — at the **merge-base with your default branch**, in a throwaway
-worktree when needed. A feature branch's own commits and your uncommitted
-edits never train the voice; they stay the code under judgment. Only commits
-touching in-scope source count, so docs and CI churn don't age the voice
-either. The semantic index reuses the embeddings of unchanged functions, so a
-routine refresh costs seconds. CI never auto-refits (the Action refits per
-base advance). `init` writes the defaults explicitly:
+"Accepted" is the load-bearing word: staleness is measured at the **merge-base
+with your default branch**. A feature branch's own commits and uncommitted
+edits never age the baseline it is judged against. Only commits touching
+in-scope source count, so docs and CI churn do not make a refresh due. `init`
+writes the defaults explicitly:
 
 ```toml
 [fit]
-auto-refresh = true               # false: you drive `argot fit` yourself
-refresh-after = 10                # accepted in-scope commits before a refresh
+refresh-after = 10                # accepted in-scope commits before a reminder
 refresh-from = "default-branch"   # auto-detected — see below
 ```
 
 `refresh-from` is a mode, not a blank to fill in: `"default-branch"`
 auto-detects your trunk (`origin/HEAD`, else `main`, else `master`), so main-
 and master-only repos both just work. Name a branch (`"develop"`) when your
-trunk is non-standard, or set `"current-branch"` to let refreshes learn
-whatever HEAD has.
+trunk is non-standard. `"current-branch"` is available only when branch fits
+are an intentional policy.
 
 Freshness is separate from **calibration drift** — a new `gen/` dir or a
 vendored SDK appearing in the tree, or an `argot.toml` edit the model hasn't
@@ -547,12 +543,12 @@ to recalibrate:
   `argot.toml` changed since the fit (in `--format github`, these become
   run-level PR annotations),
 - **editing `[exclude]`/`[detect]` is itself a refresh trigger**: the next
-  check notices the config fingerprint changed and refits in the background,
+  check notices the config fingerprint changed and tells you to refit locally,
 - **`argot status`** (`--repo <path>` for a repository you are not sitting in)
   is the one-stop health view: fitted SHA, commits behind,
   config in sync or not, and unexcluded noisy directories,
-- a failing background refit stops retrying silently and tells you to run
-  `argot fit` yourself.
+- `argot status --format json` also reports whether every required snapshot
+  artifact is present and tracked, so CI can refuse a misleading partial run.
 
 A well-configured repo stays quiet on all of it.
 
@@ -584,29 +580,28 @@ turn the check off and argot never touches the network at all.
 
 ## Which files argot writes, and where
 
-Only `argot.toml` (at the repo root) is meant to be committed. Everything under
-`.argot/` is a rebuildable local artifact, so `init`/`fit` drop a
-`.argot/.gitignore` that keeps the whole directory out of version control. A
-refit reuses unchanged embeddings when the machine cache is warm, but total fit
-time still depends on the repository's history and corpus.
+`argot.toml` and Argot's **fit snapshot** are meant to be committed. `init`/`fit`
+write a selective `.argot/.gitignore`: it keeps caches and one-run state local,
+but leaves every artifact a full `argot check` needs visible to Git. CI consumes
+the base commit's snapshot and never fits or rebuilds it.
 
 | File | Written by | What it is | Committed? |
 |---|---|---|---|
 | `argot.toml` *(repo root)* | `init` / `argot mute` / by hand | Config — `[exclude]`, `[detect]`, `[rules]`, `[update]`, and `[[mute]]`. | **Yes** — commit it. |
 | `argot.local.toml` *(repo root)* | you | Personal overrides, merged on top. | No — gitignored. |
-| `.argot/scorer-config.json` | `fit` / `init` | The fitted voice model: calibrated threshold(s) + scorer config. Also records, per language, how the threshold scales with hunk size (`size_slope`, `size_reference_lines`) — a hunk's score is a max over its tokens, so a large one scores higher for free, and the bar rises to match above the repository's own p90. Fitted from your candidates; nothing to set. | No — rebuildable. |
-| `.argot/semantic-index.json` | `fit` / `init` | The per-repo code-embedding index for the reinvention/placement checks. Records the model that built it — an index from a different model/version is rejected with a "run `argot fit` to rebuild" message rather than scoring wrong. | No — rebuildable. |
-| `.argot/layering.json` | `fit` / `init` | The module-dependency graph the `layering` rule checks added imports against. | No — rebuildable. |
-| `.argot/integrity.json` | `fit` / `init` | Per-repo learned gates for the test-integrity rules (`test-deleted` / `test-disabled` / `test-weakened`), from a mini-replay of the repo's accepted history. | No — rebuildable. |
-| `.argot/manifest.json` | `fit` / `init` | Versioned, hashed record of what was learned (model hash, fit commit, corpus size); read by `inspect --model`. Names any language too thin to learn a voice from (`unlearnable_languages`) — those files are **not checked**, and the skip is recorded rather than silent. | No — rebuildable. |
-| `.argot/health.json` | `fit` / `init` | The fit's self-record — fitted SHA, config fingerprint, drift candidates; read by `check` and `status` for the freshness notes ([Health & freshness](/docs/health-and-freshness/)). | No — rebuildable. |
+| `.argot/scorer-config.json` | `fit` / `init` | The fitted voice model: calibrated threshold(s) + scorer config. | **Yes** — fit snapshot. |
+| `.argot/semantic-index.json` | `fit` / `init` | The per-repo code-embedding index for reinvention/placement. | **Yes, when produced** — status names an intentional abstention. |
+| `.argot/layering.json` | `fit` / `init` | The module-dependency graph the `layering` rule checks. | **Yes, when produced** — status names an intentional abstention. |
+| `.argot/integrity.json` | `fit` / `init` | Per-repo learned gates for the test-integrity rules. | **Yes, when produced** — status names an intentional abstention. |
+| `.argot/manifest.json` | `fit` / `init` | Versioned, hashed record of what was learned. | **Yes** — provenance. |
+| `.argot/health.json` | `fit` / `init` | Fit SHA, config fingerprint, and drift candidates. | **Yes** — freshness. |
 | `.argot/repo-corpus.txt` | `fit` / `init` | The source files counted into the repo distribution. | No — rebuildable. |
-| `.argot/generic-baseline.json` | `fit` / `init` | The bundled generic-baseline reference. | No — rebuildable. |
+| `.argot/generic-baseline.json` | `fit` / `init` | The bundled generic-baseline reference. | **Yes** — required by voice scoring. |
 | `.argot/dataset.jsonl` | `extract` | Raw training dataset — one record per hunk. The check path doesn't need it. | No — rebuildable. |
 | `.argot/last-check.json` | `check` | Cache of the last check's hits, so `argot mute <hash>` can resolve. | No — rebuildable. |
-| `.argot/auto-refit.json` + `.lock` | background refresh | Attempt/result state and the one-refit-at-a-time lock ([Health & freshness](/docs/health-and-freshness/)). | No — state. |
-| `.argot/.gitignore` | `fit` / `init` | Ignores everything under `.argot/`. | Ignores itself; regenerated by `fit`/`init`. |
-| `.argot/rules/<name>/` | `argot-write-rule` / `argot-suggest-rules` / by hand | Your [custom rules](/docs/custom-rules/) — `rule.toml` + `check.rhai`, authored not generated. | **Yes** — force-add past `.argot/.gitignore`; `uninstall` never deletes them. |
+| `.argot/auto-refit.json` + `.lock` | local runtime state | Never part of a snapshot. | No — ignored. |
+| `.argot/.gitignore` | `fit` / `init` | Selectively ignores runtime state while exposing snapshot files. | **Yes** — commit it. |
+| `.argot/rules/<name>/` | `argot-write-rule` / `argot-suggest-rules` / by hand | Your [custom rules](/docs/custom-rules/) — `rule.toml` + `check.rhai`, authored not generated. | **Yes** — ordinary tracked source. |
 
 Outside the repo, argot keeps exactly two user-level locations:
 
@@ -620,10 +615,9 @@ binary — run [`argot uninstall`](/docs/the-commands/#uninstall): it shows the
 full inventory first and never touches git-tracked files or your authored custom
 rules under `.argot/rules/`.
 
-Consumer repositories should leave the fitted artifacts ignored: the Action
-caches them after default-branch runs and a local fit regenerates them when
-needed. This is separate from Argot's own source repository, which commits the
-frozen 17.5 MB embedder assets used to build the binary.
+Consumer repositories should commit their fitted artifacts. The embedded model
+is separate: it is compiled into the Argot binary, while the snapshot records
+only repository-specific learned data that CI needs to score consistently.
 
 > **There is no model to install.** The semantic layer's embedder is a 15.6 MB
 > static table compiled into the `argot` binary, so a fit needs no download, no
@@ -631,8 +625,8 @@ frozen 17.5 MB embedder assets used to build the binary.
 > argot does keep in `~/.cache/argot/` is an *embedding cache*: a
 > content-addressed store keyed by function text, so a re-fit or an audit
 > re-embeds only what changed. It is a pure accelerator — `argot cache clear`
-> reclaims it and the next fit rebuilds it. The `.argot/semantic-index.json` the
-> fit produces is gitignored with the rest of `.argot/`.
+> reclaims it and the next local fit rebuilds it. The `.argot/semantic-index.json`
+> the fit produces is committed as part of the snapshot.
 
 ## Which to reach for
 

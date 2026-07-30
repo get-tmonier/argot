@@ -32,8 +32,12 @@ it.
 
 1. `argot --version` — if missing, tell the user how to install it
    (<https://argot.tmonier.com/docs/getting-started/>) and stop.
-2. `argot conventions` needs the repo **fitted** (`.argot/scorer-config.json`).
-   If missing, run the **argot-setup** skill (or `argot init`) first.
+2. `argot conventions` needs a **complete, committed, fresh fit snapshot**.
+   Run `argot status --format json`; if `snapshot.complete` or
+   `snapshot.committed` is false, or the config is out of sync, stop and ask
+   for an explicit local `argot fit` on the accepted branch followed by review
+   and commit of `.argot/`. Do not fit implicitly: mixing fitted vocabulary with
+   a newer live placement catalog would codify an incoherent convention.
 
 ## Workflow
 

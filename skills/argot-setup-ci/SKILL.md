@@ -11,8 +11,11 @@ a gate. This is user-wired automation: the Action runs only at the GitHub event
 in the workflow the repository commits; it does not install or claim an agent
 end-of-turn or acceptance lifecycle.
 
-The Action installs argot and fits in CI, so this works on its own. But CI and
-local setup are one decision, not two: a committed `argot.toml` — the excludes
+The Action installs Argot but **never fits in CI**. CI and local setup are one
+decision: a committed `argot.toml` plus a complete committed `.argot/` fit
+snapshot — the excludes and learned detector data that keep every check
+reproducible. A repository without that snapshot must run the full
+**argot-setup** flow first. The excludes
 that keep vendored, generated and demo trees out of the voice — makes the CI
 voice sharper, and argot is only as good as that scoping. **If the repository
 has no `argot.toml` yet, offer the full [argot-setup](../argot-setup/SKILL.md)
@@ -30,7 +33,7 @@ wants CI specifically, or already has a configured repo.
    on:
      pull_request:
      push:
-       branches: [main]   # the run that refreshes the fitted artifacts PRs reuse
+       branches: [main]
 
    permissions:
      contents: read
@@ -43,15 +46,13 @@ wants CI specifically, or already has a configured repo.
        steps:
          - uses: actions/checkout@v4
            with:
-             fetch-depth: 0    # argot fits on the PR's base branch, so it needs history
+             fetch-depth: 0    # Action reads the committed snapshot from the PR base
          - uses: get-tmonier/argot@main
    ```
 
-   Both triggers matter: the `push` run fits the base and publishes the
-   resulting `.argot/` artifacts, while the `pull_request` run reuses them and
-   stays at seconds. See step 5.
-
-   That's the whole workflow — the Action installs argot, fits, and scores.
+   That's the whole workflow — the Action installs Argot, reads the reviewed
+   base snapshot, and scores. It does not fit, cache `.argot/`, or download a
+   semantic model.
    There is no model to fetch: the embedder ships inside the binary, so an
    air-gapped runner needs no special handling.
 
@@ -66,24 +67,15 @@ wants CI specifically, or already has a configured repo.
    OAuth App to … workflow … without 'workflow' scope"*, run
    `gh auth refresh -s workflow` (or push over SSH).
 
-5. **Keep the `push:` trigger — it is what makes pull requests fast.** Fitting
-   the model is almost the whole cost of a run; the check is seconds. The run on
-   the default branch is the *producer*: it fits and publishes the model into a
-   cache slot, after a merge, on nobody's critical path. A pull request is a
-   *consumer*: it reads that slot and does not fit. Remove the `push` trigger and
-   every pull request pays the fit instead — which is how a new tool gets
-   uninstalled. A pull request only refits when no model exists yet (the first
-   run, or the slot expired after seven idle days) or when the base's
-   `argot.toml` changed.
+5. **Validate the precondition before committing the workflow:** `argot status
+   --format json` must show `snapshot.complete: true` and `snapshot.committed:
+   true`. If it is stale, run `argot fit` locally on the accepted branch, review
+   and commit `.argot/`; never add a CI fit as a workaround.
 
-6. **Say that the cache does not exist until this workflow is merged.** The
-   producer run is a `push` to the default branch, so until the pull request
-   adding the workflow is *merged*, there is no cache to read and **every run is
-   a cold fit** — it has to walk history and build fresh artifacts, rather than
-   only run the check. Tell the user this before they judge the tool: the
-   workflow's own PR, and any PR opened before it lands, are the slow ones by
-   design. After the merge the next default-branch push fills the slot and pull
-   requests drop to seconds.
+6. Explain the scorecard: it is advisory when a complete snapshot is old, but a
+   missing/incomplete/config-mismatched base snapshot is an explicit setup error
+   because a partial check must not pretend to cover semantic, layering, or
+   integrity rules.
 
 7. Tell the user what they'll get on each configured PR workflow: a
    **non-blocking** job summary, optional sticky PR comment, and inline
@@ -102,22 +94,19 @@ wants CI specifically, or already has a configured repo.
    It renders `argot | N% in-voice`, green when in voice. (For a static badge
    with no shields.io round-trip: `argot voice-diff <range> --format svg`.)
 
-9. If the user prefers a hand-rolled workflow over the Action (or already has
-   one), the building blocks are: install argot, cache
-   `~/.cache/argot/embeddings` with a loose restore-key so unchanged functions
-   don't re-embed across runs, `argot fit`, then `argot check --format github` — the
-   `github` format prints workflow commands that GitHub renders as inline PR
-   annotations. For a strict setup, `--error-on-warnings` makes warn-severity
-   hits fail the run too. If an existing workflow runs `argot extract && argot
-   fit`, replace that with plain `argot fit` (fit includes extraction).
+9. For a hand-rolled workflow, install Argot, extract the base commit's tracked
+   `.argot/` snapshot into a temporary directory, then run `argot check
+   --argot-dir <snapshot> --format github`. Do not cache or run `argot fit` in
+   CI. For a strict findings policy, `--error-on-warnings` makes warn-severity
+   hits fail too.
 
 ## Principles
 
 - **Non-blocking by default.** Do NOT add `fail-on-hits: true` unless the user
   explicitly wants a hard merge gate.
-- **Self-contained.** The Action installs argot, fits the model on the PR's
-  **base** branch, and scores the PR against it — a dependency or idiom the PR
-  introduces is judged as new, not self-certified. No local argot needed.
+- **Base-snapshot only.** The Action reads the fit snapshot committed on the PR
+  base and scores the PR against it — a dependency, config, or artifact the PR
+  introduces cannot self-certify. Local setup is required to produce updates.
 - **Workflow-scoped.** The Action can run automatically after its workflow is
   committed, but no skill or plugin installation schedules CI or a full local
   check by itself.

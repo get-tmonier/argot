@@ -483,10 +483,10 @@ pub fn run_check(args: CheckArgs, detectors: Vec<RegisteredDetector<'_>>) -> Che
             accepted_source_commits_behind(&args.repo_path, fit_sha, &config, stale_after)
         {
             if behind >= stale_after {
-                // No imperative here: the CLI's auto-refresh acts on this
-                // drift itself (and says so right after this line).
+                // This remains advisory: the user refreshes and commits the
+                // shared snapshot locally rather than the check mutating it.
                 stderr.push_str(&format!(
-                    "[argot] model fitted {behind}+ source commits ago — voice may have drifted\n"
+                    "[argot] fit snapshot is {behind}+ accepted source commits behind — run `argot fit` locally on the accepted branch, review and commit `.argot/`\n"
                 ));
             }
         }
@@ -524,8 +524,7 @@ pub fn run_check(args: CheckArgs, detectors: Vec<RegisteredDetector<'_>>) -> Che
             && health.config_fingerprint != crate::health::config_fingerprint(&config)
         {
             stderr.push_str(
-                "[argot] argot.toml changed since the last fit — the voice doesn't reflect                  your configuration yet (auto-refresh will refit, or run `argot fit`)
-",
+                "[argot] argot.toml changed since the last fit — run `argot fit` locally, then review and commit the refreshed `.argot/` snapshot\n",
             );
         }
     }

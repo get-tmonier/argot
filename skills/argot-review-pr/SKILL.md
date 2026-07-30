@@ -5,23 +5,26 @@ description: Review a specific pull request (or diff range) against this repo's 
 
 # argot-review-pr
 
-Score a pull request against the repo's **locally** fitted model and report
+Score a pull request against the repo's **committed local** fit snapshot and report
 what fires — argot is statistical; false positives happen. Every hit names a
 **rule**, and the rule — not the confidence glyph — tells you what to
 recommend. The human decides what to do with the PR.
 
-`argot review` scores the PR's diff without checking it out, using the model
-already fitted in the local repository's `.argot/`, so it's fast and leaves the
-working tree untouched. That fit is local state: before reviewing a PR, refresh
-it from the intended base branch rather than fitting the PR head and letting the
-change certify itself.
+`argot review` scores the PR's diff without checking it out, using the reviewed
+fit snapshot already committed in the local repository's `.argot/`, so it is
+fast and leaves the working tree untouched. Before reviewing a PR, refresh that
+snapshot locally from the intended accepted branch, review and commit it — never
+fit the PR head and let the change certify itself.
 
 ## Preconditions
 
 1. `argot --version` — if missing, tell the user how to install it (see
    <https://argot.tmonier.com/docs/getting-started/>) and stop.
-2. The repo must be fitted locally: `.argot/scorer-config.json` exists. If not,
-   run the **argot-setup** skill (or `argot init`) first, then continue.
+2. Run `argot status --format json`. The snapshot must report
+   `snapshot.complete: true` and `snapshot.committed: true`. If it is missing,
+   uncommitted, stale, or config-mismatched, ask for an explicit local
+   `argot fit` on the accepted branch, followed by review and commit of
+   `.argot/`; otherwise the result cannot represent what CI/other clones see.
 3. For a PR by number/URL, the `gh` CLI must be authenticated and network access
    is required because argot fetches the PR diff through it. A locally available
    `base..head` range or commit SHA needs no network; fetch the refs first if

@@ -24,8 +24,10 @@ depends on the repo. **A hit is a prompt to think, never a reason to refuse.**
 
 1. **Setup (once per repo).** Fit the voice model and decide what shouldn't
    shape it. → `argot init` (also builds the semantic index — the embedding
-   model ships inside the binary, so this needs no network), then the **argot-setup**
-   skill for anything with generated/vendored/data directories. See
+   model ships inside the binary, so this needs no network). Review and commit
+   `argot.toml` **and the generated `.argot/` fit snapshot**; CI consumes that
+   snapshot and never fits. Then use the **argot-setup** skill for anything with
+   generated/vendored/data directories. See
    [Setup](https://argot.tmonier.com/docs/setup/).
 2. **Check (per change).** Before committing code you generated or edited, score
    it. → `argot check`, or the **argot-check** skill.

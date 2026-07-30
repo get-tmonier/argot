@@ -13,8 +13,11 @@ not the confidence glyph — tells you what to do. The human has the last word.
 
 1. `argot --version` — if missing, tell the user how to install it (see
    <https://argot.tmonier.com/docs/getting-started/>) and stop.
-2. The repo must be fitted: `.argot/scorer-config.json` exists. If not, run the
-   **argot-setup** skill (or `argot init`) first, then continue.
+2. The repo must have a complete fit snapshot. Run `argot status --format json`:
+   it must report `snapshot.complete: true`. If it reports uncommitted files, ask
+   the user to review and commit the listed `.argot/` artifacts; if it is stale
+   or config-mismatched, run `argot fit` locally on the accepted branch, review
+   and commit the refresh. Never fit automatically during a routine check.
 
 ## Run it
 

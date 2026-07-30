@@ -97,6 +97,18 @@ pub fn summarize(hits: &[HitScore], hunks_total: usize, top_n: usize) -> VoiceDi
 /// Compute the summary for a ref/range by running `check` in JSON mode and
 /// aggregating its hits. `None` when the model can't be loaded (check errored).
 pub fn summary_for_ref(repo: &Path, reference: &str, top_n: usize) -> Option<VoiceDiffSummary> {
+    summary_for_ref_with_snapshot(repo, &repo.join(".argot"), reference, top_n)
+}
+
+/// As [`summary_for_ref`], but against an explicit fitted snapshot.  The
+/// Action uses the base branch's extracted snapshot so a PR cannot influence
+/// either the check or the scorecard by editing `.argot/`.
+pub fn summary_for_ref_with_snapshot(
+    repo: &Path,
+    argot_dir: &Path,
+    reference: &str,
+    top_n: usize,
+) -> Option<VoiceDiffSummary> {
     let outcome = run_check(CheckArgs {
         repo_path: repo.to_string_lossy().into_owned(),
         reference: reference.to_string(),
@@ -106,7 +118,7 @@ pub fn summary_for_ref(repo: &Path, reference: &str, top_n: usize) -> Option<Voi
         only: vec![],
         exclude: vec![],
         threshold: None,
-        argot_dir: repo.join(".argot"),
+        argot_dir: argot_dir.to_path_buf(),
         hunk_lines: DEFAULT_HUNK_LINES,
         verbose: false,
         min_confidence: "unusual".to_string(),
@@ -315,8 +327,14 @@ pub fn badge_svg(s: &VoiceDiffSummary) -> String {
     )
 }
 
-pub fn run_voice_diff(target: &str, repo: PathBuf, format: &str, top_n: usize) -> ExitCode {
-    let Some(summary) = summary_for_ref(&repo, target, top_n) else {
+pub fn run_voice_diff(
+    target: &str,
+    repo: PathBuf,
+    argot_dir: PathBuf,
+    format: &str,
+    top_n: usize,
+) -> ExitCode {
+    let Some(summary) = summary_for_ref_with_snapshot(&repo, &argot_dir, target, top_n) else {
         eprintln!("error: could not score '{target}' — run `argot fit` first?");
         return ExitCode::from(2);
     };

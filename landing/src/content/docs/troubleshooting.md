@@ -34,7 +34,8 @@ says the semantic group was skipped. **Cause:** there is no
 fit predates the index, or the index was built by a different model version and
 was rejected rather than scored wrong. It is never a missing download: the
 embedder is compiled into the binary and works offline. **Safe command:** check
-`[rules]` in `argot.toml`, then `argot fit` to rebuild the index. **Escalate:**
+`[rules]` in `argot.toml`, then `argot fit` locally and commit the refreshed
+snapshot. **Escalate:**
 if a rebuilt index is still rejected, the binary and the artifact disagree on the
 model — reinstall argot and fit again.
 
@@ -42,15 +43,16 @@ model — reinstall argot and fit again.
 
 **Symptom:** `status` or `check` reports drift, stale artifacts, or a config
 change. **Cause:** accepted history or corpus configuration changed after the
-fit. **Safe command:** run `argot status`, then `argot fit` when a refresh is
-needed. **Escalate:** review generated/vendor/data exclusions before refitting;
+fit. **Safe command:** run `argot status`, then `argot fit` locally on the
+accepted branch, review and commit `.argot/` when a refresh is needed.
+**Escalate:** review generated/vendor/data exclusions before refitting;
 see [Health & freshness](/docs/health-and-freshness/).
 
 ## Action, plugin, or pre-commit integration behaves unexpectedly
 
 **Symptom:** a hosted check lacks history, semantic findings, or an expected
-prompt. **Cause:** CI may use a shallow checkout, have a stale or missing fitted
-artifact cache, or apply its own configured rule policy. **Safe command:** compare the workflow
+prompt. **Cause:** CI may use a shallow checkout, a stale or missing committed
+fit snapshot, or its own configured rule policy. **Safe command:** compare the workflow
 with [CI and pre-commit](/docs/ci/) and run the equivalent local command.
 For the Claude plugin, use [Claude Code](/docs/plugin/). **Escalate:** attach
 the command, range, `argot rules --format json`, and non-sensitive stderr to an
