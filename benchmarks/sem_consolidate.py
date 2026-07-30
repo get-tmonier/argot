@@ -15,7 +15,14 @@ Inputs (regenerate the first with `just bench-semantic`):
 
 The fire sets are deterministic at a fixed window, so the labels' genuine-rate applies
 to the sweep's raw fire count (exact when fully labelled, scaled when sampled — the row
-is marked `fp_sampled`). Usage: benchmarks/sem_consolidate.py [--window N]
+is marked `fp_sampled`) — but ONLY within one embedding model. A different embedder
+fires on different pairs, so a genuine-rate adjudicated against another model's fires
+says nothing about this one's. Each label file therefore records the `model` it was
+judged against; a label whose model differs from the sweep's is refused, the derived
+columns go null, and the corpus is listed under `stale_labels` so the page shows a
+measurement gap instead of a number carried over from a model that no longer exists.
+
+Usage: benchmarks/sem_consolidate.py [--window N]
 """
 import json, os, glob, subprocess, sys, datetime
 
@@ -50,13 +57,24 @@ def main():
                 d = json.loads(line)
                 rows[d["corpus"]] = d  # last write wins (a re-run supersedes)
 
-    labels = {}
+    sweep_model = next((r["model"] for r in rows.values() if r.get("model")), None)
+    labels, stale_labels = {}, []
     for f in glob.glob(f"{LABELS}/*.json"):
         try:
             d = json.load(open(f))
-            labels[d["corpus"]] = d
         except Exception:
-            pass
+            continue
+        # Fails CLOSED: an unstamped sweep cannot prove the labels match, and
+        # "we could not check" must not read the same as "it matched".
+        if d.get("model") != sweep_model or sweep_model is None:
+            stale_labels.append(d["corpus"])
+            continue
+        labels[d["corpus"]] = d
+    if stale_labels:
+        why = ("the sweep records no model" if sweep_model is None
+               else "judged against another model")
+        print(f"  ! labels refused ({why}): {', '.join(sorted(stale_labels))}",
+              file=sys.stderr)
 
     f1, f2 = [], []
     for c in sorted(rows):
@@ -103,7 +121,9 @@ def main():
     commit = subprocess.run(["git", "-C", ROOT, "rev-parse", "--short", "HEAD"],
                             capture_output=True, text=True).stdout.strip()
     doc = {"generated_at": datetime.date.today().isoformat(), "commit": commit,
-           "window": WINDOW, "reinvention": f1, "misplacement": f2}
+           "window": WINDOW, "model": sweep_model,
+           "stale_labels": sorted(stale_labels),
+           "reinvention": f1, "misplacement": f2}
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     json.dump(doc, open(OUT, "w"), indent=1)
 

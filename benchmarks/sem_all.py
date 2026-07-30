@@ -26,7 +26,7 @@ Usage:
   benchmarks/sem_all.py --fit-timeout S   # per-fit wall clock (default 2400s)
   benchmarks/sem_all.py --jobs N          # corpora to run concurrently (default 1)
   benchmarks/sem_all.py --out PATH        # results JSONL (default results/sem_all.jsonl)
-Env: ARGOT (binary), ARGOT_SEMANTIC_MODEL (gguf path).
+Env: ARGOT (binary). The embedder ships inside the binary — nothing to fetch.
 """
 import argparse, json, os, subprocess, sys, time, shutil, glob, yaml
 import concurrent.futures, threading
@@ -121,17 +121,37 @@ def fit(repo, env, timeout):
             err = f"fit exceeded {timeout}s (attempt {attempt})"
             continue
         if os.path.exists(idx):
-            return {"ok": True, "secs": round(time.time() - t)}
-        err = "fit produced no semantic-index.json (model offline?)"
+            # Record which embedder built this index. Adjudicated FP labels are
+            # only valid for the model whose fires were judged, so downstream
+            # has to be able to tell one sweep's model from another's.
+            model = None
+            try:
+                m = json.load(open(idx)).get("model") or {}
+                model = f"{m.get('name')}@{(m.get('sha256') or '')[:12]}"
+            except Exception:
+                pass
+            return {"ok": True, "secs": round(time.time() - t), "model": model}
+        err = "fit produced no semantic-index.json"
     return {"ok": False, "error": err}
 
 
 def run_step(argv, env, timeout):
-    """Run a bench sub-script; return (last_json_dict, ok)."""
+    """Run a bench sub-script; return (last_json_dict, ok).
+
+    A non-zero exit is a failure, not a null result. This once returned ok on
+    any exit code, so a sub-script that crashed on an artifact-schema change
+    was recorded as `recall=None` — a silent hole exactly where the harness is
+    supposed to be loud. Stderr goes to the driver's stderr so the reason is
+    visible in the run log.
+    """
     try:
         r = subprocess.run(argv, capture_output=True, text=True, env=env, timeout=timeout)
     except subprocess.TimeoutExpired:
         return {}, False
+    if r.returncode != 0:
+        print(f"  ! {os.path.basename(argv[1])} exited {r.returncode}: "
+              f"{(r.stderr or '').strip()[-400:]}", file=sys.stderr, flush=True)
+        return last_json(r.stdout), False
     return last_json(r.stdout), True
 
 
@@ -148,6 +168,7 @@ def do_corpus(corpus, args, env, fires_dir):
         head = clean(repo, corpus)
         row["head"] = head
         f = fit(repo, env, args.fit_timeout)
+        row["model"] = f.get("model")
         if not f["ok"]:
             row["errors"].append(f"HEAD fit: {f['error']}")
         else:
@@ -160,7 +181,8 @@ def do_corpus(corpus, args, env, fires_dir):
                 bcmd += ["--plant-dir", PLANT_DIR[corpus]]
             jb, ok = run_step(bcmd, env, args.step_timeout)
             row["f1"] = {"recall": jb.get("recall"), "fired": jb.get("fired"),
-                         "planted": jb.get("planted")}
+                         "planted": jb.get("planted"),
+                         "fired_similarity": jb.get("fired_similarity")}
             if not ok or jb.get("planted") is None:
                 row["errors"].append("F1 recall (sem_bench) failed/timed out")
             # F2 placement recall + over-fire, F1 over-fire (index-only)
@@ -216,11 +238,11 @@ def main():
 
     env = dict(os.environ)
     env["ARGOT"] = os.path.join(ROOT, "target", "release", "argot")
-    env.setdefault("ARGOT_SEMANTIC_MODEL",
-                   os.path.expanduser("~/.cache/argot/models/jina-embeddings-v2-base-code-Q4_K_M.gguf"))
-    # Divide the CPU across the N concurrent fits (llama + the engine pool both
-    # honour ARGOT_THREADS). jobs=1 leaves it unset → argot uses all cores, so
-    # the sequential path is byte-for-byte the pre-parallel behaviour.
+    # No model env: the embedder is compiled into the binary. Set
+    # ARGOT_STATIC_MODEL to a model directory to sweep a candidate instead.
+    # Divide the CPU across the N concurrent fits (the engine pool honours
+    # ARGOT_THREADS). jobs=1 leaves it unset → argot uses all cores, so the
+    # sequential path is byte-for-byte the pre-parallel behaviour.
     if args.jobs > 1 and "ARGOT_THREADS" not in env:
         env["ARGOT_THREADS"] = str(max(1, (os.cpu_count() or 1) // args.jobs))
 

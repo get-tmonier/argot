@@ -23,8 +23,8 @@ depends on the repo. **A hit is a prompt to think, never a reason to refuse.**
 ## Two moments
 
 1. **Setup (once per repo).** Fit the voice model and decide what shouldn't
-   shape it. → `argot init` (also builds the semantic index; the first run
-   fetches a ~100 MB local embedding model, one-time), then the **argot-setup**
+   shape it. → `argot init` (also builds the semantic index — the embedding
+   model ships inside the binary, so this needs no network), then the **argot-setup**
    skill for anything with generated/vendored/data directories. See
    [Setup](https://argot.tmonier.com/docs/setup/).
 2. **Check (per change).** Before committing code you generated or edited, score
@@ -174,6 +174,13 @@ A rule may be **locked** (`{ severity = "error", locked = true }` in the committ
 ignored, and a diff that weakens the lock — or edits a locked custom rule's files — fires
 `rule-tampered` (error, unsuppressable). Do not attempt to mute or soften a locked rule;
 surface the finding to the human instead.
+
+## Network
+
+argot needs none to do any of this. Every model it uses ships inside the binary.
+In a sandbox with no egress, `init`, `check`, `audit`, and `review` of a local
+range all work unchanged. The only request argot makes on its own is a
+suppressible once-a-day version check.
 
 ## If the binary disagrees with this document
 

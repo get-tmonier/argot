@@ -23,7 +23,8 @@ new_fn_line..new_fn_line_end; the matched existing fn at
 `git show <fit_sha>:<matched_path>` at matched_line. Written to --fires-out.
 
 Usage: sem_fp.py <corpus_repo> [--window N] [--fires-out path.json] [--lang X]
-Env: ARGOT (semantic binary), ARGOT_SEMANTIC_MODEL (gguf path).
+Env: ARGOT (a binary built with the `semantic` feature). No model env — the
+embedder is compiled in.
 """
 import json, os, re, subprocess, sys
 
@@ -101,7 +102,18 @@ def main():
     git("checkout", "-q", "-f", fit_point)
     subprocess.run([ARGOT, "fit", "--repo", REPO], capture_output=True, text=True)
 
-    sem_index = os.path.exists(os.path.join(REPO, ".argot", "semantic-index.json"))
+    sem_index_path = os.path.join(REPO, ".argot", "semantic-index.json")
+    sem_index = os.path.exists(sem_index_path)
+    # Which embedder produced these fires. An adjudicated genuine/false-alarm
+    # label is only valid for the model that fired, so the record has to say
+    # which one it was — see sem_consolidate.py's label guard.
+    sem_model = None
+    if sem_index:
+        try:
+            m = json.load(open(sem_index_path)).get("model") or {}
+            sem_model = f"{m.get('name')}@{(m.get('sha256') or '')[:12]}"
+        except Exception:
+            pass
     redundant = misplaced = commits_with_fp = scanned = total_hits = hunks_scanned = 0
     fires = []
     degraded = 0
@@ -148,6 +160,7 @@ def main():
         print(f"SEMANTIC DEGRADED on {degraded} replay commits — run invalid", file=sys.stderr)
         sys.exit(1)
     summary = {"corpus": name, "language": LANG, "window": WINDOW, "fit_sha": fit_point,
+               "model": sem_model,
                "replay_commits": scanned, "hunks_scanned": hunks_scanned, "total_hits": total_hits,
                "redundant_fp": redundant, "misplaced_fp": misplaced,
                "commit_fp_rate": round(commits_with_fp / scanned, 4) if scanned else None,

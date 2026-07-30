@@ -12,7 +12,9 @@
 
 [graph]
 # Check the same feature set the shipped binary is built with, so CI sees the
-# real dependency tree (llama.cpp, self-update, etc.), not just the base loop.
+# real dependency tree (self-update, the embedded model's deps, etc.), not
+# just the base loop. Note cargo-deny sees Rust crates only — it cannot check
+# the model weights under crates/argot-rules-semantic/model/ (see NOTICE).
 all-features = true
 
 [advisories]

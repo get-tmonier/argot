@@ -113,10 +113,8 @@ argot init
 ```
 
 Fits the voice, writes `argot.toml` if absent, and builds the semantic index.
-First run downloads the ~100 MB jina-code embedding model to
-`~/.cache/argot/models/` — say so up front so the wait is expected. Offline?
-`ARGOT_SEMANTIC_MODEL` points at a local gguf, `ARGOT_OFFLINE=1` skips it, and a
-failed download is always verbalized, never silent.
+The embedding model ships inside the binary, so nothing is downloaded and this
+works on a machine with no network.
 
 Then read the health **programmatically**:
 
@@ -268,7 +266,7 @@ name: argot
 on:
   pull_request:
   push:
-    branches: [main]   # the run that fits the model every PR then reads
+    branches: [main]   # the run that refreshes the fitted artifacts PRs reuse
 
 permissions:
   contents: read
@@ -289,9 +287,9 @@ Two things must be said, or the tool gets judged on its worst run:
 
 1. **Keep both triggers.** Fitting is nearly the whole cost; the check is
    seconds. The `push` run on the default branch is the *producer* — it fits and
-   publishes the model into a cache slot, after merge, on nobody's critical
-   path. Each `pull_request` is a *consumer* and pays nothing. Drop the `push`
-   trigger and every PR pays the fit.
+   publishes the resulting `.argot/` artifacts into a cache slot, after merge,
+   on nobody's critical path. Each `pull_request` is a *consumer* and pays
+   nothing. Drop the `push` trigger and every PR pays the fit.
 2. **The cache only exists once this workflow is on the default branch.** Until
    it is merged, every PR run is a cold fit and looks slow. Tell them before
    they conclude argot is slow — the first run is the slow one, by design.

@@ -301,10 +301,6 @@ pub fn run_update() -> ExitCode {
     }
 
     println!("Updated to argot {latest}.");
-    // Did this release move the pinned embedding model? Say so now, so the
-    // next fit's ~100 MB download is expected, not a surprise.
-    #[cfg(feature = "semantic")]
-    update_check::model_change_note();
     ExitCode::SUCCESS
 }
 

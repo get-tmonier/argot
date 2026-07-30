@@ -27,14 +27,11 @@ also be [declared in two lines of `argot.toml`](/docs/configure/#migration--decl
 Pure git2 and tree-sitter — no model, no network.
 
 The **reinvention** and **placement** checks share the one neural component: a per-repo
-code-embedding index, built at fit with a small local model (`jina-code`, ~100 MB, statically
-linked via llama.cpp — CPU-first, Metal-accelerated on macOS, fetched once to a local cache on
-first use). Reinvention flags a new function that duplicates one the repo already has (rule
-`redundant`); placement flags a function filed in the wrong module area (rule `misplaced`). No
-cloud, no text generation; turn a function into a vector, look up its neighbours. It runs on CPU
-— a GPU is never required, though on Macs Metal acceleration picks up the embedding pass for
-free. Offline,
-the download is skipped with a printed note — never silently — and the other detectors still run.
+code-embedding index, built at fit with a small model that ships **inside the binary** (15.6 MB
+of distilled weights — nothing to download, no cache to warm, works air-gapped). Reinvention
+flags a new function that duplicates one the repo already has (rule `redundant`); placement flags
+a function filed in the wrong module area (rule `misplaced`). No cloud, no text generation, no
+GPU; turn a function into a vector, look up its neighbours.
 
 The **architecture check** builds a module-dependency graph of your repo at fit and flags an
 added internal import that reverses the repo's established layer direction (rule `layering`). Pure
@@ -48,9 +45,14 @@ loosened (rule `test-weakened`) — each only alongside a production-code change
 tests-only commit. The gates for which events fire are learned per repo at fit, from a replay of the
 repo's own accepted history. No model, no network — pure Rust and tree-sitter.
 
-The embedding model is [jina-embeddings-v2-base-code](https://huggingface.co/jinaai/jina-embeddings-v2-base-code)
-by Jina AI (Apache-2.0), run via [llama.cpp](https://github.com/ggml-org/llama.cpp) (MIT). argot
-is not affiliated with Jina AI.
+The embedding model is a static token-embedding table argot distilled from
+[jina-embeddings-v2-base-code](https://huggingface.co/jinaai/jina-embeddings-v2-base-code) by Jina
+AI (Apache-2.0), using the [model2vec](https://github.com/MinishLab/model2vec) technique (MIT). It
+is a table lookup and an average, not a transformer — which is why it needs no C++ backend, no
+accelerator and no download, and why embedding a repo takes seconds rather than tens of minutes.
+The inference is argot's own Rust. Provenance and licenses: the repository
+[`NOTICE`](https://github.com/get-tmonier/argot/blob/main/NOTICE). argot is not affiliated with
+Jina AI.
 
 ## The mental model
 
@@ -133,7 +135,7 @@ every diff).
 at check time — and the **layering graph** (`.argot/layering.json`), the module-dependency graph
 the architecture detector checks new imports against. (`scorer-config.json` is unchanged; each
 artifact lives in its own file.) Turn the `semantic` rule group off and fit skips the embedding
-work entirely — no model download, no index.
+work entirely — no embedding pass, no index.
 
 ### Check
 

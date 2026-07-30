@@ -180,7 +180,7 @@ package or area than the one it was filed under:
 Same posture — a nudge to check whether a helper landed in the wrong module, pinned to the
 `unusual` confidence tier and configurable per rule (`misplaced = "warn"`, or `semantic = "off"` to
 turn the whole group off). Both `redundant` and `misplaced` come from a per-repo code-embedding
-index (`jina-code`, ~100 MB, local, CPU-first — no cloud, no LLM). See
+index, built with a small model compiled into the binary — local, no download, no cloud, no LLM. See
 [How it works](/docs/how-it-works/) for the mechanics.
 
 ## Layering — an import that breaks your architecture

@@ -17,6 +17,13 @@ git clone https://github.com/get-tmonier/argot && cd argot
 just build          # cargo build --release -p argot → target/release/argot
 ```
 
+The clone carries ~17.5 MB of committed model weights
+(`crates/argot-rules-semantic/model/`) — the semantic layer's embedder, which
+`include_bytes!` needs at compile time. Every clone pays it, including one that
+never builds the `semantic` feature. Why it is in git rather than downloaded by
+a `build.rs`, and what was rejected:
+[`model/README.md`](crates/argot-rules-semantic/model/README.md).
+
 Optionally, [`mise`](https://mise.jdx.dev/) installs the peripheral tooling
 (`just`, `lefthook`, and `bun` for the landing site):
 

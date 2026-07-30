@@ -106,16 +106,11 @@ toml_edit = "0.25"
 # anonymous 60 req/h rate limit. self-replace is the Windows-only cleanup of
 # the parked old binary after an in-place update (unix needs no dance).
 self-replace = "1.5"
-# Semantic layer (feature-gated `semantic`, off by default): llama.cpp linked
-# statically for in-process code embeddings (jina-code Q4 GGUF). Same in-process
-# C-dep shape as git2/libgit2. Metal is enabled per-target in argot-core. None
-# of these touch the base statistical path — they exist only under `semantic`.
-llama-cpp-2 = { version = "0.1.151", default-features = false }
-# One-time fetch-on-first-use of the ~90 MB GGUF (blocking, rustls TLS — pure
-# Rust, preserves the static-binary story). Feature-gated behind `semantic`
-# and `self-update` (version.json + installer fetch).
+# HTTP client for `self-update` (version.json + installer fetch). The semantic
+# model is embedded in the binary, so enabling `semantic` does not add a model
+# download path.
 ureq = { version = "2", default-features = false, features = ["tls"] }
-# f16 storage for the semantic index vectors (~4 MB / 2.6k fns in the artifact).
+# f16 canonicalisation of embedding vectors, and f16/bf16 weight decoding.
 half = { version = "2", features = ["serde"] }
 # Compact base64 packing of the f16 index vectors in the (gitignored) artifact.
 base64 = "0.22"

@@ -28,10 +28,11 @@
 
 pub mod detector;
 pub mod embed_cache;
-pub mod embedder;
+pub mod embedding;
 pub mod index;
 pub mod placement;
 pub mod redundant;
+pub mod static_embedder;
 
 pub use detector::SemanticDetector;
 

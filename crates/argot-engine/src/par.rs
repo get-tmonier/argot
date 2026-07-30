@@ -12,8 +12,8 @@ use std::num::NonZeroUsize;
 
 /// Global worker-thread cap from `ARGOT_THREADS` (≥ 1): the one operational
 /// knob for sharing a machine — a pre-commit fit shouldn't saturate every
-/// core. Honored by every heavy phase (this pool and the embedder's llama
-/// threads). Unset or invalid → no cap.
+/// core. Honored by every heavy phase that runs through this pool. Unset or
+/// invalid → no cap.
 pub fn thread_cap() -> Option<usize> {
     parse_thread_cap(std::env::var("ARGOT_THREADS").ok().as_deref())
 }

@@ -26,14 +26,14 @@ current tree, `argot --help` run directly). Shipped release features (`dist-work
 
 | Capability | Current status | Evidence | Strategic role | Public claim allowed? | Gap / next action |
 |---|---|---|---|---|---|
-| `argot audit` | Exists and verified | `crates/argot-cli/src/audit/`; `audit/mod.rs` fits a temp worktree at the base commit, user tree untouched; `window.rs` default 50 commits, cap 1000 | Acquisition front door (North Star step 1) | Yes | Verify first-run wall-clock on large repos; keep "zero setup" honest about the first-run model download |
+| `argot audit` | Exists and verified | `crates/argot-cli/src/audit/`; `audit/mod.rs` fits a temp worktree at the base commit, user tree untouched; `window.rs` default 50 commits, cap 1000 | Acquisition front door (North Star step 1) | Yes | Verify first-run wall-clock on large repos |
 | — zero setup (no prior fit) | Exists and verified | Fits its own temporary model; `the-commands.md` "works on a fresh clone with no setup" | Removes activation friction | Yes | — |
 | — AI vs human attribution | Exists with limitations | `audit/attribution.rs`: allowlist of agent emails / bot slugs / commit-footer markers; "human" = "no markers found"; AI share is a floor, not a census | Makes the audit story concrete and honest | Yes, with qualification (say "attributed from commit markers; a floor, not a census") | — |
 | — shareable HTML card + caption | Exists and verified | `audit/html.rs` (self-contained, no external requests); `audit/report.rs::share_caption` | Virality of the front door | Yes | — |
 | `argot check` | Exists and verified | `main.rs` `run_check_cmd`; scores workdir/ref/range/commit/staged | The retention interaction (manual today) | Yes | See "acceptance-moment auto-run" |
 | — requires prior fit | Exists and verified | `crates/argot-rules-voice/src/load.rs` errors exit 2 "run `argot init` first" if no `scorer-config.json` | Setup is a precondition of check | Yes, with qualification | Onboarding must make fit near-automatic |
 | Fit / setup (`init`, `fit`) | Exists and verified | `main.rs` `fit_repo` = train + calibrate; `init` adds health report + `.argot/.gitignore` | Precondition for check/review/conventions/mcp | Yes | — |
-| Semantic model download (~100 MB) | Exists with limitations | `crates/argot-rules-semantic/src/embedder.rs` fetches jina GGUF on first semantic use; base check needs no model; self-gates and degrades offline | Powers `redundant`/`misplaced` only | Yes, with qualification (one-time, only if semantic on) | — |
+| Embedded semantic model (no download) | Exists and verified | `crates/argot-rules-semantic/src/static_embedder.rs` `include_bytes!`s a 15.6M-parameter distilled table (int8, 256-d) + its tokenizer from `crates/argot-rules-semantic/model/`; nothing is fetched, cached or checksummed at runtime | Powers `redundant`/`misplaced` only | Yes (analysis needs no network at all) | Weights are Apache-2.0-derived and attributed in `NOTICE`; the ~17.5 MB in git is disclosed in `CONTRIBUTING.md` and `crates/argot-rules-semantic/model/README.md` |
 | Daily pre-acceptance auto-run | **Partially implemented** | Only automatic wiring is the **pre-write** `PreToolUse` hook (`hooks/hooks.json`, `crates/argot-cli/src/hook.rs`), Claude Code plugin only, fitted repos only, `foreign-import` only, "ask" not block. No post-generation / pre-accept auto-run. Commit-time check is manual / agent-chosen / user-wired pre-commit | The core habit the strategy is built on | **No, not yet** (do not claim Argot runs automatically at the acceptance moment) | P0 gap — see `ARGOT_PRODUCT_GAPS.md` |
 | Pre-write "ask before a foreign dep" guardrail | Exists and verified | `hook.rs::assess` returns `permissionDecision: "ask"` on `foreign-import`; never blocks; no-op until fitted | The nearest real thing to acceptance-moment awareness | Yes, with qualification (Claude Code only, pre-write, ask-only, opt-in via plugin/fit) | — |
 | Claude Code plugin | Exists and verified | `.claude-plugin/plugin.json` bundles six skills + `argot mcp` + the pre-write hook; install `/plugin marketplace add` then `/plugin install` | Primary distribution into an agent | Yes | — |
@@ -58,7 +58,7 @@ current tree, `argot --help` run directly). Shipped release features (`dist-work
 | Accumulated local history of findings | **Partially implemented** | `.argot/` persists model artifacts (`scorer-config.json`, `semantic-index.json`, `integrity.json`, `layering.json`, `health.json`, `suppressions.yaml`); `.argot/last-check.json` caches **only the most recent** run's hits (overwritten each run) | Foundation seed for F2/F3 record | **No, not yet** (do not claim a durable finding history) | P2 gap |
 | Distribution (installers, npm) | Exists and verified | cargo-dist shell + powershell installers; npm `@tmonier/argot`; macOS arm64/x64, Linux x64/arm64, Windows x64 | Zero-cost install | Yes | — |
 | Self-update + update check | Exists and verified | `update.rs` (`self-update` feature); `update_check.rs` opt-out GET of `version.json`, ≤1/24h | Maintenance | Yes | — |
-| Telemetry / usage analytics | Exists and verified (as absence) | No analytics/telemetry code in `crates/`; only egress is model download + opt-out update check (+ `review` fetching a PR diff) | Privacy / neutrality (a trust asset) | Yes, with qualification (see §3) | — |
+| Telemetry / usage analytics | Exists and verified (as absence) | No analytics/telemetry code in `crates/`; only egress is the opt-out update check (+ `review` fetching a PR diff) | Privacy / neutrality (a trust asset) | Yes, with qualification (see §3) | — |
 | Retention / audit-to-habit measurement | **Planned but absent** | No instrumentation exists; the North Star cannot be measured directly today | Measures the North Star | **No, not yet** (do not imply retention is observed) | See `ARGOT_STRATEGY.md` §"North Star measurability" |
 
 ---
@@ -70,7 +70,7 @@ Source: `README.md:265-268`, backed by `landing/src/data/*.json`. Reproduce via 
 
 - **Foreign catch — 595/605 (98%)** when the foreign symbol is visible in the diff; **false alarms 0.29%** of 22,513 real hunks (worst corpus 1.46%). Backing: `landing/src/data/foreign.json`, `benchmarks/latest.json` (`worst_fp_existing_overfire_pct` 1.46%).
 - **Architecture — 244/252 (96.8%)**, 0/140 controls, ≤2.7% over-fire (README). Note: the newer CI data file `landing/src/data/arch.json` (2026-07-20) aggregates to **264/272 (97.1%), 0/148, worst 2.7%** — the README figure is slightly stale versus the data file. Prefer the data file.
-- **Reinvention — median 89%** at ≤4.5% false fires per hunk; **Misplacement — 85–99% (median 96%)** at ≤1.2%. Backing: `landing/src/data/semantic.json` (window 150).
+- **Reinvention — 545/584 (93.3%), median 94%** across 31 corpora; **Misplacement — 12,899/13,456 (95.9%), median 96%** across the 22 evaluable corpora (nine abstain). Raw clean-commit semantic fires are recorded separately and prior human labels are refused when their embedder differs. Backing: `landing/src/data/semantic.json` (window 150, static model).
 - **Test-integrity — 144/153 (94.1%)**, 0/102 controls, 1.12% of 5,268 replayed accepted test-touching commits flagged. Backing: README + `docs/research/evidence/test-integrity-*.md`.
 - **Documented blind spot:** masked foreign (a foreign symbol whose name collides with one already in use) is statistically invisible to the voice model; published, not hidden.
 
@@ -90,14 +90,13 @@ See the P1 gap in `ARGOT_PRODUCT_GAPS.md`.
 Argot performs **no telemetry** and sends **no usage data or source code** anywhere. There are
 exactly these outbound requests, all local-first-compatible:
 
-1. **Model download** — a one-time ~100 MB GGUF fetch from GitHub releases on first semantic use, cached in `~/.cache/argot`. Skipped if semantic rules are off; degrades gracefully offline.
-2. **Update check** — a passive, ETag-conditional GET of `https://argot.tmonier.com/version.json`, at most once per 24h per machine, "notify, don't install." Silenced by non-tty stderr, `CI`, `--quiet`, machine output formats, `ARGOT_OFFLINE`, `ARGOT_UPDATE_CHECK=0`, or `[update] check = false`.
-3. **`argot review` / `argot update`** — fetch a PR diff and release installers respectively, only when the user runs those commands.
+1. **Update check** — a passive, ETag-conditional GET of `https://argot.tmonier.com/version.json`, at most once per 24h per machine, "notify, don't install." Silenced by non-tty stderr, `CI`, `--quiet`, machine output formats, `ARGOT_OFFLINE`, `ARGOT_UPDATE_CHECK=0`, or `[update] check = false`.
+2. **`argot review` / `argot update`** — fetch a PR diff and release installers respectively, only when the user runs those commands.
 
 `ARGOT_OFFLINE=1` disables all network. The precise honest claim is: **all analysis runs locally
 and nothing about your code or usage leaves your machine; the only default outbound traffic is a
-suppressible once-daily version check and a one-time model download.** Avoid the unqualified
-"nothing ever leaves your machine."
+suppressible once-daily version check.** Avoid the unqualified "nothing ever leaves your machine" —
+`argot review` and `argot update` are network commands the user invokes deliberately.
 
 ---
 

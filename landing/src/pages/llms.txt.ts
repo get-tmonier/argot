@@ -88,12 +88,13 @@ export const GET: APIRoute = async () => {
       `result: ${integrityHistoryClaim}. Rules (group ` +
       '`integrity`): `test-deleted`, `test-disabled`, `test-weakened` (ships `warn`).',
     '',
-    'The semantic layer runs a small local code-embedding model (`jina-embeddings-v2-' +
-      'base-code`, Q4 GGUF, ~100 MB, fetched once on first use, statically linked via ' +
-      'llama.cpp — CPU-first, Metal-accelerated on macOS). It turns a function into a ' +
-      'vector — no cloud, no text generation, nothing leaves your machine. ' +
-      'Offline, the semantic rules skip with a clear note and the rest still runs ' +
-      '(`argot model fetch` pre-downloads; `ARGOT_OFFLINE=1` never touches the network).',
+    'The semantic layer runs a code-embedding model compiled INTO the binary: a ' +
+      '15.6 MB static token-embedding table argot distilled from `jina-embeddings-v2-' +
+      'base-code` (Apache-2.0) with the model2vec technique. There is nothing to ' +
+      'download, no cache to warm and no accelerator — a fit works on an air-gapped ' +
+      'machine, on the first run. It turns a function into a vector — no cloud, no ' +
+      'text generation, nothing leaves your machine. `ARGOT_OFFLINE=1` never touches ' +
+      'the network and changes no rule result.',
     '',
     '**Beyond the learned six — your own rules.** A repo can drop scripted rules under ' +
       '`.argot/rules/<name>/` (a TOML manifest + a sandboxed Rhai script, group `custom`): ' +

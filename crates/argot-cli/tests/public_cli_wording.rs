@@ -36,27 +36,6 @@ const PUBLIC_HELP: &[(&str, &[&str])] = &[
     ("conventions", &["conventions"]),
 ];
 
-fn public_help() -> Vec<(&'static str, &'static [&'static str])> {
-    let binary_has_model_command = Command::new(env!("CARGO_BIN_EXE_argot"))
-        .arg("--help")
-        .output()
-        .expect("run root help")
-        .stdout
-        .windows(b"\n  model ".len())
-        .any(|window| window == b"\n  model ");
-    if binary_has_model_command {
-        let mut commands = PUBLIC_HELP.to_vec();
-        commands[0] = ("root-semantic", &[]);
-        commands.push(("model", &["model"]));
-        commands.push(("model-fetch", &["model", "fetch"]));
-        commands.push(("model-status", &["model", "status"]));
-        commands.push(("model-clean", &["model", "clean"]));
-        commands
-    } else {
-        PUBLIC_HELP.to_vec()
-    }
-}
-
 const FORBIDDEN_PHRASES: &[&str] = &[
     "voice linter",
     "your codebase has a voice",
@@ -100,9 +79,9 @@ fn expected_help(name: &str) -> String {
 
 #[test]
 fn every_public_command_help_matches_its_reviewed_snapshot() {
-    for (name, args) in public_help() {
+    for (name, args) in PUBLIC_HELP {
         let output = Command::new(env!("CARGO_BIN_EXE_argot"))
-            .args(args)
+            .args(*args)
             .arg("--help")
             .env("NO_COLOR", "1")
             .output()

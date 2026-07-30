@@ -499,8 +499,9 @@ const fireCell = (fires: number | null, hunks: number | null, pct: number | null
 
           <h2 id="reinvention" class="mt-16 scroll-mt-20 text-2xl font-bold tracking-tight">2 · Reinvention <span class="align-middle text-sm font-normal text-muted">· rule <code class="text-xs">redundant</code></span></h2>
           <p class="mt-3 leading-relaxed text-ink-dim">
-            A local code-embedding index (jina-code, ~100 MB, runs on your machine) finds
-            a new function that reimplements one the repo already has.
+            A local code-embedding index — built with a 15.6 MB model compiled into the
+            binary, nothing to download — finds a new function that reimplements one the
+            repo already has.
             <strong>Catch is high</strong> — parallel agents write faithful reimplementations
             of a repo's own functions (renamed, restructured); planted as new code, argot
             flags them <code class="text-xs">redundant</code>

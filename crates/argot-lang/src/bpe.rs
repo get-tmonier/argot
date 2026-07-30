@@ -11,7 +11,8 @@ use tokenizers::Tokenizer;
 
 /// The serialised `microsoft/unixcoder-base` fast tokenizer, exported from
 /// the Python `transformers` backend. Embedding keeps the binary a single
-/// self-contained artifact (no HF Hub round-trip, no torch).
+/// self-contained artifact (no HF Hub round-trip, no torch). Redistributed
+/// under Apache-2.0 — see the repository `NOTICE`.
 const TOKENIZER_JSON: &[u8] = include_bytes!("../data/unixcoder_tokenizer.json");
 
 /// Byte-level BPE tokenizer — the production scoring path.

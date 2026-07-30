@@ -70,20 +70,12 @@ const updated = '17 July 2026';
       <div>
         <h2 class="text-xl font-semibold tracking-tight">Network activity</h2>
         <p class="mt-3 leading-relaxed text-ink-dim text-pretty">
-          The analysis path works fully offline. The binary can make outbound requests in the
-          following cases — none upload your code, git history, findings, or usage data:
+          The analysis path works fully offline — including the semantic checks, whose embedding
+          model is compiled into the binary rather than downloaded. The binary can make outbound
+          requests in exactly two cases, neither of which uploads your code, git history, findings,
+          or usage data:
         </p>
         <ul class="mt-3 flex flex-col gap-3 text-ink-dim">
-          <li class="flex gap-2.5">
-            <span class="text-ember">—</span>
-            <span
-              ><strong class="font-medium text-ink">Model download (once, optional).</strong> The first
-              time the semantic checks run, argot fetches a code-embedding model (~100&nbsp;MB,
-              checksum-pinned) from its public release host to a local cache
-              (<code class="text-ink">~/.cache/argot/models</code>). This downloads a file; it uploads
-              nothing.</span
-            >
-          </li>
           <li class="flex gap-2.5">
             <span class="text-ember">—</span>
             <span
@@ -104,8 +96,8 @@ const updated = '17 July 2026';
         </ul>
         <p class="mt-3 leading-relaxed text-ink-dim text-pretty">
           Set <code class="text-ink">ARGOT_OFFLINE=1</code> to forbid all network access: argot then
-          skips the model download and the update check entirely, and says so rather than failing
-          silently.
+          skips the update check, and says so rather than failing silently. Every rule still runs —
+          there is nothing else to fetch.
         </p>
       </div>
 

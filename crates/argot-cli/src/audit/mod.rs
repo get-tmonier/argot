@@ -420,7 +420,7 @@ fn group_statuses(
             } else if group == rules::GROUP_SEMANTIC
                 && !worktree_argot.join("semantic-index.json").is_file()
             {
-                Some("embedding model not available (offline?)".to_string())
+                Some("no semantic index was built at fit".to_string())
             } else if group == rules::GROUP_INTEGRITY
                 && !worktree_argot.join("integrity.json").is_file()
             {

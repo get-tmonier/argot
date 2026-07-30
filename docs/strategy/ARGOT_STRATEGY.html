@@ -191,7 +191,7 @@
             <tr><td><code>argot check</code></td><td><span class="label reality">Reality</span></td><td>Real, but requires a prior fit; human/json/sarif/github; non-blocking by severity tier.</td></tr>
             <tr><td>Detectors (foreign, superseded, redundant, misplaced, layering, integrity, custom, locked, rule-tampered)</td><td><span class="label reality">Reality</span></td><td>All ship in the release binary.</td></tr>
             <tr><td>CI Action, SARIF/JSON/annotations, badge</td><td><span class="label reality">Reality</span></td><td>Non-blocking by default. JSON "stable by intent," no versioned schema file.</td></tr>
-            <tr><td>Privacy / no telemetry</td><td><span class="label reality">Reality</span></td><td>Only default egress: a suppressible once-per-24h update check + one-time ~100MB model download.</td></tr>
+            <tr><td>Privacy / no telemetry</td><td><span class="label reality">Reality</span></td><td>Only default egress: a suppressible once-per-24h update check. The embedding model ships inside the binary, so analysis needs no network.</td></tr>
             <tr><td>Accept-time auto-run</td><td><span class="label requirement">Requirement</span></td><td>Only a <em>pre-write</em> foreign-import "ask" guardrail is automatic (Claude Code). Commit-time check is manual / agent-chosen / user-wired.</td></tr>
             <tr><td>Durable finding history</td><td><span class="label requirement">Requirement</span></td><td>Only model artifacts + a single-run <code>last-check.json</code> persist.</td></tr>
             <tr><td>Retention measurement</td><td><span class="label requirement">Requirement</span></td><td>No instrumentation; North Star not directly observable (§8).</td></tr>
@@ -281,7 +281,7 @@
       <div class="body">
         <h3>Authoritative analytical path</h3>
         <p>The logic that detects findings, computes scores, determines severity, decides rule violations, produces machine-readable evidence, and affects exit codes or enforcement.</p>
-        <p class="stmt" data-label="reality"><span class="label reality">Current reality</span> This path is statistics (frequency tables + callee clustering) plus, for <code>redundant</code>/<code>misplaced</code>, a <strong>local, deterministic code-embedding encoder</strong> (jina-code via statically linked llama.cpp). The encoder turns code into vectors; it is not generative or opinion-forming. <code>layering</code> uses a dependency graph; integrity uses a tree-sitter test inventory. All local, all reproducible.</p>
+        <p class="stmt" data-label="reality"><span class="label reality">Current reality</span> This path is statistics (frequency tables + callee clustering) plus, for <code>redundant</code>/<code>misplaced</code>, a <strong>local, deterministic code-embedding encoder</strong> (a distilled static table compiled into the binary). The encoder turns code into vectors; it is not generative or opinion-forming. <code>layering</code> uses a dependency graph; integrity uses a tree-sitter test inventory. All local, all reproducible.</p>
         <p class="stmt" data-label="decision"><span class="label decision">Standing decision (D12)</span> The authoritative path must remain reproducible, inspectable, runnable without any <strong>generative</strong> LLM, stable for automation, and grounded in checkable evidence. "No LLM in the core" means no generative or opinion-forming model decides a finding, score, severity, or CI outcome. It does not forbid the existing deterministic encoder, which is part of the core.</p>
         <h3>Optional non-authoritative assistance</h3>
         <p>A future LLM <strong>may</strong> explain a finding, help with docs, summarize, onboard, suggest a remediation, or draft a custom rule for human review. It must <strong>never</strong> silently create a finding, alter a score/severity, decide CI pass/fail, replace evidence, or become mandatory for the core local workflow.</p>
@@ -309,7 +309,7 @@
             <tr><td>D10</td><td>"Voice" demoted to a secondary brand/visual metaphor; never carries the explanatory load.</td><td>Active</td><td>Research shows "voice" is the phrase users actually adopt.</td></tr>
             <tr><td>D11</td><td>Keep the four positioning layers separate; no one-slogan compression.</td><td>Active</td><td>—</td></tr>
             <tr><td>D12</td><td>No generative/opinion-forming model in the authoritative core; the local deterministic encoder is permitted.</td><td>Active</td><td>A deliberate architecture change, explicitly recorded.</td></tr>
-            <tr><td>D13</td><td>Local-first, no default telemetry; only default egress is a suppressible update check + one-time model download; retention measurement must be opt-in.</td><td>Active</td><td>A deliberate, documented reversal; none intended.</td></tr>
+            <tr><td>D13</td><td>Local-first, no default telemetry; the only default egress is a suppressible update check; retention measurement must be opt-in.</td><td>Active</td><td>A deliberate, documented reversal; none intended.</td></tr>
             <tr><td>D14</td><td>Signal quality is existential; no detector ships default-gating above a defined noise threshold.</td><td>Active</td><td>— (threshold tunable; principle holds).</td></tr>
           </tbody>
         </table></div>
@@ -472,7 +472,7 @@
             <tr><td>"A repository-grounded check."</td><td>"An AI governance platform."</td><td>Premature governance framing (D6).</td></tr>
             <tr><td>"Runs locally; reproducible; no generative LLM in the core."</td><td>"No models at all." / "Deterministic verification is our moat."</td><td>A local encoder IS used (§9); determinism is erodable as a moat.</td></tr>
             <tr><td>"The onboarding aims to run it at the acceptance moment."</td><td>"Argot runs automatically before you accept."</td><td>Accept-time auto-run is a Requirement, not shipped (§6).</td></tr>
-            <tr><td>"All analysis is local; the only default egress is a suppressible update check and a one-time model download."</td><td>"Nothing ever leaves your machine."</td><td>Precise and true (§8).</td></tr>
+            <tr><td>"All analysis is local; the only default egress is a suppressible update check."</td><td>"Nothing ever leaves your machine."</td><td>Precise and true (§8).</td></tr>
             <tr><td>"Attributed from commit markers; a floor, not a census."</td><td>"It knows which code the AI wrote."</td><td>Attribution is marker-based.</td></tr>
           </tbody>
         </table></div>
@@ -543,7 +543,7 @@
       <div class="body">
         <ul>
           <li><strong>2026-07-22 — Open-source framing pass.</strong> Corrected language implying Argot is a company/startup, and moved value-capture out of the narrative. Argot is an open-source product whose long-term form is deliberately undecided; the strategy stays agnostic about how value is eventually captured (neither assumed nor rejected) and answers only why the product should exist. Reframed "retention engine is the company," "durable business," "highest-EV business / SaaS," and "company moat" into project/product/adoption language. Internal evidence gates (§15) and the free-check commitment (D7) are unchanged in substance. No strategic conclusion, product decision, roadmap, or gate changed.</li>
-          <li><strong>2026-07-22 — Hardening pass.</strong> Verified every claim against the repo (<code>ARGOT_CURRENT_REALITY.md</code>). Reframed accept-time auto-run as a Requirement; scoped D12 to "no generative model in the core" (a local deterministic encoder is used and permitted); qualified local-first with the update check + model download; downgraded "retention engine is the company" and future probabilities to hypotheses/scenario tools; made D7 and D13 precise; added §8 measurability, §9 trusted-core, §10 register, §22 contributor test. Full before/after: <code>ARGOT_STRATEGY_CHANGELOG.md</code>.</li>
+          <li><strong>2026-07-22 — Hardening pass.</strong> Verified every claim against the repo (<code>ARGOT_CURRENT_REALITY.md</code>). Reframed accept-time auto-run as a Requirement; scoped D12 to "no generative model in the core" (a local deterministic encoder is used and permitted); qualified local-first with the then-current update check + model download; downgraded "retention engine is the company" and future probabilities to hypotheses/scenario tools; made D7 and D13 precise; added §8 measurability, §9 trusted-core, §10 register, §22 contributor test. Full before/after: <code>ARGOT_STRATEGY_CHANGELOG.md</code>.</li>
           <li><strong>2026-07-22 — D10.</strong> Demote "voice" to brand/visual layer.</li>
           <li><strong>2026-07-22 — D6.</strong> Conviction on foundation, options on destination; reject governance-inevitability.</li>
           <li><strong>2026-07-22 — D4.</strong> Retention engine framed as awareness, not defect detection.</li>

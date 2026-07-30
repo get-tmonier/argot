@@ -1,5 +1,10 @@
 # Semantic layer — F1 reinvention clean-commit false-positive audit + fix
 
+> **Historical transformer result.** This report describes the former GGUF
+> embedder. The shipped static embedder was re-measured end to end on 2026-07-29;
+> use [`static-embedder-P4-production-benchmark.md`](static-embedder-P4-production-benchmark.md)
+> and `landing/src/data/semantic.json` for current recall and raw-fire figures.
+
 **Date:** 2026-07-08 · **Branch:** `feat/semantic-layer`
 
 ## Why this exists

@@ -1,23 +1,24 @@
 //! `argot cache` — inspect and clear the machine-wide cache
-//! (`~/.cache/argot`). Two kinds of regenerable state live there:
+//! (`~/.cache/argot`): `embeddings/`, the content-addressed embedding cache
+//! that makes repeat fits/audits fast.
 //!
-//! - `models/` — the downloaded embedding model (~100 MB, re-fetched on next
-//!   use if removed),
-//! - `embeddings/` — the content-addressed embedding cache that makes repeat
-//!   fits/audits fast (re-computed on next fit if removed).
+//! It is a pure accelerator — deleting it only costs recompute, never
+//! correctness. Plain filesystem work, so this is base functionality: it needs
+//! no build feature and works whether or not the semantic layer is compiled in.
 //!
-//! Both are pure accelerators — deleting them only costs recompute/redownload,
-//! never correctness. Plain filesystem work, so this is base functionality: it
-//! needs no build feature and works whether or not the semantic layer is
-//! compiled in.
+//! It also reclaims `models/` if it is there. Versions before the embedder
+//! moved into the binary downloaded a ~100 MB model into that directory;
+//! nothing writes it now, so an upgraded install would otherwise carry the
+//! orphan forever with no command that removes it.
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-/// Subdirectories of the cache root, by role. Stable paths, kept in sync with
-/// `argot_core::cache` (models) and the embedding cache (`embeddings/`).
-const MODELS: &str = "models";
+/// The embedding cache, relative to the cache root.
 const EMBEDDINGS: &str = "embeddings";
+/// Where pre-0.2.112 argot downloaded the embedding model. Dead, but still on
+/// disk for anyone who ran one of those versions.
+const LEGACY_MODELS: &str = "models";
 
 /// Human-readable byte size (binary units).
 fn human(bytes: u64) -> String {
@@ -63,15 +64,20 @@ fn run_status() -> ExitCode {
         );
         return ExitCode::SUCCESS;
     }
-    let models = dir_size(&root.join(MODELS));
     let embeddings = dir_size(&root.join(EMBEDDINGS));
+    let legacy = dir_size(&root.join(LEGACY_MODELS));
     let total = dir_size(&root);
     println!("argot cache — {}", root.display());
-    println!("  model         {}", human(models));
     println!("  embeddings    {}", human(embeddings));
+    if legacy > 0 {
+        println!(
+            "  model         {} (left by an older argot — no longer used)",
+            human(legacy)
+        );
+    }
     println!("  total         {}", human(total));
     println!();
-    println!("Clear it with `argot cache clear` (embeddings) or `argot cache clear --all` (also the model).");
+    println!("Clear it with `argot cache clear`.");
     ExitCode::SUCCESS
 }
 
@@ -93,26 +99,20 @@ fn clear_one(dir: &PathBuf, label: &str) -> u64 {
     }
 }
 
-/// `argot cache clear [--all]` — drop the embedding cache (and, with `--all`,
-/// the downloaded model too). The update-check state is left alone.
-fn run_clear(all: bool) -> ExitCode {
+/// `argot cache clear` — drop the embedding cache, plus the model directory an
+/// older argot may have left. The update-check state is left alone.
+fn run_clear() -> ExitCode {
     let Ok(root) = argot_core::cache::cache_dir() else {
         eprintln!("cache: could not resolve a cache directory (no HOME / XDG_CACHE_HOME).");
         return ExitCode::FAILURE;
     };
     let mut freed = clear_one(&root.join(EMBEDDINGS), "embedding cache");
-    if all {
-        freed += clear_one(&root.join(MODELS), "downloaded model");
-    }
+    freed += clear_one(&root.join(LEGACY_MODELS), "model left by an older argot");
     if freed == 0 {
         println!("Nothing to clear — the cache was already empty.");
     } else {
         println!("Reclaimed {}.", human(freed));
-        if all {
-            println!("The model re-downloads and functions re-embed on the next fit.");
-        } else {
-            println!("Functions re-embed on the next fit; the model is untouched.");
-        }
+        println!("Functions re-embed on the next fit.");
     }
     ExitCode::SUCCESS
 }
@@ -120,7 +120,7 @@ fn run_clear(all: bool) -> ExitCode {
 pub fn run(action: Option<CacheAction>) -> ExitCode {
     match action {
         None => run_status(),
-        Some(CacheAction::Clear(args)) => run_clear(args.all),
+        Some(CacheAction::Clear) => run_clear(),
     }
 }
 
@@ -134,15 +134,8 @@ pub struct CacheCmd {
 
 #[derive(Subcommand)]
 pub enum CacheAction {
-    /// Delete the embedding cache (and, with --all, the downloaded model).
-    Clear(CacheClearArgs),
-}
-
-#[derive(Args)]
-pub struct CacheClearArgs {
-    /// Also remove the downloaded embedding model (re-fetched on next use).
-    #[arg(long)]
-    pub all: bool,
+    /// Delete the embedding cache (functions re-embed on the next fit).
+    Clear,
 }
 
 #[cfg(test)]

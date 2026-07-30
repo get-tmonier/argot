@@ -25,9 +25,8 @@ state. A finding therefore means “would have prompted review before merge,” 
 bug.”
 
 Audit can render `terminal`, `json`, `markdown`, or `html`. Successful audits always exit 0;
-failure to set up or inspect the history exits 2. The local embedding model may be downloaded on
-first semantic use, so use `argot model fetch` before an offline run if the semantic rules matter
-to you.
+failure to set up or inspect the history exits 2. It runs entirely offline — the embedding model
+the semantic rules use ships inside the binary.
 
 ## Use the result as a habit
 

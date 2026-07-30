@@ -109,7 +109,16 @@ def load_langs(path):
         dim, cnt = ld["dim"], ld["count"]
         if cnt == 0:
             continue
-        flat = struct.unpack("<%de" % (cnt * dim), raw)
+        # int8 codes with one shared scale (index.rs `to_json`). Re-normalising
+        # below cancels the scale, so decoding the codes is enough — but do it
+        # explicitly, so a future dtype change fails loudly instead of scoring
+        # a garbage space. Anything other than one byte per component means the
+        # artifact schema moved and this mirror is stale.
+        if len(raw) != cnt * dim:
+            raise SystemExit(
+                f"index vector blob is {len(raw)} bytes for {cnt}x{dim} int8 "
+                f"— sem_analysis mirrors an older artifact layout")
+        flat = struct.unpack("<%db" % (cnt * dim), raw)
 
         def norm(v):
             n = math.sqrt(sum(x * x for x in v)) or 1.0

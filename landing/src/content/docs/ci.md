@@ -17,7 +17,7 @@ name: argot
 on:
   pull_request:
   push:
-    branches: [main]   # the run that fits the model every pull request reads
+    branches: [main]   # the run that refreshes the fitted artifacts PRs reuse
 
 permissions:
   contents: read
@@ -42,23 +42,24 @@ sets it to `true`, error-severity results mark that Action job as failed; the te
 still determines the response.
 
 `format`, `ref`, `cache`, `semantic`, `upload-sarif`, and `comment-pr` are configurable Action
-inputs. Semantic checking may download the local embedding model; use `semantic: false` on a
-locked-down or offline runner to keep voice, layering, and integrity checks while skipping semantic
-model work. The Action caches fitted artifacts by base commit when caching is enabled.
+inputs. The semantic layer needs no network — its embedder ships in the binary — so a locked-down
+runner needs no special handling; `semantic: false` is there to trade its cost away, not to work
+around a download. The Action caches fitted artifacts by base commit when caching is enabled.
 
 ### Why a run took minutes
 
 Fitting the base is almost the whole cost of an Action run — the check itself is seconds. On a cache
-hit there is no fit at all, so the job is fast; on a miss it refits from scratch. The job summary now
-says which of the two happened, and how long the fit took.
+hit there is no fit at all, so the job is fast; on a miss it refits from scratch. The job summary says
+which of the two happened, and how long the fit took.
 
 ### What a run costs
 
 Fitting the voice model is almost the whole cost of a run; the check itself takes seconds. So the
 Action splits the two:
 
-- **A run on your default branch is the producer.** It fits and publishes the model into a cache
-  slot. This is the run that costs a couple of minutes, after a merge, on nobody's critical path.
+- **A run on your default branch is the producer.** It fits and publishes the resulting `.argot/`
+  artifacts into a cache slot. This is the run that costs the fit, after a merge, on nobody's
+  critical path.
 - **A pull request is a consumer.** It reads that slot and **does not fit** — the check is seconds.
   The job summary reports how many accepted commits the model is behind, which is the same drift
   argot tolerates locally between background refreshes (`[fit] refresh-after`).
@@ -68,8 +69,8 @@ That is why the workflow above triggers on `push` to the default branch as well 
 
 **The cache does not exist until this workflow is merged.** The producer is a `push` to the default
 branch, so while the pull request that *adds* the workflow is still open there is no slot to read:
-that run, and any pull request opened before it lands, pays a cold fit and takes minutes rather than
-seconds. This is the expected shape of the first day, not a sign the check is slow. Merge the
+that run, and any pull request opened before it lands, pays a cold fit rather than only the check.
+This is the expected shape of the first day, not a sign the check is slow. Merge the
 workflow, let the next default-branch push fill the slot, and pull requests drop to seconds.
 
 A pull request refits in only two cases: no model exists yet — the first run on a repository, or the

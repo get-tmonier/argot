@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Deterministic no-state audit-to-habit receipt. The semantic model stays
-# offline so this fixture records the no-network branch without downloading it.
+# Deterministic no-state audit-to-habit receipt. The embedded semantic model
+# works offline, so this fixture records the no-network analysis branch.
 set -euo pipefail
 
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
@@ -23,7 +23,7 @@ printf '# release journey fixture\n' > "$repo/README.md"
 git -C "$repo" add README.md
 git -C "$repo" commit -qm 'fixture history'
 
-printf 'network: offline (ARGOT_OFFLINE=1; no model download)\n' > "$receipt"
+printf 'network: offline (ARGOT_OFFLINE=1; embedded semantic model)\n' > "$receipt"
 export ARGOT_OFFLINE=1
 test ! -e "$repo/.argot"
 "$binary" audit --repo "$repo" --commits 1 --format json > "$work/audit.json"

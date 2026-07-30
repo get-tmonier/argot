@@ -34,7 +34,9 @@ justify in one sentence. Any phase can be skipped if I say so.
    https://argot.tmonier.com/docs/getting-started/). Confirm this is a git repo
    with real history, that I am on the default branch, and that the tree is
    clean — fitting a feature branch bakes unmerged commits into the voice.
-   Tell me setup will write argot.toml (committed) and .argot/ (gitignored).
+   Tell me setup will write argot.toml (committed) and .argot/ (gitignored,
+   rebuildable local fit artifacts). Do not add .argot/ to the repository;
+   CI caches it after default-branch fits.
 
 1. PROOF FIRST
    Run `argot audit --format json`, SAVE IT TO A FILE, and show me a readable
@@ -66,8 +68,7 @@ justify in one sentence. Any phase can be skipped if I say so.
    scoping is two passes, not one.
 
 3. FIT AND CHECK HEALTH
-   Run `argot init`. Warn me first that the first run downloads a ~100 MB
-   embedding model. Then run `argot inspect --format json` and read it:
+   Run `argot init`. Then run `argot inspect --format json` and read it:
      - verdict "not_recommended" -> go back to phase 2, do not continue
      - a reason with signal "voice_not_where_the_work_is" -> argot found a
        directory that shapes much of the voice but takes almost none of the
@@ -120,8 +121,9 @@ justify in one sentence. Any phase can be skipped if I say so.
    and the MCP server (`argot mcp`) for agent context.
    CI: the GitHub Action, non-blocking by default. Two things you must tell me:
      - the workflow needs BOTH `pull_request:` and `push:` to the default
-       branch. The push run fits the model and publishes it to a cache; pull
-       requests read that cache and stay fast. Without it every PR pays the fit.
+       branch. The push run fits and publishes the resulting `.argot/` artifacts
+       to a cache; pull requests read that cache and stay fast. Without it every
+       PR pays the fit.
      - that cache does not exist until the workflow is MERGED to the default
        branch. Until then every run is a cold fit and looks slow. Say so before
        I judge the tool on its first PR.

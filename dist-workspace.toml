@@ -30,11 +30,12 @@ installers = ["shell", "powershell", "npm"]
 # of compression vs xz; buys install reliability on any base image. dist has no
 # per-installer format knob, so this applies to every Unix artifact.
 unix-archive = ".tar.gz"
-# Windows: link the DYNAMIC CRT (/MD). cargo-dist defaults to the static CRT,
-# but llama.cpp's cmake-built objects (the semantic layer) reference dynamic
-# UCRT imports (__imp_fopen, __imp__aligned_malloc, …) — mixing the two broke
-# the first Windows release that carried the embedder (v0.2.56/57, LNK2019).
-# The UCRT ships with Windows 10+, so /MD is safe for the installer targets.
+# Windows: link the DYNAMIC CRT (/MD). cargo-dist defaults to the static CRT.
+# This was forced by llama.cpp's cmake-built objects, which referenced dynamic
+# UCRT imports (__imp_fopen, …) and broke the first Windows release carrying the
+# embedder (v0.2.56/57, LNK2019). llama.cpp is gone and that cause with it, so a
+# static CRT is testable again — re-evaluate deliberately rather than flipping it
+# blind. The UCRT ships with Windows 10+, so /MD remains safe meanwhile.
 msvc-crt-static = false
 # Publish the npm installer as @tmonier/argot (preserves `npm i -g @tmonier/argot`)
 npm-scope = "@tmonier"
@@ -55,9 +56,9 @@ targets = [
     "x86_64-pc-windows-msvc",
 ]
 # Shipped binaries self-update via `argot update`; dev/CI builds skip the
-# feature (and its HTTP dependency tree) entirely. `semantic` links llama.cpp
-# (statically) for the code-embedding layer — on in shipped binaries, off in
-# dev/CI base loops. See the semantic layer notes in CLAUDE.md. `arch` is the
+# feature (and its HTTP dependency tree) entirely. `semantic` is the
+# code-embedding layer — pure Rust, with ~17.5 MB of model weights compiled into
+# the binary (hence 36.5 → 48.5 MB). See the semantic layer notes in CLAUDE.md. `arch` is the
 # architecture-graph layer (module-dependency-boundary `layering` findings) —
 # pure-Rust, on in shipped binaries: 97% real recall / 0% false-positives across
 # 23 corpora / 11 languages (docs/research/evidence/architecture-graph-foreignness.md).
@@ -66,23 +67,13 @@ targets = [
 # in docs/research/evidence/test-integrity-*.md.
 features = ["self-update", "semantic", "arch", "integrity", "script"]
 
-# The `semantic` build compiles llama.cpp from source, which needs cmake + a C++
-# toolchain on every release runner. Declare it per package manager so dist
-# installs it before the build (the hosted images mostly ship it already; this
-# guarantees it, incl. on the native ARM runner below).
-[dist.dependencies.apt]
-cmake = '*'
 
-[dist.dependencies.homebrew]
-cmake = '*'
 
-[dist.dependencies.chocolatey]
-cmake = '*'
 
-# Build aarch64-linux on GitHub's NATIVE ARM runner instead of cross-compiling —
-# llama.cpp's C++ then compiles natively (no cross toolchain, the real risk).
-# The other four targets already build on their own native runners (macOS x2 with
-# Metal, x86_64-linux, windows-msvc).
+# Build aarch64-linux on GitHub's NATIVE ARM runner instead of cross-compiling:
+# libgit2 and the tree-sitter grammars are C and compile natively there, with no
+# cross toolchain. The other four targets already build on their own native
+# runners (macOS x2, x86_64-linux, windows-msvc).
 [dist.github-custom-runners]
 aarch64-unknown-linux-gnu = "ubuntu-24.04-arm"
 

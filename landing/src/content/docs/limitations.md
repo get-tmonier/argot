@@ -36,12 +36,14 @@ outside that range are not retrospectively validated.
 
 ## Optional capability limits
 
-Semantic checks need a local embedding model and the semantic feature in the
-binary. With `ARGOT_OFFLINE=1` and no cached/local model, `redundant` and
-`misplaced` are skipped with a diagnostic while the remaining checks continue.
-Architecture and integrity checks likewise depend on their shipped feature and
-fit artifacts. Confirm the live rule registry and fit health with `argot rules`
-and `argot inspect` before relying on a specific detector.
+Semantic checks need the semantic feature in the binary (the released binaries
+ship it) and a semantic index from a fit. With `semantic = "off"` in `[rules]`,
+or a fit that did not build one, `redundant` and `misplaced` are skipped with a
+diagnostic while the remaining checks continue — never for want of a network,
+since the embedder is compiled in. Architecture and integrity checks likewise
+depend on their shipped feature and fit artifacts. Confirm the live rule
+registry and fit health with `argot rules` and `argot inspect` before relying on
+a specific detector.
 
 `misplaced` also abstains where it cannot answer honestly: on a body that calls
 nothing (a property setter is written out of the names it assigns, so it reads

@@ -1,6 +1,6 @@
 ---
 title: Troubleshooting
-description: Diagnose shallow history, unsupported files, fit health, offline models, integrations, and removal safely.
+description: Diagnose shallow history, unsupported files, fit health, skipped rules, integrations, and removal safely.
 group: Help
 order: 15
 ---
@@ -26,14 +26,17 @@ command:** run `argot rules --format json` to confirm enabled rules and inspect
 **Escalate:** use a [custom rule](/docs/custom-rules/) only for a deliberate
 repository convention; do not broaden exclusions merely to quiet output.
 
-## The semantic model is unavailable or offline
+## The semantic rules are skipped
 
-**Symptom:** `redundant` and `misplaced` are skipped with a diagnostic. **Cause:**
-the local model is not cached, or `ARGOT_OFFLINE=1` forbids downloading it.
-**Safe command:** either keep offline mode and accept the explicit degradation,
-or provide a verified local model with `ARGOT_SEMANTIC_MODEL=<path>`. **Escalate:**
-remove the offline restriction only when network access is permitted; the base
-voice checks continue without the model.
+**Symptom:** `redundant` and `misplaced` report nothing, and `check` or `audit`
+says the semantic group was skipped. **Cause:** there is no
+`.argot/semantic-index.json` — either `semantic` is `"off"` in `[rules]`, or the
+fit predates the index, or the index was built by a different model version and
+was rejected rather than scored wrong. It is never a missing download: the
+embedder is compiled into the binary and works offline. **Safe command:** check
+`[rules]` in `argot.toml`, then `argot fit` to rebuild the index. **Escalate:**
+if a rebuilt index is still rejected, the binary and the artifact disagree on the
+model — reinstall argot and fit again.
 
 ## The fit is stale
 
@@ -46,8 +49,8 @@ see [Health & freshness](/docs/health-and-freshness/).
 ## Action, plugin, or pre-commit integration behaves unexpectedly
 
 **Symptom:** a hosted check lacks history, semantic findings, or an expected
-prompt. **Cause:** CI may use a shallow checkout, disable semantic downloads,
-or apply its own configured rule policy. **Safe command:** compare the workflow
+prompt. **Cause:** CI may use a shallow checkout, have a stale or missing fitted
+artifact cache, or apply its own configured rule policy. **Safe command:** compare the workflow
 with [CI and pre-commit](/docs/ci/) and run the equivalent local command.
 For the Claude plugin, use [Claude Code](/docs/plugin/). **Escalate:** attach
 the command, range, `argot rules --format json`, and non-sensitive stderr to an

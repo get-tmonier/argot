@@ -11,6 +11,41 @@ branding, or application code was modified.
 
 ---
 
+## Embedded semantic model — no model download (2026-07-29)
+
+The semantic layer's embedding model moved from a 161M-parameter transformer fetched on first use
+to a 15.6M-parameter distilled static table compiled into the binary. This changes a **standing
+decision** (D13), so it is recorded here rather than edited silently.
+
+| | Before | After |
+|---|---|---|
+| Model | jina-embeddings-v2-base-code, Q4 GGUF, ~100 MB | distilled static table, int8, 256-d, 15.6 MB |
+| Runtime | llama.cpp, statically linked (C++ build, cmake) | pure Rust |
+| Acquisition | fetched on first semantic use, cached in `~/.cache/argot/models`, sha256-pinned | compiled in via `include_bytes!` |
+| Default egress | update check **+ one-time model download** | update check only |
+| Offline | semantic rules degraded with a printed note | no degradation; analysis never needs a network |
+
+**Reason.** The download was the first thing a new user met and the reason a CI run could take
+30 minutes; it also made `semantic` too expensive to build on the PR path, which is what let a
+release-only build break go unnoticed.
+
+**Evidence.** `docs/research/evidence/static-embedder-P0-verdict.md` (31 corpora, 581 authored
+fixtures, 11 languages: `redundant` recall 0.936 vs 0.943, `misplaced` 0.940 vs 0.945) and
+`static-embedder-P1-implementation.md` (fit ~10 min → ~1 min 28, index 61.4 → 16.8 MB, check
+0.40 → 0.34 s). The quality cost is real and stated, not rounded away.
+
+**Impact on claims.** D13's egress list drops to one item and §19's approved sentence loses its
+second clause. Two claims must NOT be over-extended: argot still links C (libgit2, tree-sitter), so
+the earned claim is "no C++ toolchain", not "no native dependencies"; and `ARGOT_OFFLINE` still
+exists for the update check, so the earned claim is "analysis needs no network", not "argot has no
+offline mode because it has no network".
+
+**Also newly owed.** The weights are derived from an Apache-2.0 model and are redistributed inside
+the binary. The repository has no `NOTICE` file, and the long-embedded
+`crates/argot-lang/data/unixcoder_tokenizer.json` is unattributed too. Both are open.
+
+---
+
 ## Substantive changes
 
 ### C1 — Acceptance-moment auto-run: present tense → Product requirement

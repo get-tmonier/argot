@@ -228,7 +228,7 @@ always beats its group entry:
 [rules]
 misplaced = "warn"    # report placement findings, but don't fail the check
 semantic  = "off"     # …or disable the whole embedding-based group
-                      # (with the group off, fit/check skip the model download
+                      # (with the group off, fit/check skip the embedding pass
                       #  and never build or load the semantic index)
 ```
 
@@ -570,28 +570,25 @@ and when `ARGOT_OFFLINE` is set. To opt out entirely:
 check = false          # or set ARGOT_UPDATE_CHECK=0 in the environment
 ```
 
-This version check and the one-time embedding-model download are the **only**
-network calls argot ever makes on its own — nothing else ever leaves your
-machine.
+This version check is the **only** network call argot ever makes on its own.
+The embedding model ships inside the binary, so there is nothing to fetch:
+turn the check off and argot never touches the network at all.
 
 ## Environment variables
 
 | Variable | Effect |
 |---|---|
-| `ARGOT_SEMANTIC_MODEL=<path>` | Use a local GGUF embedding model — skips the download entirely (air-gapped installs, CI with a pre-fetched model). |
-| `ARGOT_OFFLINE=1` | Never touch the network. If the model isn't cached, the semantic rules are skipped with a printed note — never silently. |
-| `ARGOT_MODEL_URL=<url>` | Fetch the embedding model from a mirror (corporate artifact store). The sha256 is verified regardless of source. |
+| `ARGOT_OFFLINE=1` | Never touch the network. Every rule still runs, the semantic layer included — the embedder is compiled in. |
 | `ARGOT_UPDATE_CHECK=0` | Disable the passive update notice (same as `[update] check = false`). |
-
-The model download also honors the standard `HTTPS_PROXY` / `HTTP_PROXY` /
-`ALL_PROXY` variables.
+| `ARGOT_THREADS=<n>` | Cap argot's worker threads, so a fit doesn't saturate a shared machine. |
 
 ## Which files argot writes, and where
 
 Only `argot.toml` (at the repo root) is meant to be committed. Everything under
-`.argot/` is a rebuildable artifact that `argot fit` regenerates in seconds, so
-`init`/`fit` drop a `.argot/.gitignore` that keeps the whole directory out of
-version control.
+`.argot/` is a rebuildable local artifact, so `init`/`fit` drop a
+`.argot/.gitignore` that keeps the whole directory out of version control. A
+refit reuses unchanged embeddings when the machine cache is warm, but total fit
+time still depends on the repository's history and corpus.
 
 | File | Written by | What it is | Committed? |
 |---|---|---|---|
@@ -616,26 +613,26 @@ Outside the repo, argot keeps exactly two user-level locations:
 | Location | What it is |
 |---|---|
 | `~/.argot/settings.json` | The global repo registry — every repo argot has fitted or checked, powering `argot list`/`status` (and telling `argot uninstall` where artifacts live). |
-| `~/.cache/argot/` | The embedding-model cache and the once-a-day update-check state (`update-check.json`) — see the callout below. Curl installs also leave a receipt in `~/.config/argot/`. |
+| `~/.cache/argot/` | The embedding cache and the once-a-day update-check state (`update-check.json`) — see the callout below. Curl installs also leave a receipt in `~/.config/argot/`. |
 
 To remove all of it — every repo's artifacts, the cache, the registry, and the
 binary — run [`argot uninstall`](/docs/the-commands/#uninstall): it shows the
 full inventory first and never touches git-tracked files or your authored custom
 rules under `.argot/rules/`.
 
-Want to commit the model yourself instead? Delete `.argot/.gitignore` and it
-stays out of your way — CI otherwise restores the model from cache or re-fits.
+Consumer repositories should leave the fitted artifacts ignored: the Action
+caches them after default-branch runs and a local fit regenerates them when
+needed. This is separate from Argot's own source repository, which commits the
+frozen 17.5 MB embedder assets used to build the binary.
 
-> **The embedding model lives outside the repo.** The semantic layer's
-> code-embedding model (~100 MB) is fetched once to a shared user cache —
-> `~/.cache/argot/models/` on macOS **and** Linux (`XDG_CACHE_HOME` respected),
-> `%LOCALAPPDATA%\argot\models\` on Windows — not into `.argot/`, so it's shared
-> across every repo and never committed. The sha256 is verified at download *and*
-> on every cache hit, a `CACHEDIR.TAG` marks the directory for backup tools, and
-> superseded model files are garbage-collected after a new one lands. Manage it
-> explicitly with `argot model fetch` / `status` / `clean` — see
-> [The commands](/docs/the-commands/#model). The `.argot/semantic-index.json` it
-> produces is gitignored with the rest of `.argot/`.
+> **There is no model to install.** The semantic layer's embedder is a 15.6 MB
+> static table compiled into the `argot` binary, so a fit needs no download, no
+> cache to warm and no network — it works air-gapped on the first run. What
+> argot does keep in `~/.cache/argot/` is an *embedding cache*: a
+> content-addressed store keyed by function text, so a re-fit or an audit
+> re-embeds only what changed. It is a pure accelerator — `argot cache clear`
+> reclaims it and the next fit rebuilds it. The `.argot/semantic-index.json` the
+> fit produces is gitignored with the rest of `.argot/`.
 
 ## Which to reach for
 

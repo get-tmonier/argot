@@ -65,21 +65,6 @@ test -x "$binary"
 "$binary" --version
 test -f "$config/argot/argot-receipt.json"
 
-# A fresh cache in offline mode must neither fetch nor pretend that a model is
-# ready. Afterwards the explicit fetch is checked again with networking off.
-ARGOT_OFFLINE=1 "$binary" model status > "$work/offline-status.txt"
-grep -F 'model: not downloaded' "$work/offline-status.txt" > /dev/null
-set +e
-ARGOT_OFFLINE=1 "$binary" model fetch > "$work/offline-fetch.txt" 2>&1
-offline_status=$?
-set -e
-test "$offline_status" -eq 2
-grep -F 'ARGOT_OFFLINE' "$work/offline-fetch.txt" > /dev/null
-"$binary" model fetch > "$work/fetch.txt"
-grep -F 'model ready:' "$work/fetch.txt" > /dev/null
-ARGOT_OFFLINE=1 "$binary" model status > "$work/cached-status.txt"
-grep -F 'sha256 verified' "$work/cached-status.txt" > /dev/null
-
 cp "$fixture" "$repo/app.py"
 git -C "$repo" init -q
 git -C "$repo" config user.name 'Argot release fixture'
@@ -93,6 +78,9 @@ git -C "$repo" commit -qm 'fixture history'
 ARGOT_OFFLINE=1 "$binary" audit --repo "$repo" --commits 1 --format json > "$work/audit.json"
 ARGOT_OFFLINE=1 "$binary" init --repo "$repo" > "$work/init.txt"
 test -f "$repo/.argot/scorer-config.json"
+# The semantic index proves the embedded model works in a fresh, air-gapped
+# installation; no separate fetch/model-management command exists anymore.
+test -f "$repo/.argot/semantic-index.json"
 printf '\nimport requests\n' >> "$repo/app.py"
 set +e
 ARGOT_OFFLINE=1 "$binary" check --repo "$repo" --format json > "$work/finding.json"

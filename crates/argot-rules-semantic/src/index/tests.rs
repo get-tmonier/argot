@@ -101,7 +101,10 @@ fn embed_text_hash_is_stable_and_content_keyed() {
 #[test]
 fn build_with_reuse_keeps_unchanged_vectors_and_embeds_the_rest() {
     // Needs a local model (same skip convention as the embedder tests).
-    let Some(emb) = crate::embedder::Embedder::ready().ok().flatten() else {
+    let Some(emb) = crate::static_embedder::StaticEmbedder::ready()
+        .ok()
+        .flatten()
+    else {
         eprintln!("skipping: no local model");
         return;
     };
@@ -337,4 +340,65 @@ fn a_function_declared_inside_another_is_marked_nested() {
     let outer = by("dbtrystringtoguid").expect("the enclosing function is extracted");
     assert!(inner.nested, "{:?}", (inner.line, inner.end_line));
     assert!(!outer.nested, "an enclosing function is not nested");
+}
+
+/// The artifact stores int8, not f16: the blob must be one byte per component,
+/// not two. Halving it is what makes a committed index affordable, so a silent
+/// regression to a wider encoding is worth pinning.
+#[test]
+fn the_vector_blob_is_one_byte_per_component() {
+    use base64::Engine as _;
+    let mut art = SemanticArtifact::new("sha".into());
+    let idx = tiny_index();
+    art.insert("python", &idx, Default::default(), Default::default());
+    let json: serde_json::Value = serde_json::from_str(&art.to_json_string().unwrap()).unwrap();
+    let b64 = json["languages"]["python"]["vectors_b64"].as_str().unwrap();
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(b64)
+        .unwrap();
+    assert_eq!(bytes.len(), idx.entries.len() * idx.dim);
+}
+
+/// Quantisation is lossy by construction; what must survive is the *ranking*,
+/// because every rule reads the index through `nearest`, never through raw
+/// components.
+#[test]
+fn int8_round_trip_preserves_neighbour_order() {
+    let mut art = SemanticArtifact::new("sha".into());
+    let idx = tiny_index();
+    art.insert("python", &idx, Default::default(), Default::default());
+    let back = SemanticArtifact::from_json_str(&art.to_json_string().unwrap()).unwrap();
+    let loaded = back.load("python").unwrap().unwrap().index;
+
+    let q = unit(vec![1.0, 0.05, 0.0]);
+    let before: Vec<&str> = idx
+        .nearest(&q, 3, |_| true)
+        .iter()
+        .map(|n| idx.entry(n.entry_index).symbol.as_str())
+        .collect();
+    let after: Vec<&str> = loaded
+        .nearest(&q, 3, |_| true)
+        .iter()
+        .map(|n| loaded.entry(n.entry_index).symbol.as_str())
+        .collect();
+    assert_eq!(before, after);
+}
+
+/// Vectors come back unit-norm, so a dot product is still a cosine — the
+/// invariant every threshold in both rules is calibrated against.
+#[test]
+fn int8_round_trip_returns_unit_vectors() {
+    let mut art = SemanticArtifact::new("sha".into());
+    art.insert(
+        "python",
+        &tiny_index(),
+        Default::default(),
+        Default::default(),
+    );
+    let back = SemanticArtifact::from_json_str(&art.to_json_string().unwrap()).unwrap();
+    let loaded = back.load("python").unwrap().unwrap().index;
+    for e in &loaded.entries {
+        let n: f32 = e.vec.iter().map(|x| x * x).sum::<f32>().sqrt();
+        assert!((n - 1.0).abs() < 1e-3, "norm was {n}");
+    }
 }

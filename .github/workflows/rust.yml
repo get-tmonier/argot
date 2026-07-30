@@ -88,7 +88,7 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: cargo clippy -p argot --all-targets --features self-update -- -D warnings
       # The architecture-graph layer (`arch`) is feature-gated + off by default,
-      # but pure-Rust (no llama.cpp), so it's cheap enough to lint + unit-test on
+      # but pure Rust, so it is cheap enough to lint + unit-test on
       # the PR path — keeps the resolver/classify logic and its 24 tests from
       # rotting unchecked. Corpus-backed recall lives in `just bench-arch`.
       - name: Clippy + test arch feature (pure-Rust, feature-gated)
@@ -115,27 +115,29 @@ jobs:
           cargo clippy -p argot-core -p argot --all-targets --features script -- -D warnings
           cargo test -p argot-rules-script
           cargo test -p argot-core --features script --test script_rules
-      # The semantic layer links llama.cpp (compiling it from source via cmake is
-      # a multi-minute C++ build), so it is kept OFF the PR path to keep PR CI
-      # fast — it runs only on push-to-main and manual dispatch (Linux leg),
-      # which still catches any semantic regression on main before a release is
-      # cut. The model-dependent embedder tests skip cleanly with no GGUF present
-      # (no network in CI); the pure-logic scorer/index/adapter tests run.
-      - name: Install cmake (llama.cpp build)
-        if: github.event_name != 'pull_request' && matrix.os == 'ubuntu-latest'
-        run: sudo apt-get update && sudo apt-get install -y cmake
+      # `semantic` used to stay off the PR path because it compiled a native
+      # runtime from source. It is pure Rust now — its weights ship in-tree, so there is
+      # nothing to fetch and no C++ toolchain to install — and it runs on every
+      # PR like the other slices. That exclusion is exactly what let a
+      # release-only build break sit green (see the release-combo step below).
       - name: Clippy semantic feature
-        if: github.event_name != 'pull_request' && matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-latest'
         run: cargo clippy -p argot-core --all-targets --features semantic -- -D warnings
       - name: Test semantic feature
-        if: github.event_name != 'pull_request' && matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-latest'
         run: cargo test -p argot-core --features semantic
       # The release builds every feature together — compile that exact combo
-      # here so a cross-feature initializer gap can't first surface on the
-      # release runners (v0.2.62 broke exactly this way).
+      # here so a cross-feature gap can't first surface on the release runners
+      # (v0.2.62 broke that way; so did a `self-update`+`semantic` symbol gap
+      # that every single-feature build reported green).
       - name: Check the release feature combo
-        if: github.event_name != 'pull_request' && matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-latest'
         run: cargo check -p argot --features self-update,semantic,arch,integrity,script
+      # `self-update` alone is in no other build: the base loop omits it and the
+      # combo above hides a break inside it behind the other four.
+      - name: Check self-update on its own
+        if: matrix.os == 'ubuntu-latest'
+        run: cargo check -p argot --features self-update
       - name: Test (incl. Python-parity golden suites)
         env:
           # On Windows `bash` resolves to the WSL stub (System32, no distro

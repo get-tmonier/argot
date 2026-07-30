@@ -36,8 +36,9 @@ just integrity-verify  # gaming-fixture recall + control guard for the integrity
 features**, but release binaries ship every slice — so a green base loop was
 verifying a configuration nobody runs. A test asserting behaviour that had
 changed sat green locally through several pushes and only failed in CI. The
-three pure-Rust features cost seconds; `semantic` stays CI-only because it needs
-the llama.cpp C++ build (see "Keep PR CI fast").
+features cost seconds each. `semantic` was excluded here while it linked
+llama.cpp from source; it is pure Rust now and is in the loop — that exclusion
+is exactly what let a release-only build break sit green locally.
 
 `just dogfood` exercises extract → train → calibrate → check end-to-end and asserts both Python and TypeScript rows landed in `dataset.jsonl` plus a `scorer-config.json` was emitted. It's a **dev loop, not a CI gate** — informational signal that monorepo handling didn't silently break. Drift is the contributor's responsibility; nothing forces it to run.
 
@@ -71,8 +72,9 @@ crates/
                          #   (`superseded` rule + declared `[[migration]]`).
                          #   Feature `structural` (research AST-bigram signal,
                          #   NON-GATING, off in releases).
-  argot-rules-semantic/  # `redundant` + `misplaced` (embeddings; llama-cpp-2 deps
-                         #   live HERE). See "Semantic layer".
+  argot-rules-semantic/  # `redundant` + `misplaced` (embeddings). Pure Rust;
+                         #   `model/` holds ~17.5 MB of committed weights that
+                         #   ship inside the binary. See "Semantic layer".
   argot-rules-arch/      # `layering` (module-dependency graph). See below.
   argot-rules-integrity/ # test-deleted/-disabled/-weakened. See below.
   argot-rules-script/    # RUNTIME community rules: `.argot/rules/<name>/`
@@ -116,23 +118,32 @@ builds a per-repo `SemanticIndex` (embed every function at fit, query at check)
 and emits two rules — `redundant` (F1 reinvention — "you already have this") and
 `misplaced` (F2 placement — "this doesn't belong here"), group `semantic` in the
 rule registry (`argot-engine/src/rules.rs`) — plus nearest-code evidence (F4) on both.
-Embedder = llama.cpp statically linked via `llama-cpp-2` (same in-process C-dep
-shape as git2/tree-sitter), model = jina-embeddings-v2-base-code Q4 GGUF
-fetched-on-first-use to `~/.cache/argot/models` (sha256-pinned; the artifact
-records the model identity and a stale index is rejected loudly). Contributor
-contract: `docs/agents/semantic-contract.md`.
+Embedder = a 15.6M-parameter distilled static table (int8, 256-d), **pure
+Rust**, `include_bytes!`d from `crates/argot-rules-semantic/model/` — nothing is
+fetched, cached or checksummed at runtime. The artifact records the model's
+identity and a stale index is rejected loudly. It replaced a 161M transformer
+run through llama.cpp: fit ~10 min → ~1 min 28 on 26k functions, index 61.4 →
+16.8 MB, at `redundant` recall 0.936 vs 0.943 and `misplaced` 0.940 vs 0.945
+(31 corpora / 581 fixtures / 11 languages —
+`docs/research/evidence/static-embedder-P0-verdict.md`). Contributor contract:
+`docs/agents/semantic-contract.md`.
 
 **Binding invariant:** the whole layer is behind `feature = "semantic"` (a
 build-time gate, default off). With it off the base guardrail is byte-for-byte
-unchanged, builds pure-Rust with zero new deps, and pays no cost. The shipped
-binary is built with it **on** (release enables the feature); users control it
-like any rule (`[rules] semantic = "off"` skips the index and the download —
-there is no dedicated toggle beyond the rules surface). The model auto-downloads
-on first use with progress + a loud, verbalized skip offline. The index lives in
-its own `.argot/semantic-index.json` so `scorer-config.json` is untouched. Its
-findings are never folded into the base catch/false-alarm metric. Dev/CI test
-with `ARGOT_SEMANTIC_MODEL=<gguf path>` to skip the download; `ARGOT_OFFLINE=1`
-forbids all network.
+unchanged and pays no build cost — but the ~17.5 MB of weights under
+`crates/argot-rules-semantic/model/` are in every clone regardless, because
+`include_bytes!` needs the bytes at compile time. A `build.rs` download was
+rejected: it would break offline and sandboxed builds from source, which is the
+opposite of what shipping the model in the binary was for. See that directory's
+`README.md`. The shipped binary is built with the feature **on**; users control
+it like any rule (`[rules] semantic = "off"` skips the index — there is no
+dedicated toggle beyond the rules surface). The index lives in its own
+`.argot/semantic-index.json` so `scorer-config.json` is untouched. Its findings
+are never folded into the base catch/false-alarm metric. Replacing the weights
+changes every vector and therefore every semantic finding: that is a research
+change (re-run the semantic bench, record evidence). `ARGOT_STATIC_MODEL=<dir>`
+points the embedder at another model for bench sweeps; it is developer-facing
+and deliberately undocumented publicly.
 
 ### Architecture layer (`--features arch`)
 

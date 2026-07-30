@@ -1,0 +1,75 @@
+argot
+Licensed under the MIT License — see LICENSE.
+
+argot's own source is MIT. It also compiles two third-party derived artifacts
+directly into the binary. They are listed below with their upstream licenses.
+
+argot is not affiliated with, endorsed by, or sponsored by any project named
+here.
+
+
+--------------------------------------------------------------------------
+Code-embedding model — crates/argot-rules-semantic/model/
+--------------------------------------------------------------------------
+
+  embeddings.safetensors   int8 token-embedding table, 61,053 x 256
+  tokenizer.json           byte-level BPE tokenizer, 61,053 entries
+
+  Distilled from jina-embeddings-v2-base-code
+    https://huggingface.co/jinaai/jina-embeddings-v2-base-code
+    Copyright (c) Jina AI GmbH
+    Licensed under the Apache License, Version 2.0
+
+  The table was produced by running that model over its own vocabulary and
+  reducing the result; the tokenizer is that model's, carried over unchanged.
+  Both files are therefore derived from Apache-2.0 licensed work and are
+  redistributed under that license. The files carry the same provenance in
+  their safetensors `__metadata__`.
+
+  The upstream model repository ships no NOTICE file (checked 2026-07-29),
+  so Apache-2.0 section 4(d) has no upstream notice text to reproduce here.
+  Whether Apache-2.0 attaches to model weights at all is unsettled; this
+  NOTICE assumes it does, because the compliance cost is one file.
+
+  Distilled with the model2vec technique
+    https://github.com/MinishLab/model2vec
+    Copyright (c) MinishLab
+    Licensed under the MIT License
+
+  The inference that reads these weights
+  (crates/argot-rules-semantic/src/static_embedder.rs) is argot's own.
+
+
+--------------------------------------------------------------------------
+BPE tokenizer — crates/argot-lang/data/unixcoder_tokenizer.json
+--------------------------------------------------------------------------
+
+  The serialised fast tokenizer of microsoft/unixcoder-base, embedded so
+  argot's tokenisation matches the reference implementation byte-for-byte.
+
+    https://huggingface.co/microsoft/unixcoder-base
+    Copyright (c) Microsoft Corporation
+    Licensed under the Apache License, Version 2.0
+
+  The model repository ships no NOTICE file (checked 2026-07-29), so
+  Apache-2.0 section 4(d) has no upstream notice text to reproduce here.
+  argot embeds the tokenizer only — no unixcoder weights and no unixcoder
+  code.
+
+
+--------------------------------------------------------------------------
+Vendored parser — vendor/tree-sitter-pascal/
+--------------------------------------------------------------------------
+
+  A fork of tree-sitter-pascal 0.10.2 with 12 added rules. Its own README
+  records what was changed and why; its upstream license travels with the
+  vendored directory.
+
+
+--------------------------------------------------------------------------
+Rust dependencies
+--------------------------------------------------------------------------
+
+  Licenses of the crate graph are governed by deny.toml and are not restated
+  here. Note that cargo-deny sees Rust crates only — it does not and cannot
+  check the model artifacts above.
