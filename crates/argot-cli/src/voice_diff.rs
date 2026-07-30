@@ -291,12 +291,14 @@ pub fn markdown_card(s: &VoiceDiffSummary) -> String {
             format!("{}:{}-{}", h.file, h.line_start, h.line_end)
         };
         let label = h.rule.replace('-', " ");
-        let _ = writeln!(out, "#### {}. {glyph} {label} — `{loc}`", index + 1);
+        let _ = writeln!(out, "<details>");
         let _ = writeln!(
             out,
-            "`{}` severity · `{}` signal\n",
-            h.severity, h.confidence
+            "<summary><strong>{}. {glyph} {label}</strong> · <code>{loc}</code> · {} severity</summary>\n",
+            index + 1,
+            h.severity,
         );
+        let _ = writeln!(out, "`{}` signal\n", h.confidence);
         if h.evidence.is_empty() {
             let _ = writeln!(
                 out,
@@ -324,6 +326,7 @@ pub fn markdown_card(s: &VoiceDiffSummary) -> String {
                 h.hash
             );
         }
+        let _ = writeln!(out, "</details>\n");
     }
     let _ = writeln!(
         out,
@@ -486,7 +489,8 @@ mod tests {
         let card = markdown_card(&summarize(&hits, 40, 10));
         assert!(card.contains("1 configured finding across 40 scanned hunks"));
         assert!(card.contains("**Summary:** 1 error · 1 foreign-import"));
-        assert!(card.contains("#### 1. 🔴 foreign import — `src/http.ts:42`"));
+        assert!(card.contains("<details>"));
+        assert!(card.contains("<summary><strong>1. 🔴 foreign import</strong> · <code>src/http.ts:42</code> · error severity</summary>"));
         assert!(card.contains("↳ axios — 0 of 47 module specifiers in repo"));
         assert!(card.contains("Compare the named dependency"));
         assert!(
