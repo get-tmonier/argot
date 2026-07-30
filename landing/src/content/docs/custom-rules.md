@@ -17,6 +17,51 @@ findings behave exactly like a built-in's: the same rule name in every output fo
 `[rules]`/`--rule` severity knobs, the same inline-comment and `[[mute]]` suppression surfaces —
 all under one new group, `custom`.
 
+## When a custom rule earns its place
+
+A custom rule is **not** an excuse to rebuild OXLint or ESLint in Rhai. Those
+tools are excellent homes for broadly useful, one-file rules: formatting,
+naming, import order, deprecated APIs, simple forbidden calls, framework best
+practices, and security patterns that mean the same thing in every repository.
+Keep them there: their ecosystem, language services, and shared rule packs are
+the advantage.
+
+Argot is different because a rule executes against a *change in a particular
+repository*, with local context that a conventional lint rule does not carry as
+first-class input. It is worth authoring only when that context changes the
+answer:
+
+| Team policy | Argot-specific evidence | Why a generic one-file lint is the wrong owner |
+|---|---|---|
+| A route must be documented | Read the committed API description with `read_repo_file()` | The route and its contract live in different files; hard-coding a list of routes goes stale. |
+| Every implementation must answer a new contract member | Compare the pre-image with `ts_query_old()`, then enumerate siblings via `repo_paths()` | The violation is often a file that did **not** change. |
+| A public endpoint may not disappear silently | Compare the old and new tree with `file.old_text` / `ts_query_old()` | A normal lint run sees only the post-image. |
+| A change touching a schema must include its migration or test companion | Inspect `changeset_paths()` | The policy is about the absence of another path in this diff. |
+| This repository must use its already-established HTTP client or internal gateway | Ask `import_attested()` / `callee_attested()` | The fitted history is a repository-specific allowlist, not a dependency list maintained by hand. |
+| Validation, persistence, or boundary code belongs in its team-established home | Start from a concentrated placement convention mined by `argot conventions` | The architecture is inferred from this repository's layout and history, rather than assumed from a framework. |
+
+This does not mean a custom rule is magically more powerful than every ESLint
+plugin a team could write. A plugin can always grow bespoke state. The useful
+difference is that Argot already supplies the local history, two-sided diff,
+changeset, repository-read and learned-voice contexts — safely and testably —
+without a separate cache, compiler service, or manually maintained allowlist.
+
+Use this admission test before writing a rule:
+
+1. Is the convention durable, important, and expressed by canonical repository
+   examples — not merely an aesthetic preference?
+2. Does it require one of the contextual inputs above, or a placement pattern
+   `argot conventions` can evidence? If a current-file AST is enough, use the
+   normal linter instead.
+3. Can the offending shape be detected syntactically and scoped narrowly,
+   without pretending Argot has type or cross-file symbol resolution?
+4. Can the message name the correct local remedy in one hop, and can a silent
+   fixture demonstrate a legitimate nearby pattern does not fire?
+
+If any answer is no, **do not ship a rule**. Zero custom rules is the healthy
+outcome for most repositories. Setup offers this exploration only after the
+ordinary fit, audit, and integrations are complete; it is always opt-in.
+
 ## Start from a working example
 
 The repository ships rules you can copy, one directory each, under
@@ -357,16 +402,19 @@ can't "fix" a failing check by rewriting the rule that caught it. See
 
 The script runs in a stripped-down Rhai engine, not a general-purpose scripting environment:
 
-- **No filesystem, no network, no module imports** — Rhai's core language has none of these,
-  and the script only ever sees the one file and hunk data passed in.
+- **No writes, no network, no module imports** — Rhai's core language has none of these. The
+  only repository access is the deliberate, read-only `read_repo_file()` / `repo_paths()` host
+  API described above; it cannot escape the repository root.
 - **`print`/`debug` are captured, never reach stdout** — a script can't pollute a machine
   output format by accident.
-- **Hard caps per (rule, file):** 1,000,000 operations, a call-depth of 32 (recursion guard), a
-  1 MB max string, a 100,000-entry max array, a 10,000-entry max map, and a 100 ms wall-clock
-  budget.
-- **Degrade, never fail:** a script that fails to compile, trips a cap, or errors at runtime is
-  **disabled for the rest of the run** with one diagnostic on stderr (`custom rule <name>: … —
-  rule disabled for this run`) — it never takes down `check` itself, and never silently.
+- **Hard caps per (rule, file):** 1,000,000 operations plus 2,000 per source line (capped at
+  50,000,000), a call-depth of 32, a 1 MB max string, a 100,000-entry max array, a 10,000-entry
+  max map, and a 500 ms wall-clock budget. Repository reads are additionally capped at 64 reads,
+  4 MiB total and 16 path listings per rule/file run.
+- **Degrade, never fail:** a compile error disables that rule with a diagnostic. A runtime or
+  budget error skips that file and is reported; only after it trips on five separate files is the
+  rule disabled for the rest of the run. A bad custom rule never takes down `check`, and the
+  skipped work is never silent.
 
 ## Two things that will bite you
 
@@ -378,13 +426,11 @@ let t = line.to_lower().trim();   // t is (), and every later call on it fails
 let t = line.to_lower(); t.trim(); // what you meant
 ```
 
-**A cross-file rule costs real operations.** The sandbox stops a script at 1M
-operations per file, and a per-character scan of a large file will hit it — on a
-7 450-line source, stripping comments character by character does. Work line by
-line, and reach for `contains` / `index_of` (one native op) over interpreted
-loops. When a rule does trip a cap, argot says so on stderr and disables it for
-the run — if a rule you expect goes quiet, read stderr before believing the
-silence.
+**A cross-file rule costs real operations.** The sandbox budget grows with the
+changed file but remains finite, and a per-character scan can still hit it.
+Work line by line, and reach for `contains` / `index_of` (one native op) over
+interpreted loops. When a rule trips a cap, Argot says so on stderr; do not read
+the absence of a finding as a clean result until that diagnostic is understood.
 
 ## The `argot rules test` harness
 
