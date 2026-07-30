@@ -6,10 +6,6 @@ interface Props {
   content: SiteContent;
 }
 const { ciScore } = Astro.props.content;
-
-// The PR-card mockup content is UI chrome (like a screenshot), not marketing
-// prose — hardcoded here rather than in i18n, matching Demo.astro's badges.
-const score = 92;
 ---
 
 <section
@@ -33,56 +29,73 @@ const score = 92;
       <div class="pr-card">
         <div class="pr-head">
           <span class="pr-emoji" aria-hidden="true">🎙️</span>
-          <span class="pr-name">argot voice check</span>
-          <span class="pr-pill">informational — not a merge gate</span>
+          <span class="pr-name">argot review</span>
+          <span class="pr-pill">advisory · not a merge gate</span>
         </div>
 
-        <div class="pr-score-row">
-          <span class="pr-score">{score}<span class="pr-score-pct">%</span></span>
-          <span class="pr-score-label">in-voice</span>
+        <div class="review-alert">
+          <span class="review-alert-icon" aria-hidden="true">🔴</span>
+          <strong>2 review decisions</strong>
+          <span>across 10 scanned hunks</span>
         </div>
-        <div
-          class="pr-track"
-          role="progressbar"
-          aria-valuenow={score}
-          aria-valuemin="0"
-          aria-valuemax="100"
-          aria-label={`${score}% in voice`}
-        >
-          <div class="pr-fill" style={`width: ${score}%`}></div>
+        <p class="pr-instruction"><strong>Start here:</strong> open each row in the review queue.</p>
+
+        <div class="review-section">
+          <div class="section-head">
+            <span>🔎 Review queue</span>
+            <span class="section-status">🔴 2 error</span>
+          </div>
+          <p class="section-meta">1 rare-tokens · 1 unfamiliar-callee</p>
+
+          <details class="review-details">
+            <summary>
+              <span class="disclosure" aria-hidden="true">▸</span>
+              <strong><span aria-hidden="true">🔴</span> rare tokens</strong>
+              <code>crates/argot-cli/src/voice_diff.rs:202–282</code>
+            </summary>
+            <div class="review-detail">
+              <p><strong>Evidence:</strong> option, highlighted, Move — unfamiliar vocabulary here.</p>
+              <p><strong>Review:</strong> rewrite in the repository’s established form if unintended.</p>
+            </div>
+          </details>
+
+          <details class="review-details">
+            <summary>
+              <span class="disclosure" aria-hidden="true">▸</span>
+              <strong><span aria-hidden="true">🔴</span> unfamiliar callee</strong>
+              <code>crates/argot-core/src/compose.rs:1–14</code>
+            </summary>
+            <div class="review-detail">
+              <p><strong>Evidence:</strong> <code>Lazy::new</code> is not used by similar code here.</p>
+              <p><strong>Review:</strong> compare the call with the repository’s established API.</p>
+            </div>
+          </details>
         </div>
 
-        <div class="pr-hotspot">
-          <span class="pr-dot" aria-hidden="true"></span>
-          <code class="pr-file">src/http.ts:42</code>
-          <span class="pr-desc">foreign · axios — 0 of 47 imports</span>
-          <code class="pr-mute">argot mute a1b2c3d4</code>
-        </div>
+        <p class="pr-note">💬 Prompts for review, not proof of defects.</p>
 
-        <div class="pr-snapshot">
-          <span class="snapshot-dot" aria-hidden="true"></span>
-          <span>base snapshot</span>
-          <code>main · fresh</code>
-          <span class="snapshot-rule">CI never fits</span>
+        <div class="fit-section">
+          <div class="section-head">
+            <span>🧭 Fit health</span>
+            <span class="fit-status">🟢 fresh</span>
+          </div>
+          <details class="fit-details">
+            <summary>
+              <span class="disclosure" aria-hidden="true">▸</span>
+              <strong>Snapshot healthy</strong>
+              <span>· no maintenance needed</span>
+            </summary>
+            <div class="fit-detail">
+              Adaptive drift: <strong>0 / 100</strong> · base snapshot: <code>main</code> · CI never fits.
+            </div>
+          </details>
         </div>
-
-        <p class="pr-footer">
-          Job summary · sticky PR comment · code-scanning annotations — all non-blocking.
-        </p>
       </div>
 
       <p
         class="text-center text-sm text-muted text-pretty"
         set:html={emphasize(ciScore.caption)}
       />
-
-      <div class="badge-wrap">
-        <span class="badge" role="img" aria-label={`argot ${score} percent in-voice badge`}>
-          <span class="badge-l">argot</span>
-          <span class="badge-r">{score}% in-voice</span>
-        </span>
-        <p class="badge-note text-pretty" set:html={emphasize(ciScore.badge)} />
-      </div>
     </div>
   </div>
 </section>
@@ -91,216 +104,130 @@ const score = 92;
   .score-glow {
     position: absolute;
     inset: 0;
-    background: radial-gradient(46rem 26rem at 82% 40%, rgba(95, 179, 137, 0.09), transparent 70%);
+    background: radial-gradient(46rem 26rem at 82% 40%, rgba(95, 179, 137, 0.1), transparent 70%);
     pointer-events: none;
   }
 
-  /* --- the PR check card --- */
   .pr-card {
     position: relative;
-    border-radius: 16px;
     border: 1px solid var(--line);
-    background: color-mix(in srgb, var(--panel) 55%, var(--bg) 45%);
-    padding: 1.25rem 1.35rem 1.1rem;
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--panel) 65%, var(--bg) 35%);
+    padding: 1.25rem 1.35rem;
     box-shadow:
       0 1px 0 0 rgba(255, 255, 255, 0.03) inset,
       0 24px 60px -30px rgba(0, 0, 0, 0.8);
   }
 
-  .pr-head {
+  .pr-head,
+  .section-head,
+  .review-alert,
+  .review-details summary,
+  .fit-details summary {
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
+  }
+
+  .pr-head {
+    flex-wrap: wrap;
     gap: 0.5rem 0.6rem;
-    padding-bottom: 0.85rem;
+    padding-bottom: 0.9rem;
     border-bottom: 1px solid var(--line);
   }
-  .pr-emoji {
-    font-size: 0.95rem;
-    line-height: 1;
-  }
-  .pr-name {
-    font-weight: 600;
-    font-size: 0.85rem;
-    letter-spacing: -0.01em;
-    color: var(--ink);
-  }
+  .pr-emoji { font-size: 1rem; line-height: 1; }
+  .pr-name { color: var(--ink); font-size: 0.95rem; font-weight: 700; letter-spacing: -0.02em; }
   .pr-pill {
     margin-left: auto;
-    border-radius: 999px;
     border: 1px solid var(--line-2);
-    padding: 0.2rem 0.6rem;
-    font-family: var(--font-mono);
-    font-size: 0.65rem;
-    letter-spacing: 0.02em;
+    border-radius: 999px;
+    padding: 0.23rem 0.6rem;
     color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    letter-spacing: 0.03em;
     white-space: nowrap;
   }
 
-  .pr-score-row {
-    display: flex;
-    align-items: baseline;
-    gap: 0.5rem;
+  .review-alert {
+    gap: 0.38rem;
     margin-top: 1rem;
+    padding-left: 0.75rem;
+    border-left: 2px solid color-mix(in srgb, var(--flag) 75%, transparent);
+    color: var(--ink-dim);
+    font-size: 0.86rem;
   }
-  .pr-score {
-    font-family: var(--font-mono);
-    font-size: 2.25rem;
-    font-weight: 700;
-    line-height: 1;
-    color: var(--jade);
-    letter-spacing: -0.02em;
-  }
-  .pr-score-pct {
-    font-size: 1.15rem;
-    font-weight: 600;
-  }
-  .pr-score-label {
-    font-size: 0.8rem;
-    color: var(--muted);
-  }
+  .review-alert strong { color: var(--ink); }
+  .review-alert-icon { font-size: 0.95rem; }
+  .pr-instruction { margin: 0.75rem 0 1.05rem; color: var(--ink-dim); font-size: 0.78rem; }
+  .pr-instruction strong { color: var(--ink); }
 
-  .pr-track {
-    margin-top: 0.65rem;
-    height: 8px;
-    border-radius: 999px;
-    background: var(--bg-2);
-    overflow: hidden;
-  }
-  .pr-fill {
-    height: 100%;
-    border-radius: 999px;
-    background: linear-gradient(90deg, var(--ember-deep), var(--jade));
-    box-shadow: 0 0 14px color-mix(in srgb, var(--jade) 45%, transparent);
-  }
-  /* Bar reveal: rendered at final width always, clipped until the section
-     scrolls into view — same technique as effract's Benchmarks.astro race
-     bars. Gated on `.js`; the site-wide reduced-motion rule (global.css)
-     collapses the transition to ~instant, so it degrades to "just visible". */
-  :global(.js) .pr-fill {
-    clip-path: inset(0 100% 0 0);
-    transition: clip-path 1.1s var(--ease-out-expo);
-    transition-delay: 250ms;
-  }
-  :global(.js) .reveal.is-visible .pr-fill {
-    clip-path: inset(0 0 0 0);
-  }
-
-  .pr-hotspot {
-    margin-top: 1.1rem;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.5rem;
-    border-radius: 10px;
+  .review-section,
+  .fit-section {
     border: 1px solid var(--line);
-    background: color-mix(in srgb, var(--bg-2) 70%, transparent);
-    padding: 0.6rem 0.75rem;
+    border-radius: 11px;
+    background: color-mix(in srgb, var(--bg-2) 72%, transparent);
+    padding: 0.8rem;
   }
-  .pr-dot {
-    height: 8px;
-    width: 8px;
-    flex-shrink: 0;
-    border-radius: 999px;
-    background: var(--flag);
-    box-shadow: 0 0 10px color-mix(in srgb, var(--flag) 60%, transparent);
-    animation: flare 2.6s ease-in-out infinite;
-  }
-  .pr-file {
-    flex-shrink: 0;
-    font-family: var(--font-mono);
-    font-size: 0.78rem;
-    font-weight: 600;
-    color: var(--ink);
-  }
-  .pr-desc {
-    flex: 1 1 auto;
-    min-width: 10rem;
-    font-size: 0.78rem;
+  .section-head { justify-content: space-between; gap: 0.75rem; color: var(--ink); font-size: 0.84rem; font-weight: 700; }
+  .section-status,
+  .fit-status { color: var(--muted); font-family: var(--font-mono); font-size: 0.64rem; font-weight: 500; white-space: nowrap; }
+  .section-meta { margin: 0.38rem 0 0.7rem; color: var(--muted); font-size: 0.7rem; }
+
+  .review-details + .review-details { margin-top: 0.42rem; }
+  .review-details,
+  .fit-details { border-radius: 7px; }
+  .review-details summary,
+  .fit-details summary {
+    gap: 0.38rem;
+    min-width: 0;
+    cursor: pointer;
+    list-style: none;
     color: var(--ink-dim);
+    font-size: 0.7rem;
   }
-  .pr-mute {
-    flex-shrink: 0;
-    border-radius: 6px;
-    border: 1px solid var(--line-2);
-    padding: 0.15rem 0.5rem;
-    font-family: var(--font-mono);
-    font-size: 0.72rem;
-    color: var(--ink-dim);
-    transition:
-      color 0.2s,
-      border-color 0.2s;
-  }
-  .pr-card:hover .pr-mute {
-    color: var(--ink);
-    border-color: var(--muted);
-  }
-
-  .pr-snapshot {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.45rem 0.6rem;
-    margin-top: 0.85rem;
-    color: var(--muted);
-    font-family: var(--font-mono);
-    font-size: 0.68rem;
-  }
-  .snapshot-dot {
-    width: 7px;
-    height: 7px;
-    flex: none;
-    border-radius: 999px;
-    background: var(--jade);
-    box-shadow: 0 0 9px color-mix(in srgb, var(--jade) 45%, transparent);
-  }
-  .pr-snapshot code {
-    color: var(--jade);
-  }
-  .snapshot-rule {
-    margin-left: auto;
-  }
-
-  .pr-footer {
-    margin-top: 1rem;
-    font-size: 0.72rem;
-    line-height: 1.5;
-    color: var(--muted);
-  }
-
-  /* --- the README badge you get to keep --- */
-  .badge-wrap {
-    margin-top: 0.4rem;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.65rem;
-  }
-  .badge {
-    display: inline-flex;
-    align-items: stretch;
-    border-radius: 6px;
+  .review-details summary::-webkit-details-marker,
+  .fit-details summary::-webkit-details-marker { display: none; }
+  .review-details summary strong,
+  .fit-details summary strong { flex: none; color: var(--ink); }
+  .review-details summary code {
     overflow: hidden;
+    min-width: 0;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--ink-dim);
     font-family: var(--font-mono);
-    font-size: 0.82rem;
-    font-weight: 600;
-    line-height: 1;
-    box-shadow: 0 10px 26px -16px rgba(0, 0, 0, 0.85);
+    font-size: 0.63rem;
   }
-  .badge-l {
-    background: #3f3f46;
-    color: #fff;
-    padding: 0.42rem 0.62rem;
+  .disclosure { color: var(--muted); transition: transform 0.18s ease; }
+  details[open] > summary .disclosure { transform: rotate(90deg); }
+  .review-detail,
+  .fit-detail {
+    margin: 0.65rem 0 0.2rem 1.1rem;
+    padding: 0.55rem 0.65rem;
+    border-left: 1px solid var(--line-2);
+    color: var(--ink-dim);
+    font-size: 0.68rem;
+    line-height: 1.55;
   }
-  .badge-r {
-    background: #4cc417;
-    color: #14200d;
-    padding: 0.42rem 0.62rem;
-  }
-  .badge-note {
-    max-width: 27rem;
-    text-align: center;
-    font-size: 0.8rem;
+  .review-detail p + p { margin-top: 0.35rem; }
+  .review-detail strong,
+  .fit-detail strong { color: var(--ink); }
+
+  .pr-note {
+    margin: 0.8rem 0;
     color: var(--muted);
+    font-size: 0.7rem;
+    line-height: 1.45;
+  }
+  .fit-section { background: color-mix(in srgb, var(--jade) 6%, var(--bg-2)); }
+  .fit-status { color: var(--jade); }
+  .fit-details summary span:last-child { color: var(--muted); }
+  .fit-detail code { color: var(--jade); font-family: var(--font-mono); }
+
+  @media (max-width: 36rem) {
+    .pr-card { padding: 1rem; }
+    .pr-pill { margin-left: 0; }
+    .review-details summary { flex-wrap: wrap; }
+    .review-details summary code { width: calc(100% - 1.25rem); margin-left: 1.25rem; }
   }
 </style>
