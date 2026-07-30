@@ -285,7 +285,12 @@ module.exports = grammar({
 		// RTTI attributes clash with fpc declaration hints syntax since both
 		// are surrounded by brackets.
 		...enable_if(rtti,
-			[ $.declProcFwd ], [ $.declVars], [ $.declConsts ], [ $.declTypes]
+			[ $.declProcFwd ], [ $.declVars], [ $.declConsts ], [ $.declTypes],
+			// Same bracket clash, reached through a field whose type is an
+			// anonymous class: once the last field of a list may omit its `;`,
+			// a following `[` is either that class's guid or the RTTI attribute
+			// list opening the next field.
+			[ $.declClass ]
 		),
 		// `procedure (` could be a declaration of an anonymous procedure or
 		// the call of a function named "procedure" (which doesn't actually
@@ -376,7 +381,14 @@ module.exports = grammar({
 		_statements:     $ => repeat1(choice($.varDef, $._statement,  $.label)),
 		_statementsTr:   $ => seq(
 			repeat(choice($._statement, $.label)),
-			choice(tr($,'_statement'), $._statement)
+			// A block may end on a labelled *empty* statement, which Pascal
+			// allows and `goto`-based cleanup relies on:
+			//     endlab:
+			//     end;
+			// (mseide-msegui lib/common/kernel/linux/mseguiintf.pas:2673).
+			// Requiring a statement after the label desynchronised the parser
+			// for the remaining 4,700 lines of that unit.
+			choice(tr($,'_statement'), $._statement, $.label)
 		),
 
 		statements:      $ => $._statements,
@@ -832,7 +844,14 @@ module.exports = grammar({
 			':',
 			field('type', $._typeOrAnonRecord),
 			field('defaultValue', optional($.defaultValue)),
-			';',
+			// Object Pascal lets the *last* field of a list drop its terminating
+			// `;` before `end` or a visibility marker:
+			//     MwmHints = record
+			//      status: culong
+			//     end;
+			// (mseide-msegui lib/common/kernel/linux/mseguiintf.pas:460). Requiring
+			// it put that whole 7,450-line unit inside one ERROR node.
+			optional(';'),
 			// A function-typed field carries a calling convention:
 			// `xCreate: function(…): integer; cdecl;`. The *calling conventions*
 			// only: the bracketed FPC form `[cdecl];` cannot be told from the
