@@ -3,7 +3,7 @@
   "name": "io.github.get-tmonier/argot",
   "title": "argot",
   "description": "Read-only repository context and complete changeset checks against patterns learned from git history. Local; statistics, no generative LLM.",
-  "version": "0.2.113",
+  "version": "0.2.114",
   "websiteUrl": "https://argot.tmonier.com",
   "repository": {
     "url": "https://github.com/get-tmonier/argot",
@@ -14,7 +14,7 @@
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "@tmonier/argot",
-      "version": "0.2.113",
+      "version": "0.2.114",
       "runtimeHint": "npx",
       "transport": {
         "type": "stdio"
