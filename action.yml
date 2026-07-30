@@ -103,6 +103,15 @@ outputs:
   results-file:
     description: "Path to the written results file."
     value: ${{ steps.check.outputs.results-file }}
+  fit-recommendation:
+    description: "Adaptive freshness verdict for the committed base fit snapshot."
+    value: ${{ steps.snapshot.outputs.recommendation }}
+  fit-next-action:
+    description: "Reviewed local maintenance action suggested for the committed base fit snapshot."
+    value: ${{ steps.snapshot.outputs.next_action }}
+  fit-summary:
+    description: "Human-readable adaptive freshness summary for the committed base fit snapshot."
+    value: ${{ steps.snapshot.outputs.summary }}
 
 runs:
   using: "composite"
@@ -345,11 +354,14 @@ runs:
         BASE_SHA: ${{ steps.base.outputs.base_sha }}
       run: |
         set -euo pipefail
-        if [ "$NEXT_ACTION" = review_scope_then_fit ]; then
-          action_text="Use the argot-refresh skill to review scope and mutes before fitting locally."
-        else
-          action_text="Use the argot-refresh skill, or run argot fit locally."
-        fi
+        case "$NEXT_ACTION" in
+          none) action_text="No maintenance is needed." ;;
+          monitor) action_text="Monitor this advisory; do not fit from CI." ;;
+          review_scope_then_fit) action_text="Use the argot-refresh skill to review scope and mutes before fitting locally." ;;
+          fit) action_text="Use the argot-refresh skill, or run argot fit locally." ;;
+          inspect_history) action_text="Inspect the accepted history locally before deciding whether to refresh." ;;
+          *) action_text="Inspect the fit status locally before deciding whether to refresh." ;;
+        esac
         if [ "$RECOMMENDATION" = "strongly_recommended" ]; then
           echo "::warning::Argot fit refresh strongly recommended (advisory). ${action_text} Review and commit .argot/."
         elif [ "$RECOMMENDATION" = "recommended" ]; then
@@ -376,6 +388,12 @@ runs:
         ARGOT_PATH: ${{ inputs.path }}
         ARGOT_RANGE: ${{ steps.base.outputs.range }}
         ARGOT_SNAPSHOT: ${{ steps.snapshot.outputs.dir }}
+        RECOMMENDATION: ${{ steps.snapshot.outputs.recommendation }}
+        NEXT_ACTION: ${{ steps.snapshot.outputs.next_action }}
+        SCORE: ${{ steps.snapshot.outputs.score }}
+        REFRESH_SUMMARY: ${{ steps.snapshot.outputs.summary }}
+        ACCEPTED_COMMITS: ${{ steps.snapshot.outputs.commits }}
+        BASE_SHA: ${{ steps.base.outputs.base_sha }}
       run: |
         set -euo pipefail
         # Same range the check scored, summarized against the base-fit model.
@@ -388,6 +406,24 @@ runs:
         card="${RUNNER_TEMP}/argot-findings-card.md"
         # Informational: never let card rendering fail the job.
         if argot voice-diff "$range" --repo "$ARGOT_PATH" --argot-dir "$ARGOT_SNAPSHOT" --format markdown > "$card" 2>/dev/null; then
+          case "$NEXT_ACTION" in
+            none) action_text="No maintenance is needed." ;;
+            monitor) action_text="Monitor this advisory; do not fit from CI." ;;
+            review_scope_then_fit) action_text="Use the argot-refresh skill to review scope and mutes before fitting locally." ;;
+            fit) action_text="Use the argot-refresh skill, or run argot fit locally." ;;
+            inspect_history) action_text="Inspect the accepted history locally before deciding whether to refresh." ;;
+            *) action_text="Inspect the fit status locally before deciding whether to refresh." ;;
+          esac
+          {
+            echo
+            echo "#### Fit snapshot: ${RECOMMENDATION//_/ }"
+            echo
+            echo "${REFRESH_SUMMARY}. Adaptive drift score: ${SCORE}/100. Accepted source commits are context only: ${ACCEPTED_COMMITS}."
+            echo
+            echo "Next action: \`${NEXT_ACTION}\`. ${action_text}"
+            echo
+            echo "<sub>Scored against the committed fit snapshot from base \`${BASE_SHA:0:12}\`. CI never fits or rebuilds this snapshot.</sub>"
+          } >> "$card"
           # Findings card in the Actions run UI — no extra permissions, fork-safe.
           cat "$card" >> "$GITHUB_STEP_SUMMARY"
           echo "card=$card" >> "$GITHUB_OUTPUT"
