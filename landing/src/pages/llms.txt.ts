@@ -55,6 +55,17 @@ export const GET: APIRoute = async () => {
       'locally to review scope and mutes before fitting and recommitting. Commit count and ' +
       'age are not default triggers.',
     '',
+    '## Agent and MCP use',
+    '',
+    '`argot mcp` is a passive, read-only server with six distinct tools: ' +
+      '`argot.get_fit_status` for readiness and refresh advice; ' +
+      '`argot.get_voice_context` for pre-write vocabulary; `argot.check_hunk` for a ' +
+      'fast voice-only snippet signal; `argot.explain_hunk` for deeper evidence about ' +
+      'that snippet; `argot.check_changeset` for the complete configured detector ' +
+      'pipeline; and `argot.list_conventions` for repository discovery. The server does ' +
+      'not fit or mutate the reviewed baseline. Setup and refresh remain explicit local ' +
+      'workflows whose resulting `.argot/` snapshot is reviewed and committed.',
+    '',
     '## What it catches',
     '',
     'A voice pass plus semantic, architecture, integrity, and optional custom-rule checks. ' +

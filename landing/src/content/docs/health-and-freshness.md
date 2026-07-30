@@ -50,7 +50,7 @@ The human verdict is `fresh`, `watch`, `recommended`, or `strongly_recommended`.
 Every recommendation carries structured reasons such as `source_turnover`,
 `function_surface_turnover`, `layout_turnover`, `new_area_surface`, or
 `new_language_surface`, with changed/baseline/current counts and a ratio. CLI JSON, MCP
-`fit_status`, local checks, and the GitHub Action expose the same assessment.
+`get_fit_status`, local checks, and the GitHub Action expose the same assessment.
 
 ## The complete refresh experience
 

@@ -204,7 +204,7 @@ Use the canonical four-layer model consistently:
 ### Public language rules
 
 - Prefer: “repository-grounded,” “evidence,” “established pattern,” “proposed change,” “decision brief,” “surface,” “accepted history,” “local analysis.”
-- Keep only as secondary brand/compatibility: “voice,” `voice-diff`, `voice_context`, `describe-voice`, visual signal motifs.
+- Keep only as secondary brand/compatibility: “voice,” `voice-diff`, `get_voice_context`, `describe-voice`, visual signal motifs.
 - Qualify: “zero setup” → “no prior Argot fit”; “local” → local code analysis plus enumerated network operations; “agent support” → installer compatibility versus tested lifecycle; detector percentages → named detector/corpus/revision.
 - Remove: “style linter” as product category; “what AI snuck in”; “100% in-voice”; “no other tool”; “can’t hallucinate”; “no model” without scope; generic “AI code review.”
 
@@ -775,7 +775,7 @@ Tasks are ordered by dependency, not by directory. `L` is intentionally unused. 
 - **Out of scope:** Expanding MCP detector composition.
 - **Dependencies:** COPY-01.
 - **Complexity:** XS.
-- **Implementation notes:** Describe `voice_context` as repository context and CLI/skill as complete changeset checking.
+- **Implementation notes:** Describe `get_voice_context` as repository context and `check_changeset`/CLI/skill as complete changeset checking.
 - **Acceptance criteria:** No MCP text implies guaranteed invocation or full detector coverage; passive/user-wired status is explicit.
 - **Tests and verification:** MCP protocol snapshot and repository-wide phrase search.
 - **Documentation impact:** MCP/agents/plugin/llms.

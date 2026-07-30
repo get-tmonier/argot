@@ -1416,7 +1416,7 @@ pub fn run_calibrate(
         // returns a per-file set, so this is a file-frequency (each module counts
         // once per file). The membership use (`is_foreign`) is order-independent;
         // ordering `import_modules` by frequency only sharpens the *display*
-        // surfaces (`familiar_imports` in inspect / MCP `voice_context`) so the
+        // surfaces (`familiar_imports` in inspect / MCP `get_voice_context`) so the
         // most-used imports lead instead of the alphabetically-first ones.
         let mut counts: HashMap<String, usize> = HashMap::new();
         for s in &sources {

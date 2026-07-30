@@ -17,7 +17,7 @@
   line: "a hunk that calls something absent from its area's set, or imports
   outside the familiar set, is what argot flags"). A concrete artifact to hand an
   agent BEFORE it writes — prevention, not just detection.
-- `argot mcp` starts the stdio MCP server (voice_context) — the proactive
+- `argot mcp` starts the stdio MCP server (`argot.get_voice_context`) — the proactive
   integration; feeds idioms to an agent in-editor.
 
 ## Skill fixes applied (from the dev-loop agent's report)

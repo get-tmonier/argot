@@ -319,6 +319,25 @@ pub fn accepted_source_commits_behind(
 /// groups, decided one layer up by `argot-core`'s `compose::default_detectors`
 /// (which rule groups a given build wires in), not by this engine.
 pub fn run_check(args: CheckArgs, detectors: Vec<RegisteredDetector<'_>>) -> CheckOutcome {
+    run_check_with_recording(args, detectors, true)
+}
+
+/// Run the complete detector pipeline without updating `.argot/last-check.json`.
+/// Read-only integrations such as MCP use this entry point: they may inspect a
+/// changeset, but must not change repository state merely because a host chose
+/// to invoke a tool.
+pub fn run_check_read_only(
+    args: CheckArgs,
+    detectors: Vec<RegisteredDetector<'_>>,
+) -> CheckOutcome {
+    run_check_with_recording(args, detectors, false)
+}
+
+fn run_check_with_recording(
+    args: CheckArgs,
+    detectors: Vec<RegisteredDetector<'_>>,
+    record_last_check: bool,
+) -> CheckOutcome {
     // Mutual-exclusion validation — fail fast with a clear message (exit 2).
     let ref_nonempty = !args.reference.is_empty();
     let commit_set = args
@@ -753,7 +772,9 @@ pub fn run_check(args: CheckArgs, detectors: Vec<RegisteredDetector<'_>>) -> Che
             line_end: h.line_end,
         })
         .collect();
-    let _ = write_last_check(&args.argot_dir, &last_check);
+    if record_last_check {
+        let _ = write_last_check(&args.argot_dir, &last_check);
+    }
 
     // Machine formats: the serialized document is the entire stdout; skip
     // warnings stay on stderr. Exit semantics match the human path (rule

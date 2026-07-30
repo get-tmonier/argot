@@ -256,8 +256,10 @@ Ask once, covering both. These are not separate projects.
   `argot-check-gate` blocks on error-severity findings. Argot must be on PATH
   (the framework will not install a static binary) and the repo must be fitted.
 
-- **MCP** — `argot mcp` serves read-only `voice_context`, `conventions`,
-  `check`, `explain`, `fit_status` to any MCP client, so an agent can ask what
+- **MCP** — `argot mcp` serves read-only `argot.get_voice_context`,
+  `argot.list_conventions`, `argot.check_hunk`, `argot.explain_hunk`,
+  `argot.check_changeset`, and `argot.get_fit_status` to any MCP client, so an
+  agent can ask what
   the repo's voice *is* before writing. Passive: connecting it never triggers a
   check.
 

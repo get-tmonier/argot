@@ -75,7 +75,7 @@ Declare a migration yourself before history shows enough signal with
 immediately, no refit needed: the `to` side stops reading as foreign and the
 `from` side raises `superseded`.
 
-**Gauge trust first.** Run `argot inspect` (or MCP `argot.fit_status`). If the
+**Gauge trust first.** Run `argot inspect` (or MCP `argot.get_fit_status`). If the
 verdict is **Not recommended**, down-weight every hit — the model isn't
 well-calibrated on this repo yet. **Ready — with notes** is usable as-is; the
 notes say what to keep an eye on.
@@ -205,13 +205,16 @@ Trust the binary. `argot rules` prints the live rule registry and `argot
   (review one PR against the repo's voice), `argot-setup-ci` (wire the GitHub
   Action), `argot-write-rule` and `argot-suggest-rules` (codify conventions) —
   install with `npx skills add get-tmonier/argot`.
-- **MCP** (proactive): `argot mcp` exposes `voice_context` so you can write
+- **MCP** (proactive + read-only): `argot mcp` exposes
+  `argot.get_voice_context` so you can write
   in-voice from the first token — see
   [the agents guide](https://argot.tmonier.com/docs/agents/). When a
-  migration applies, `argot.check`/`argot.explain` hits carry a `superseded`
-  array (`old`/`new`/`evidence`) and `voice_context` carries `superseded`
+  migration applies, `argot.check_hunk`/`argot.explain_hunk` hits carry a `superseded`
+  array (`old`/`new`/`evidence`) and `argot.get_voice_context` carries `superseded`
   (`avoid`/`use` pairs) plus a `superseded_note` — the preemptive "don't
-  write more of this" signal.
+  write more of this" signal. `argot.check_changeset` runs the complete configured
+  detector pipeline without writing the last-check cache. MCP never fits; setup and
+  refresh remain reviewed local CLI/skill workflows.
 - **Pre-write guardrail** (Claude Code, opt-in): a `PreToolUse` hook (`argot
   hook`) that *asks* before you introduce a dependency foreign to the repo —
   it ships with the [plugin](https://argot.tmonier.com/docs/plugin/), or

@@ -185,7 +185,7 @@ fn mcp_fit_status_exposes_the_snapshot_contract() {
         .take()
         .expect("mcp stdin")
         .write_all(
-            br#"{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"argot.fit_status","arguments":{}}}
+            br#"{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"argot.get_fit_status","arguments":{}}}
 "#,
         )
         .expect("request fit status");

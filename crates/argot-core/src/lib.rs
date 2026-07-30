@@ -47,6 +47,12 @@ pub mod check {
     pub fn run_check(args: CheckArgs) -> CheckOutcome {
         argot_engine::check::run_check(args, crate::compose::default_detectors())
     }
+
+    /// The same complete check pipeline without writing the last-check mute
+    /// cache. Intended for read-only integrations such as the MCP server.
+    pub fn run_check_read_only(args: CheckArgs) -> CheckOutcome {
+        argot_engine::check::run_check_read_only(args, crate::compose::default_detectors())
+    }
 }
 
 /// `suppress` is engine's module plus `ignore_suggest`, which lives in

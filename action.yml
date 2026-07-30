@@ -222,7 +222,14 @@ runs:
         set -euo pipefail
         # Extract only the approved baseline; the PR's .argot/rules remain in
         # its checkout, while the learned model can never be supplied by it.
-        snapshot="${RUNNER_TEMP}/argot-fit-snapshot"
+        # Git Bash exposes RUNNER_TEMP as a native `D:\...` path on Windows.
+        # Normalize it before passing the destination to POSIX tar; otherwise
+        # the drive colon is parsed as a remote archive target.
+        runner_temp="$RUNNER_TEMP"
+        if command -v cygpath >/dev/null 2>&1; then
+          runner_temp="$(cygpath -u "$runner_temp")"
+        fi
+        snapshot="${runner_temp}/argot-fit-snapshot"
         if ! git -C "$ARGOT_PATH" cat-file -e "$BASE_SHA:.argot/scorer-config.json" 2>/dev/null; then
           echo "::error::The base branch has no committed Argot fit snapshot. Run `argot init` locally on the accepted branch, review and commit argot.toml and .argot/, then retry."
           exit 2

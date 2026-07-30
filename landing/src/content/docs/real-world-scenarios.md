@@ -146,7 +146,7 @@ Detection is reactive. For prevention, hand the agent the repo's voice up front:
 
 - **`argot describe-voice`** writes a summary of the repo's idioms and a
   "red flags" line — *what* argot will flag — as agent context.
-- **`argot mcp`** exposes `voice_context` over MCP, feeding your editor agent the
+- **`argot mcp`** exposes `argot.get_voice_context` over MCP, feeding your editor agent the
   repo's established patterns before it generates code. See [Agents](/docs/agents/).
 
 ## 6. The CI pull-request flow — flag → fix → green

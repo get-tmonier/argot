@@ -14,8 +14,9 @@ server, and one narrow hook. These are different capabilities:
 | MCP | Agent selects a tool call | Read-only context and checks over stdio; it does not invoke itself. |
 | Pre-write hook | Automatic when plugin is enabled and repository is fitted | Asks only before a `Write`, `Edit`, or `MultiEdit` introduces a foreign import. |
 
-There is no packaged automatic end-of-turn or acceptance-time full-check lifecycle. Run
-[`argot check`](/docs/check/) when you want the full changeset scored.
+There is no packaged automatic end-of-turn or acceptance-time full-check lifecycle. Invoke
+`argot.check_changeset` through MCP or run [`argot check`](/docs/check/) when you want the full
+changeset scored.
 
 ## Install and prerequisites
 
@@ -31,8 +32,12 @@ need the repository model also require a fitted repository. When fit status late
 maintenance, invoke `argot-refresh` locally; the plugin and CI never refresh it behind your back.
 
 The plugin declares `argot mcp --repo .`. MCP is passive: Claude Code may call a tool when it
-chooses, but the server does not initiate checks. The available tools provide voice context,
-conventions, checks, explanations, and fit status.
+chooses, but the server does not initiate checks. Its read-only API distinguishes pre-write context
+(`argot.get_voice_context`), fast snippet feedback (`argot.check_hunk` /
+`argot.explain_hunk`), the complete detector pipeline (`argot.check_changeset`), repository
+discovery (`argot.list_conventions`), and snapshot readiness (`argot.get_fit_status`). Fitting is
+deliberately absent: setup and refresh remain reviewed local
+workflows whose `.argot/` result is committed.
 
 ## The pre-write ask
 

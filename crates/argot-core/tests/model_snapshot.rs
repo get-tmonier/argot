@@ -9,7 +9,7 @@
 //!
 //! Requires `git` and `bash` on PATH (fixture build).
 
-use argot_core::check::{run_check, CheckArgs};
+use argot_core::check::{run_check, run_check_read_only, CheckArgs};
 use argot_core::scoring::calibration::{run_calibrate, CalibrateOptions};
 use serde_json::Value;
 use std::path::{Path, PathBuf};
@@ -84,6 +84,51 @@ fn check_workdir_json(repo: &Path) -> Value {
         today: "2026-01-01".to_string(),
     });
     serde_json::from_str(&out.stdout).expect("check emits JSON")
+}
+
+fn default_check_args(repo: &Path) -> CheckArgs {
+    CheckArgs {
+        repo_path: repo.to_str().unwrap().to_string(),
+        reference: String::new(),
+        staged: false,
+        unstaged: false,
+        commit: None,
+        only: vec![],
+        exclude: vec![],
+        threshold: None,
+        argot_dir: repo.join(".argot"),
+        hunk_lines: 6,
+        verbose: false,
+        min_confidence: "unusual".to_string(),
+        rule_overrides: Vec::new(),
+        error_on_warnings: false,
+        add_ignores: false,
+        use_color: false,
+        format: argot_core::output::OutputFormat::Json,
+        today: "2026-01-01".to_string(),
+    }
+}
+
+#[test]
+fn read_only_check_does_not_update_the_mute_cache() {
+    let repo = build_fixture_repo("read_only");
+    fit(&repo);
+    let cache = repo.join(".argot/last-check.json");
+    let _ = std::fs::remove_file(&cache);
+
+    let outcome = run_check_read_only(default_check_args(&repo));
+    assert!(outcome.exit_code < 2, "{}", outcome.stderr);
+    assert!(
+        !cache.exists(),
+        "read-only integration wrote last-check.json"
+    );
+
+    let outcome = run_check(default_check_args(&repo));
+    assert!(outcome.exit_code < 2, "{}", outcome.stderr);
+    assert!(
+        cache.exists(),
+        "interactive check no longer records mute context"
+    );
 }
 
 /// The #79 scenario: after fit, a corpus file gains callees the corpus has
