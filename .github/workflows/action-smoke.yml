@@ -29,6 +29,8 @@ jobs:
           set -euo pipefail
           cargo test -p argot voice_diff::tests
           grep -Fq 'No patterns requiring review' crates/argot-cli/src/voice_diff.rs
+          grep -Fq 'https://argot.tmonier.com/favicon.svg' crates/argot-cli/src/voice_diff.rs
+          grep -Fq 'Repository-aware pull request review' crates/argot-cli/src/voice_diff.rs
           grep -Fq 'Non-blocking by default' action.yml
           grep -Fq 'argot-configured-findings' action.yml
           grep -Fq 'fit-recommendation:' action.yml

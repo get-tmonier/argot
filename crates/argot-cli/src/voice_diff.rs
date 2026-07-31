@@ -243,7 +243,18 @@ fn review_action(rule: &str) -> &'static str {
 pub fn markdown_card(s: &VoiceDiffSummary) -> String {
     use std::fmt::Write as _;
     let mut out = String::new();
-    let _ = writeln!(out, "### 🎙️ argot review\n");
+    // Keep the PR card recognisable outside the repository: the mark itself
+    // links to Argot, while the short line below explains what the review is.
+    // GitHub permits this small, inline HTML in both PR comments and job
+    // summaries, where it renders as the product mark rather than an emoji.
+    let _ = writeln!(
+        out,
+        "## <a href=\"https://argot.tmonier.com\"><img src=\"https://argot.tmonier.com/favicon.svg\" alt=\"Argot\" width=\"28\" height=\"28\" /></a> <a href=\"https://argot.tmonier.com\">argot</a> review\n"
+    );
+    let _ = writeln!(
+        out,
+        "<sub>Repository-aware pull request review · <a href=\"https://argot.tmonier.com/docs/\">Learn how Argot works</a></sub>\n"
+    );
 
     if s.configured_findings == 0 {
         let _ = writeln!(
@@ -494,6 +505,9 @@ mod tests {
     fn markdown_card_keeps_evidence_and_a_rule_aware_next_step() {
         let hits = vec![hit("src/http.ts", 42, 8.2, "foreign")];
         let card = markdown_card(&summarize(&hits, 40, 10));
+        assert!(card.contains("https://argot.tmonier.com/favicon.svg"));
+        assert!(card.contains("<a href=\"https://argot.tmonier.com\"><img"));
+        assert!(card.contains("Repository-aware pull request review"));
         assert!(card.contains("🔴 **1 review decision** across 40 scanned hunks"));
         assert!(card.contains("### 🔎 Review queue"));
         assert!(card.contains("**Signals:** 🔴 1 error · 1 foreign-import"));
