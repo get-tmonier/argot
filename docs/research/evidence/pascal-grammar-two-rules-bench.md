@@ -188,13 +188,28 @@ whole-file error: its 12,534-line span becomes 13 residual error rows, and its
 unit declaration returns to the index. This document preserves the earlier
 two-rule benchmark; the grammar follow-up carries the focused regression test.
 
-## Semantic layer: no fixture exists to measure it
+## Semantic layer: first Pascal recall fixture set
 
-`benchmarks/semantic-fixtures/` covers 31 corpora and not one of them is Pascal,
-so the semantic rules' Pascal behaviour cannot be benchmarked with what exists
-today — stated as a gap rather than papered over. What is known is what the fix's
-own PR recorded: on mseide-msegui's own fit the index grows 25,902 → 26,905
-functions. Authoring Pascal semantic fixtures is separate work.
+**Follow-up, 2026-07-31.** `benchmarks/semantic-fixtures/mormot2/` now holds
+five independently authored Object Pascal reimplementations, each pointing at
+a real function in mORMot2's pinned source tree. `sem_bench.py` and
+`sem_all.py` gained Pascal support so they plant `.pas` files and run the same
+semantic-release-feature `argot fit` → `argot check` path as every other
+semantic fixture set.
+
+The first run at `6e7a32550aeda0b43971de36e374e872fbd35e49` is deliberately
+reported as a baseline, not a headline: **2/5 redundant recall (40%)**. The
+fit indexed 22,144 Pascal functions with `jina-v2-code-static-256`; the
+independent placement diagnostic evaluated 1,077 moves (95.64% synthetic
+recall, 0.56% in-place over-fire). Five fixtures are enough to catch a parser
+or harness regression, but far too few to make a quality claim or tune the
+detector. The three misses remain in the committed set — they are findings, not
+fixtures to replace — and the next step is to add a second corpus plus enough
+authored reimplementations for a language-level confidence interval.
+
+This measures a different property from parse-loss. The anonymous-record fix
+restores functions to the semantic index; the fixture set makes sure that a
+future Pascal grammar change cannot silently remove the semantic channel again.
 
 ## Verdict
 
