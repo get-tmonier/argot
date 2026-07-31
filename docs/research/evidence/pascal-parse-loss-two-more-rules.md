@@ -127,6 +127,17 @@ The answer, in short:
 One gap the same run found and did **not** close: `src/core/mormot.core.os.pas`
 (12 534 lines) is still lost whole to a third construct.
 
+## Follow-up — 2026-07-31
+
+This gap is now closed by allowing an anonymous record/class/object type in a
+variable declaration. `SystemEntropy: record … end;` was the first construct in
+`mormot.core.os.pas` that the grammar could not represent; recovery then covered
+the rest of the unit. With the real Pascal directive masking path, the widest
+error span falls from all **12 534 lines** to **13 residual error rows**. The
+unit declaration is readable again, so `mormot.core.os` returns to the import
+and layering indexes. The focused reproduction is
+`a_variable_may_use_an_anonymous_record_type`.
+
 ## How it was found
 
 Setting Argot up on mseide-msegui, a custom rule reading the gui backend

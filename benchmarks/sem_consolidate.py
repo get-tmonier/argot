@@ -32,7 +32,7 @@ LABELS = os.path.join(ROOT, "benchmarks", "semantic-labels")
 OUT = os.path.join(ROOT, "landing", "src", "data", "semantic.json")
 LL = {"python": "Python", "typescript": "TypeScript", "javascript": "JavaScript",
       "go": "Go", "rust": "Rust", "ruby": "Ruby", "c": "C", "cpp": "C++",
-      "java": "Java", "csharp": "C#", "php": "PHP"}
+      "java": "Java", "csharp": "C#", "php": "PHP", "pascal": "Object Pascal"}
 WINDOW = 150
 if "--window" in sys.argv:
     WINDOW = int(sys.argv[sys.argv.index("--window") + 1])

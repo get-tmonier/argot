@@ -186,25 +186,38 @@ fn long_py(i: usize) -> String {
     (0..60).map(|n| py_fn(i * 100 + n)).collect()
 }
 
-fn git(dir: &std::path::Path, args: &[&str]) {
-    let out = std::process::Command::new("git")
-        .args(args)
-        .current_dir(dir)
-        .output()
-        .expect("run git");
-    assert!(
-        out.status.success(),
-        "git {args:?}: {}",
-        String::from_utf8_lossy(&out.stderr)
-    );
-}
-
 fn git_repo(name: &str) -> PathBuf {
     let dir = temp_repo(name);
-    git(&dir, &["init", "-q"]);
-    git(&dir, &["config", "user.email", "test@example.com"]);
-    git(&dir, &["config", "user.name", "Test"]);
+    // Construct fixture history with the same libgit2 boundary that reads it,
+    // rather than creating host-Git loose-object temporary files while the
+    // unit-test binary runs in parallel.
+    git2::Repository::init(&dir).expect("initialize fixture repository");
     dir
+}
+
+fn commit_all(dir: &std::path::Path, message: &str) {
+    let repo = git2::Repository::open(dir).expect("open fixture repository");
+    let mut index = repo.index().expect("open fixture index");
+    index
+        .add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None)
+        .expect("stage fixture files");
+    index.write().expect("write fixture index");
+    let tree = repo
+        .find_tree(index.write_tree().expect("write fixture tree"))
+        .expect("open fixture tree");
+    let signature =
+        git2::Signature::now("Test", "test@example.com").expect("create fixture signature");
+    let parent = repo.head().ok().and_then(|head| head.peel_to_commit().ok());
+    let parents: Vec<&git2::Commit> = parent.iter().collect();
+    repo.commit(
+        Some("HEAD"),
+        &signature,
+        &signature,
+        message,
+        &tree,
+        &parents,
+    )
+    .expect("commit fixture");
 }
 
 /// A repository that writes `src/` and merely stores `imported/`: the imported
@@ -220,8 +233,7 @@ fn repo_with_an_imported_tree(name: &str, edit_imported: bool) -> PathBuf {
     for i in 0..4 {
         fs::write(dir.join(format!("src/app_{i}.py")), py_fn(i)).unwrap();
     }
-    git(&dir, &["add", "-A"]);
-    git(&dir, &["commit", "-q", "-m", "import"]);
+    commit_all(&dir, "import");
     for round in 1..=25 {
         for i in 0..4 {
             fs::write(dir.join(format!("src/app_{i}.py")), py_fn(i + round * 10)).unwrap();
@@ -233,8 +245,7 @@ fn repo_with_an_imported_tree(name: &str, edit_imported: bool) -> PathBuf {
                 .unwrap();
             }
         }
-        git(&dir, &["add", "-A"]);
-        git(&dir, &["commit", "-q", "-m", &format!("work {round}")]);
+        commit_all(&dir, &format!("work {round}"));
     }
     dir
 }
@@ -285,8 +296,7 @@ fn a_repo_too_young_to_compare_against_abstains() {
     for i in 0..10 {
         fs::write(dir.join(format!("imported/lib_{i}.py")), long_py(i)).unwrap();
     }
-    git(&dir, &["add", "-A"]);
-    git(&dir, &["commit", "-q", "-m", "initial"]);
+    commit_all(&dir, "initial");
     let s = suggest_ignores(&dir);
     assert!(
         s.candidates.iter().all(|c| c.reason != "not-authored-here"),
@@ -308,14 +318,12 @@ fn a_small_untouched_directory_is_below_the_size_floor() {
     for i in 0..4 {
         fs::write(dir.join(format!("src/app_{i}.py")), py_fn(i)).unwrap();
     }
-    git(&dir, &["add", "-A"]);
-    git(&dir, &["commit", "-q", "-m", "import"]);
+    commit_all(&dir, "import");
     for round in 1..=25 {
         for i in 0..4 {
             fs::write(dir.join(format!("src/app_{i}.py")), py_fn(i + round * 10)).unwrap();
         }
-        git(&dir, &["add", "-A"]);
-        git(&dir, &["commit", "-q", "-m", &format!("work {round}")]);
+        commit_all(&dir, &format!("work {round}"));
     }
     let s = suggest_ignores(&dir);
     assert!(

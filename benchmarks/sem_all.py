@@ -59,10 +59,11 @@ LANG = {"fastapi": "python", "rich": "python", "faker": "python", "scrapy": "pyt
         "gh-cli": "go", "hugo": "go", "redis": "c", "curl": "c",
         "junit5": "java", "guava": "java", "powershell": "csharp", "jellyfin": "csharp",
         "rubocop": "ruby", "homebrew": "ruby", "laravel": "php", "composer": "php",
-        "ripgrep": "rust", "bat": "rust", "rocksdb": "cpp", "fmt": "cpp"}
+        "ripgrep": "rust", "bat": "rust", "rocksdb": "cpp", "fmt": "cpp",
+        "mormot2": "pascal"}
 LANG_BENCH = {"python": "py", "typescript": "ts", "javascript": "js", "go": "go",
               "rust": "rust", "c": "c", "cpp": "cpp", "java": "java",
-              "csharp": "csharp", "ruby": "ruby", "php": "php"}
+              "csharp": "csharp", "ruby": "ruby", "php": "php", "pascal": "pascal"}
 # corpora whose root .gitignore hides root-level planted files → plant inside src tree
 PLANT_DIR = {"homebrew": "Library/Homebrew/_sembench"}
 

@@ -5,7 +5,7 @@ Reinvention (F1): plant each spec-only reimpl (renamed → a new name, in a new
 file so it's cross-file) into the corpus, run the real `argot check`, and count
 `redundant` fires → recall. Faithful: exercises the shipped binary end to end.
 
-Usage: sem_bench.py <corpus_repo> <reimpls_dir> [--lang py|ts]
+Usage: sem_bench.py <corpus_repo> <reimpls_dir> [--lang py|ts|pascal]
 Env: ARGOT (binary). The embedder ships inside the binary — nothing to fetch.
 """
 import json, os, re, subprocess, sys, shutil, tempfile
@@ -66,6 +66,9 @@ LANG_SPEC = {
     "csharp": (".cs",   r"(?:public|private|protected|internal|static|virtual|override|\s)+[\w\<\>\[\]]+\s+(\w+)\s*\("),
     "php":    (".php",  r"function\s+(\w+)\s*\("),
     "ruby":   (".rb",   r"^\s*def\s+(?:self\.)?(\w+)"),
+    # Object Pascal methods are declared as `TType.Method`; retain just the
+    # callable's final identifier, as the semantic index does.
+    "pascal": (".pas",  r"^\s*(?:function|procedure|constructor|destructor)\s+(?:\w+\.)?(\w+)\b"),
 }
 
 

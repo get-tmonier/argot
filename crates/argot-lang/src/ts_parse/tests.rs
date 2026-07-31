@@ -388,6 +388,23 @@ fn a_final_record_field_may_omit_its_semicolon() {
 }
 
 #[test]
+fn a_variable_may_use_an_anonymous_record_type() {
+    // mORMot's mormot.core.os.pas declares SystemEntropy this way. The grammar
+    // admitted anonymous records as fields and array elements but not variables,
+    // so it treated `record` as a bare type name and lost the remaining 12,534
+    // lines of the unit to a root ERROR node.
+    let src = "unit u;\ninterface\nvar\n \
+        SystemEntropy: record\n  Startup: THash128Rec;\n  LiveFeed: THash128Rec;\n end;\n \
+        SystemMemorySize: PtrUInt;\nimplementation\nend.\n";
+    let tree = parse(src, Language::Pascal).expect("parse succeeds");
+    assert!(
+        !tree.root_node().has_error(),
+        "an anonymous record variable must preserve following declarations:\n{}",
+        tree.root_node().to_sexp()
+    );
+}
+
+#[test]
 fn a_block_may_end_on_a_labelled_empty_statement() {
     // A label may mark the *empty* statement before `end` — the shape every
     // `goto`-based cleanup in mseide-msegui uses to jump to the end of a
