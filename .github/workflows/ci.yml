@@ -42,7 +42,7 @@ jobs:
         working-directory: landing
     steps:
       - uses: actions/checkout@v7
-      - uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4
+      - uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4
         with:
           install: true
       - name: Install landing dependencies
@@ -61,7 +61,7 @@ jobs:
         run: bun run test:performance
       - name: Upload landing smoke reports
         if: ${{ always() }}
-        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: landing-smoke-reports
           path: |
