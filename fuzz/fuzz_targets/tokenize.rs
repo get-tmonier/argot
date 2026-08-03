@@ -22,6 +22,7 @@ const LANGS: &[Language] = &[
     Language::Php,
     Language::Cpp,
     Language::Ruby,
+    Language::Pascal,
 ];
 
 fuzz_target!(|data: &[u8]| {

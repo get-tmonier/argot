@@ -18,7 +18,11 @@ code around it propagates errors rather than unwrapping (`git_walk.rs`).
 
 ## Running
 
-Requires a nightly toolchain and `cargo-fuzz`:
+Requires a nightly toolchain and `cargo-fuzz`. The `+nightly` is not optional:
+the repo's `rust-toolchain.toml` pins `stable`, and a toolchain file wins over
+`rustup default`, so a bare `cargo fuzz` builds with stable and dies on
+`-Zsanitizer=address`. (`RUSTUP_TOOLCHAIN=nightly` works too — that is what CI
+uses.)
 
 ```sh
 rustup toolchain install nightly
@@ -36,5 +40,7 @@ cargo +nightly fuzz run ts_parse -- -max_total_time=60
 A crash writes a reproducer under `fuzz/artifacts/<target>/`; replay it with
 `cargo +nightly fuzz run <target> <artifact-path>`.
 
-CI runs a short weekly smoke (`.github/workflows/fuzz.yml`) plus a build check,
-so the harnesses can't silently rot.
+CI runs a short weekly smoke (`.github/workflows/fuzz.yml`) — a bounded run per
+target, which also rebuilds them, so the harnesses can't silently rot. It is
+deliberately off the PR path: nightly + libFuzzer + an instrumented rebuild of
+every tree-sitter grammar is too heavy for every PR.

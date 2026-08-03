@@ -21,6 +21,11 @@ jobs:
   fuzz:
     name: cargo-fuzz (${{ matrix.target }})
     runs-on: ubuntu-latest
+    # rust-toolchain.toml pins `stable` and a toolchain file beats `rustup
+    # default`, so nightly must come from the env — cargo-fuzz propagates it to
+    # the nested `cargo build` that carries `-Zsanitizer=address`.
+    env:
+      RUSTUP_TOOLCHAIN: nightly
     strategy:
       fail-fast: false
       matrix:
@@ -28,9 +33,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Install nightly toolchain (libFuzzer needs nightly)
-        run: |
-          rustup toolchain install nightly --profile minimal
-          rustup default nightly
+        run: rustup toolchain install nightly --profile minimal
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           workspaces: fuzz
