@@ -55,8 +55,15 @@ updates:
         update-types:
           - version-update:semver-major
 
-  # Landing site (Astro) dependencies.
-  - package-ecosystem: npm
+  # Landing site (Astro) dependencies. `bun`, not `npm`: the landing lockfile is
+  # landing/bun.lock, and the npm ecosystem edits package.json without
+  # maintaining it — which lands a PR that CI's `bun install --frozen-lockfile`
+  # rejects outright ("lockfile had changes, but lockfile is frozen"). The
+  # trade-off is that the bun ecosystem carries scheduled version updates only,
+  # not Dependabot security-update PRs. Vulnerability *alerts* still fire (the
+  # dependency graph reads bun.lock); acting on one is a manual bump. Accepted
+  # because landing is a static marketing/docs site, not the shipped binary.
+  - package-ecosystem: bun
     directory: "/landing"
     schedule:
       interval: monthly
