@@ -37,6 +37,15 @@ ignore = [
     # no known defect — it is simply feature-frozen. Ubiquitous across the
     # ecosystem; drop this once tokenizers stops depending on it.
     "RUSTSEC-2024-0436", # paste: no longer maintained
+    # `smartstring` (repo archived 2026-05-03, advisory filed 2026-08-10) is a
+    # mandatory dependency of rhai — every 1.x release depends on it and no
+    # feature turns it off, so there is no upgrade or flag that drops it. It is
+    # unmaintained-but-complete, not vulnerable. Upstream tracks the migration
+    # in rhaiscript/rhai#816, slated for rhai 2.0; drop this ignore when that
+    # lands. (rhai only builds with `--features script`; the base binary never
+    # links it — the license exception for smartstring below is the other half
+    # of this dependency's paper trail.)
+    "RUSTSEC-2026-0249", # smartstring: unmaintained, via rhai
 ]
 
 [licenses]
