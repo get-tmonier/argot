@@ -2,7 +2,7 @@
 
 The marketing site and docs for argot — **https://argot.tmonier.com**.
 
-Astro 6 (static) · Tailwind 4 · i18n (en/fr) · oxlint/oxfmt · `astro check`. Animations are pure CSS
+Astro 7 (static) · Tailwind 4 · i18n (en/fr) · oxlint/oxfmt · `astro check`. Animations are pure CSS
 keyframes + a single `IntersectionObserver` for scroll reveals — no runtime animation library.
 
 This is a **standalone project** with its own `bun.lock` and `node_modules` — deliberately *not* a
@@ -15,6 +15,23 @@ CLI/engine packages.
 just landing          # dev server (astro dev)
 just landing-check    # oxlint + oxfmt + astro check
 just landing-build    # static build → landing/dist
+```
+
+## Bumping dependencies
+
+`vite` and `playwright-core` are in the tree as *peers* — astro owns vite (`@tailwindcss/vite` only
+peer-depends on it), and `@axe-core/playwright` peer-depends on playwright-core. bun pins an
+auto-installed peer in the lockfile and never re-resolves it on an incremental install, so editing a
+few versions and patching the lock in place leaves the old peer next to the new one. Two copies of
+vite (or of playwright-core) means two copies of their *types*, and `astro check` fails with
+`Type 'Plugin<any>[]' is not assignable to type 'PluginOption'` or a `Page`-vs-`Page` mismatch —
+which is how a Dependabot bump lands red on green code.
+
+Bump by regenerating, not by patching:
+
+```sh
+rm bun.lock && bun install     # one copy of every peer
+just landing-check && bun run test:routes && bun run test:a11y
 ```
 
 ## Structure
