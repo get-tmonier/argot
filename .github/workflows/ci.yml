@@ -24,7 +24,7 @@ jobs:
       landing: ${{ steps.filter.outputs.landing }}
     steps:
       - uses: actions/checkout@v7
-      - uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4
         id: filter
         with:
           filters: |
@@ -42,7 +42,7 @@ jobs:
         working-directory: landing
     steps:
       - uses: actions/checkout@v7
-      - uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
         with:
           install: true
       - name: Install landing dependencies
